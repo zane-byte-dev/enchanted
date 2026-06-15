@@ -9,41 +9,45 @@ import SwiftUI
 import ActivityIndicatorView
 
 struct UnreachableAPIView: View {
-    @State var showSettings = false
+    @State private var showSettings = false
     
     var body: some View {
-        HStack {
-            VStack {
-                Text("Ollama is unreachable. Go to Settings and update your Ollama API endpoint. ")
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Ollama is unreachable. Go to Settings and update your Ollama API endpoint.")
                     .lineLimit(nil)
-                    .minimumScaleFactor(0.5)
                     .fontWeight(.medium)
                     .font(.system(size: 14))
+                    .foregroundStyle(Color(.label))
             }
             
             Spacer()
             
             ActivityIndicatorView(isVisible: .constant(true), type: .growingCircle)
-                 .frame(width: 21, height: 21)
-                 .padding(.horizontal)
+                .frame(width: 21, height: 21)
+                .accessibilityLabel(Text("Checking Ollama connection"))
             
-            Button(action: {showSettings.toggle()}) {
-                Text("Settings")
+            Button(action: { showSettings.toggle() }) {
+                Label("Settings", systemImage: "gearshape")
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color.white)
-                    .fontWeight(.semibold)
             }
-            .padding(8)
-            .background(Color.black)
-            .clipShape(RoundedRectangle(cornerRadius: 15))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color.accentColor, in: Capsule())
             .buttonStyle(GrowingButton())
+            .accessibilityLabel(Text("Open settings"))
         }
         .padding()
-        .background(Color(.pink).opacity(0.2))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .background(Color(.systemRed).opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(.systemRed).opacity(0.2), lineWidth: 1)
+        }
         .padding()
-       .sheet(isPresented: $showSettings) {
-           Settings()
-       }
+        .sheet(isPresented: $showSettings) {
+            Settings()
+        }
     }
 }
 

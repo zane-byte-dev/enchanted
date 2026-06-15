@@ -5,7 +5,7 @@
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>You can speak with enchanted with your voice.</string>
 	<key>NSAccessibilityUsageDescription</key>
-	<string>Enchanted can perform operatios on selected text such as fixing grammar, extending texts as well as custom commands.</string>
+	<string>Enchanted can perform operations on selected text such as fixing grammar, extending text, and custom commands.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

@@ -1,7 +1,7 @@
 [<img src="https://img.shields.io/badge/App_Store-0D96F6?&logo=app-store&logoColor=white">](https://apps.apple.com/gb/app/enchanted-llm/id6474268307)
 ![Swift](https://img.shields.io/badge/swift-F54A2A?&logo=swift&logoColor=white)
-![Release](https://img.shields.io/github/v/release/augustdev/enchanted)
-![Stars](https://img.shields.io/github/stars/augustdev/enchanted.svg)
+![Release](https://img.shields.io/github/v/release/gluonfield/enchanted)
+![Stars](https://img.shields.io/github/stars/gluonfield/enchanted.svg)
 [<img src="https://img.shields.io/twitter/url?url=https%3A%2F%2Ftwitter.com%2Famgauge">](https://twitter.com/amgauge)
 ![iOS](https://img.shields.io/badge/iOS-000000?&logo=os&logoColor=white)
 ![macOS](https://img.shields.io/badge/macOS-000000?style=?&logo=os&logoColor=white)
@@ -9,7 +9,7 @@
 
 # Enchanted
 
-Enchanted is open source, [Ollama](https://github.com/jmorganca/ollama) compatible, elegant macOS/iOS/visionOS app for working with privately hosted models such as Llama 2, Mistral, Vicuna, Starling and more. It's essentially ChatGPT app UI that connects to your private models. The goal of Enchanted is to deliver a product allowing unfiltered, secure, private and multimodal experience across all of your devices in iOS ecosystem (macOS, iOS, Watch, Vision Pro).
+Enchanted is an open source, [Ollama](https://github.com/jmorganca/ollama) compatible, elegant macOS/iOS/visionOS app for working with privately hosted models such as Llama 2, Mistral, Vicuna, Starling, and more. It's essentially ChatGPT app UI that connects to your private models. The goal of Enchanted is to deliver an unfiltered, secure, private, and multimodal experience across all of your devices in the iOS ecosystem (macOS, iOS, Watch, Vision Pro).
 
 If you like the project, consider leaving a ⭐️ and following on [𝕏](https://twitter.com/amgauge).
 
@@ -91,7 +91,7 @@ Conversation history
 - Edit message content or submit message with different model
 - Delete single conversation / delete all conversations
 - macOS Spotlight panel <kbd>Ctrl</kbd>+<kbd>⌘</kbd>+<kbd>K</kbd>
-- All features works offline
+- All features work offline
 
 ## Usage instructions
 
@@ -109,7 +109,7 @@ You're done! Make a prompt.
 [Video instructions here](https://www.youtube.com/watch?v=SFeVCiLOABM)
 
 1. Start Ollama server and download models for usage.
-2. Install ngrok forward your Ollama server to make it accessible publicly
+2. Install ngrok and forward your Ollama server to make it publicly accessible
 
    ```shell
    ngrok http 11434 --host-header="localhost:11434"

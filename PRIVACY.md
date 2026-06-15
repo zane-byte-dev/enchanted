@@ -1,1 +1,1 @@
-Enchanted app does not track any activity or actions of their users. No private information is being collected by the app outside Apple ecosystem.
+Enchanted does not track activity or actions from its users. No private information is collected by the app outside the Apple ecosystem.
