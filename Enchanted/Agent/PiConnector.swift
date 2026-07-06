@@ -26,17 +26,21 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         var workingDirectory: String
         /// Optional environment overrides (inherits process env when nil).
         var environment: [String: String]?
+        /// If set, `switch_session` to this pi session file on spawn to restore context.
+        var resumeSessionPath: String?
 
         init(
             executable: String,
             arguments: [String] = ["--mode", "rpc"],
             workingDirectory: String,
-            environment: [String: String]? = nil
+            environment: [String: String]? = nil,
+            resumeSessionPath: String? = nil
         ) {
             self.executable = executable
             self.arguments = arguments
             self.workingDirectory = workingDirectory
             self.environment = environment
+            self.resumeSessionPath = resumeSessionPath
         }
     }
 
@@ -47,6 +51,9 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     private var stdoutBuffer = Data()
     private var subject: PassthroughSubject<AgentEvent, Error>?
     private var commandCounter = 0
+    /// One-shot response continuations keyed by command id (for request/reply
+    /// commands like get_available_models).
+    private var pending: [String: ([String: Any]) -> Void] = [:]
 
     init(config: Config) {
         self.config = config
@@ -63,6 +70,10 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
 
         do {
             try ensureProcess()
+            // Apply the user-selected reasoning level before prompting.
+            if let level = UserDefaults.standard.string(forKey: "piThinkingLevel"), !level.isEmpty {
+                try? send(["id": nextId(), "type": "set_thinking_level", "level": level])
+            }
             // pi keeps history itself → only forward the newest user turn.
             let lastUser = messages.last(where: { $0.role == .user })?.content ?? ""
             let command: [String: Any] = [
@@ -79,9 +90,41 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     }
 
     func models() async throws -> [LanguageModel] {
-        // The spike surfaces a single logical "pi" model. Real model discovery
-        // would issue a `get_available_models` RPC and await the response.
-        [LanguageModel(name: "pi", provider: .ollama, imageSupport: false)]
+        try ensureProcess()
+        let id = nextId()
+        let response: [String: Any]? = await withCheckedContinuation { continuation in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { obj in
+                if resumed { return }; resumed = true
+                continuation.resume(returning: obj)
+            }
+            lock.lock()
+            pending[id] = { obj in finish(obj) }
+            lock.unlock()
+            // Timeout guard so startup hiccups don't hang the UI.
+            DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
+                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                finish(nil)
+            }
+            try? send(["id": id, "type": "get_available_models"])
+        }
+
+        guard
+            let data = response?["data"] as? [String: Any],
+            let models = data["models"] as? [[String: Any]],
+            !models.isEmpty
+        else {
+            return [LanguageModel(name: "pi", provider: .ollama, imageSupport: false)]
+        }
+        return models.compactMap { m in
+            guard let mid = m["id"] as? String else { return nil }
+            return LanguageModel(name: mid, provider: .ollama, imageSupport: false)
+        }
+    }
+
+    /// Ask pi to abort the in-flight turn (real stop, not just local unsubscribe).
+    func abort() {
+        try? send(["id": nextId(), "type": "abort"])
     }
 
     func reachable() async -> Bool {
@@ -132,6 +175,41 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         self.process = proc
         self.stdinPipe = inPipe
         self.stdoutBuffer.removeAll()
+
+        // Restore prior context if resuming an existing conversation.
+        if let resume = config.resumeSessionPath, !resume.isEmpty {
+            commandCounter += 1
+            let restoreId = "c\(commandCounter)"
+            var line = try JSONSerialization.data(withJSONObject: [
+                "id": restoreId, "type": "switch_session", "sessionPath": resume,
+            ])
+            line.append(0x0A)
+            inPipe.fileHandleForWriting.write(line)
+            AgentBackendConfig.debugLog("PiConnector: switch_session -> \(resume)")
+        }
+    }
+
+    /// Query pi for the current session file path (for persistence).
+    func currentSessionPath() async -> String? {
+        try? ensureProcess()
+        let id = nextId()
+        let response: [String: Any]? = await withCheckedContinuation { continuation in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { obj in
+                if resumed { return }; resumed = true
+                continuation.resume(returning: obj)
+            }
+            lock.lock()
+            pending[id] = { obj in finish(obj) }
+            lock.unlock()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
+                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                finish(nil)
+            }
+            try? send(["id": id, "type": "get_state"])
+        }
+        let data = response?["data"] as? [String: Any]
+        return data?["sessionFile"] as? String
     }
 
     private func nextId() -> String {
@@ -208,6 +286,13 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
             subject?.send(completion: .finished)
 
         case "response":
+            // Fulfil any awaiting request/reply continuation first.
+            if let id = obj["id"] as? String {
+                lock.lock()
+                let cont = pending.removeValue(forKey: id)
+                lock.unlock()
+                cont?(obj)
+            }
             if let success = obj["success"] as? Bool, success == false {
                 let message = obj["error"] as? String ?? "pi rpc error"
                 subject?.send(completion: .failure(

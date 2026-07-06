@@ -144,6 +144,9 @@ struct InputFieldsView: View {
                 )
                 .font(.system(size: 12))
 
+                // Reasoning level
+                ThinkingLevelMenu()
+
                 Spacer()
 
                 RecordingView(isRecording: $isRecording.animation()) { transcription in
@@ -186,6 +189,51 @@ struct InputFieldsView: View {
             // allow focusing text area on greater tap area
             isFocusedInput = true
         }
+    }
+}
+
+/// Codex-style reasoning-level selector (off → xhigh), wired to pi's
+/// `set_thinking_level` via UserDefaults("piThinkingLevel").
+struct ThinkingLevelMenu: View {
+    @AppStorage("piThinkingLevel") private var level: String = "medium"
+
+    private let levels: [(id: String, label: String)] = [
+        ("off", "Off"),
+        ("minimal", "Minimal"),
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+        ("xhigh", "Max"),
+    ]
+
+    private var currentLabel: String {
+        levels.first(where: { $0.id == level })?.label ?? "Medium"
+    }
+
+    var body: some View {
+        Menu {
+            ForEach(levels, id: \.id) { item in
+                Button(action: { level = item.id }) {
+                    HStack {
+                        Text(item.label)
+                        if item.id == level { Image(systemName: "checkmark") }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "brain")
+                    .font(.system(size: 11))
+                Text(currentLabel)
+                    .font(.system(size: 12))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
     }
 }
 

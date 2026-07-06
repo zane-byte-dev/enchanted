@@ -45,7 +45,8 @@ enum AgentBackendConfig {
     }
 
     /// Build a backend bound to a specific working directory (one per conversation).
-    static func makeChatBackend(workingDirectory: String) -> AgentBackend {
+    /// `resumeSessionPath` restores an existing pi session's context on spawn.
+    static func makeChatBackend(workingDirectory: String, resumeSessionPath: String? = nil) -> AgentBackend {
         switch currentKind {
         case .ollama:
             return OllamaBackend()
@@ -56,7 +57,8 @@ enum AgentBackendConfig {
             return PiConnector(config: .init(
                 executable: "/bin/zsh",
                 arguments: ["-l", "-c", "exec '\(piExecutable)' --mode rpc"],
-                workingDirectory: workingDirectory
+                workingDirectory: workingDirectory,
+                resumeSessionPath: resumeSessionPath
             ))
         }
     }

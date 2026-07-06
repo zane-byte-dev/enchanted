@@ -195,7 +195,10 @@ final class ConversationStore: Sendable {
     private func connector(for conversation: ConversationSD) -> AgentBackend {
         if let existing = connectors[conversation.id] { return existing }
         let cwd = workingDirectory(for: conversation)
-        let backend = AgentBackendConfig.makeChatBackend(workingDirectory: cwd)
+        let backend = AgentBackendConfig.makeChatBackend(
+            workingDirectory: cwd,
+            resumeSessionPath: conversation.piSessionPath
+        )
         connectors[conversation.id] = backend
         return backend
     }
@@ -214,6 +217,8 @@ final class ConversationStore: Sendable {
 
     @MainActor func stopGenerate() {
         guard let id = selectedConversation?.id else { return }
+        // Tell pi to actually stop generating, then drop the local subscription.
+        (connectors[id] as? PiConnector)?.abort()
         runs[id]?.cancellable?.cancel()
         finishRun(id)
     }
@@ -356,5 +361,24 @@ final class ConversationStore: Sendable {
         }
         runs[convID] = nil
         withAnimation { states[convID] = .completed }
+        persistSessionPath(convID)
+    }
+
+    /// After a turn, capture pi's session file path so the conversation can be
+    /// resumed (context restored) after a restart.
+    @MainActor
+    private func persistSessionPath(_ convID: UUID) {
+        guard
+            let connector = connectors[convID] as? PiConnector,
+            let conversation = conversations.first(where: { $0.id == convID }),
+            conversation.piSessionPath == nil
+        else { return }
+        Task {
+            guard let path = await connector.currentSessionPath() else { return }
+            await MainActor.run {
+                conversation.piSessionPath = path
+            }
+            try? await swiftDataService.updateConversation(conversation)
+        }
     }
 }

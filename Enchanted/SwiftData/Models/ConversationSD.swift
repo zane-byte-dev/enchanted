@@ -19,6 +19,10 @@ final class ConversationSD: Identifiable {
     /// nil → fall back to the global default.
     var workingDirectory: String?
 
+    /// Absolute path of the pi session file backing this conversation, so pi's
+    /// context can be restored (`switch_session`) after the app/process restarts.
+    var piSessionPath: String?
+
     @Relationship(deleteRule: .nullify)
     var model: LanguageModelSD?
 
