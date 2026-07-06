@@ -152,7 +152,8 @@ struct Chat: View, Sendable {
                     conversations: conversationStore.conversations,
                     onConversationTap: onConversationTap,
                     onConversationDelete: onConversationDelete,
-                    onDeleteDailyConversations: conversationStore.deleteDailyConversations
+                    onDeleteDailyConversations: conversationStore.deleteDailyConversations,
+                    onNewConversation: newConversation
                 )
             }) {
                 ChatView(

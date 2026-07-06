@@ -14,9 +14,17 @@ struct SidebarView: View {
     var onConversationTap: (_ conversation: ConversationSD) -> ()
     var onConversationDelete: (_ conversation: ConversationSD) -> ()
     var onDeleteDailyConversations: (_ date: Date) -> ()
+    var onNewConversation: () -> () = {}
     @State var showSettings = false
     @State var showCompletions = false
     @State var showKeyboardShortcutas = false
+    @State private var searchText = ""
+
+    private var filteredConversations: [ConversationSD] {
+        let q = searchText.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return conversations }
+        return conversations.filter { $0.name.localizedCaseInsensitiveContains(q) }
+    }
     
     private func onSettingsTap() {
         Task {
@@ -26,11 +34,36 @@ struct SidebarView: View {
     }
     
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
+            // Top actions
+            VStack(spacing: 2) {
+                SidebarButton(title: "New Chat", image: "square.and.pencil", onClick: onNewConversation)
+
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color(.systemGray))
+                    TextField("Search", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 15))
+                    if !searchText.isEmpty {
+                        Button(action: { searchText = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(Color(.systemGray))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+            }
+            .padding(.bottom, 8)
+
             ScrollView() {
                 ConversationHistoryList(
                     selectedConversation: selectedConversation,
-                    conversations: conversations,
+                    conversations: filteredConversations,
                     onTap: onConversationTap,
                     onDelete: onConversationDelete,
                     onDeleteDailyConversations: onDeleteDailyConversations

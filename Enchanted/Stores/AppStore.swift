@@ -64,7 +64,7 @@ final class AppStore {
     }
 
     private func reachable() async -> Bool {
-        let status = await OllamaService.shared.reachable()
+        let status = await ConversationStore.shared.backend.reachable()
         return status
     }
     

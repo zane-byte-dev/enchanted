@@ -41,7 +41,8 @@ struct ChatView: View {
                 conversations: conversations,
                 onConversationTap: onConversationTap,
                 onConversationDelete: onConversationDelete,
-                onDeleteDailyConversations: onDeleteDailyConversations
+                onDeleteDailyConversations: onDeleteDailyConversations,
+                onNewConversation: onNewConversationTap
             )
             .toolbar {
 #if os(visionOS)

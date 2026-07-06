@@ -14,9 +14,16 @@
 		FF0611F12C04A2FB00443B33 /* Splash in Frameworks */ = {isa = PBXBuildFile; productRef = FF0611F02C04A2FB00443B33 /* Splash */; };
 		FF0611F32C04BEFE00443B33 /* AVSpeechSynthesisVoice+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0611F22C04BEFD00443B33 /* AVSpeechSynthesisVoice+Extension.swift */; };
 		FF1002302B2482BA0011A4DC /* ChatMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF10022F2B2482BA0011A4DC /* ChatMessageView.swift */; };
+		B7F289A22B24F4900011A4DC /* ToolCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E179A22B24F4900011A4DC /* ToolCardView.swift */; };
 		FF1002322B2483A20011A4DC /* Colours+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002312B2483A20011A4DC /* Colours+Extension.swift */; };
 		FF1002392B24BBF20011A4DC /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002382B24BBF20011A4DC /* Chat.swift */; };
 		FF10023E2B24F4900011A4DC /* OllamaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF10023D2B24F4900011A4DC /* OllamaService.swift */; };
+		B7F280002B24F4900011A4DC /* AgentBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E170002B24F4900011A4DC /* AgentBackend.swift */; };
+		B7F280012B24F4900011A4DC /* OllamaBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E170012B24F4900011A4DC /* OllamaBackend.swift */; };
+		B7F280022B24F4900011A4DC /* PiConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E170022B24F4900011A4DC /* PiConnector.swift */; };
+		B7F2899F2B24F4900011A4DC /* AgentBackendConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E1799F2B24F4900011A4DC /* AgentBackendConfig.swift */; };
+		B7F289A02B24F4900011A4DC /* MessageBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E179A02B24F4900011A4DC /* MessageBlock.swift */; };
+		B7F2899E2B24F4900011A4DC /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E1799E2B24F4900011A4DC /* WorkspaceStore.swift */; };
 		FF1002402B24F7320011A4DC /* SideBarMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF10023F2B24F7320011A4DC /* SideBarMenuView.swift */; };
 		FF1002442B25BB730011A4DC /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002432B25BB730011A4DC /* ConversationStore.swift */; };
 		FF1002462B25BCE70011A4DC /* LanguageModelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002452B25BCE70011A4DC /* LanguageModelStore.swift */; };
@@ -111,9 +118,16 @@
 		FF0146CC2B3DADCA00A2A9F6 /* HapticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticsService.swift; sourceTree = "<group>"; };
 		FF0611F22C04BEFD00443B33 /* AVSpeechSynthesisVoice+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AVSpeechSynthesisVoice+Extension.swift"; sourceTree = "<group>"; };
 		FF10022F2B2482BA0011A4DC /* ChatMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessageView.swift; sourceTree = "<group>"; };
+		A6E179A22B24F4900011A4DC /* ToolCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCardView.swift; sourceTree = "<group>"; };
 		FF1002312B2483A20011A4DC /* Colours+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Colours+Extension.swift"; sourceTree = "<group>"; };
 		FF1002382B24BBF20011A4DC /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
 		FF10023D2B24F4900011A4DC /* OllamaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaService.swift; sourceTree = "<group>"; };
+		A6E170002B24F4900011A4DC /* AgentBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentBackend.swift; sourceTree = "<group>"; };
+		A6E170012B24F4900011A4DC /* OllamaBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaBackend.swift; sourceTree = "<group>"; };
+		A6E170022B24F4900011A4DC /* PiConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiConnector.swift; sourceTree = "<group>"; };
+		A6E1799F2B24F4900011A4DC /* AgentBackendConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentBackendConfig.swift; sourceTree = "<group>"; };
+		A6E179A02B24F4900011A4DC /* MessageBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBlock.swift; sourceTree = "<group>"; };
+		A6E1799E2B24F4900011A4DC /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceStore.swift; sourceTree = "<group>"; };
 		FF10023F2B24F7320011A4DC /* SideBarMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SideBarMenuView.swift; sourceTree = "<group>"; };
 		FF1002432B25BB730011A4DC /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationStore.swift; sourceTree = "<group>"; };
 		FF1002452B25BCE70011A4DC /* LanguageModelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageModelStore.swift; sourceTree = "<group>"; };
@@ -428,6 +442,7 @@
 			isa = PBXGroup;
 			children = (
 				FF10022F2B2482BA0011A4DC /* ChatMessageView.swift */,
+				A6E179A22B24F4900011A4DC /* ToolCardView.swift */,
 				FFD57E312BF291B2003FEFF1 /* CodeBlockView.swift */,
 				FFD57E2F2BF29145003FEFF1 /* MarkdownColours.swift */,
 			);
@@ -463,6 +478,7 @@
 				FF464B142B80BB9C008E5130 /* Helpers */,
 				FFEC32A32B24786D003E5C04 /* Models */,
 				FFEC32992B24779B003E5C04 /* Preview Content */,
+				C8039FFF2B24F4900011A4DC /* Agent */,
 				FFEC32A42B247874003E5C04 /* Services */,
 				FF1002422B25BAC50011A4DC /* Stores */,
 				FF1002412B25BAAE0011A4DC /* SwiftData */,
@@ -515,6 +531,19 @@
 				FF7FBE4B2B78E384000901F7 /* SamplePrompt.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		C8039FFF2B24F4900011A4DC /* Agent */ = {
+			isa = PBXGroup;
+			children = (
+				A6E170002B24F4900011A4DC /* AgentBackend.swift */,
+				A6E170012B24F4900011A4DC /* OllamaBackend.swift */,
+				A6E170022B24F4900011A4DC /* PiConnector.swift */,
+				A6E1799F2B24F4900011A4DC /* AgentBackendConfig.swift */,
+				A6E179A02B24F4900011A4DC /* MessageBlock.swift */,
+				A6E1799E2B24F4900011A4DC /* WorkspaceStore.swift */,
+			);
+			path = Agent;
 			sourceTree = "<group>";
 		};
 		FFEC32A42B247874003E5C04 /* Services */ = {
@@ -665,8 +694,15 @@
 				FF10024C2B25BEA00011A4DC /* MessageSD.swift in Sources */,
 				FFCF00F12C03209A00590E79 /* SpeechService.swift in Sources */,
 				FF10023E2B24F4900011A4DC /* OllamaService.swift in Sources */,
+				B7F280002B24F4900011A4DC /* AgentBackend.swift in Sources */,
+				B7F280012B24F4900011A4DC /* OllamaBackend.swift in Sources */,
+				B7F280022B24F4900011A4DC /* PiConnector.swift in Sources */,
+				B7F2899F2B24F4900011A4DC /* AgentBackendConfig.swift in Sources */,
+				B7F289A02B24F4900011A4DC /* MessageBlock.swift in Sources */,
+				B7F2899E2B24F4900011A4DC /* WorkspaceStore.swift in Sources */,
 				FFBBF48C2B35051D008D611C /* UIImage+Extension.swift in Sources */,
 				FF1002302B2482BA0011A4DC /* ChatMessageView.swift in Sources */,
+				B7F289A22B24F4900011A4DC /* ToolCardView.swift in Sources */,
 				FF1002322B2483A20011A4DC /* Colours+Extension.swift in Sources */,
 				FFB21A872B7BD0BA00D148A4 /* KeyboardReadable+Extension.swift in Sources */,
 				FF1BC3C72BA0757700A58043 /* SplashSyntaxHighlighter+Extension.swift in Sources */,
@@ -876,7 +912,7 @@
 				CURRENT_PROJECT_VERSION = 52;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Enchanted/Preview Content\"";
-				DEVELOPMENT_TEAM = JDDZ55DT74;
+				DEVELOPMENT_TEAM = C736377955;
 				ENABLE_HARDENED_RUNTIME = YES;
 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				ENABLE_PREVIEWS = YES;
@@ -928,7 +964,7 @@
 				CURRENT_PROJECT_VERSION = 52;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Enchanted/Preview Content\"";
-				DEVELOPMENT_TEAM = JDDZ55DT74;
+				DEVELOPMENT_TEAM = C736377955;
 				ENABLE_HARDENED_RUNTIME = YES;
 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				ENABLE_PREVIEWS = YES;

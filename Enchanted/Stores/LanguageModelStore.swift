@@ -47,7 +47,7 @@ final class LanguageModelStore {
     }
     
     func loadModels() async throws {
-        let remoteModels = try await OllamaService.shared.getModels()
+        let remoteModels = try await ConversationStore.shared.backend.models()
         try await swiftDataService.saveModels(models: remoteModels.map{LanguageModelSD(name: $0.name, imageSupport: $0.imageSupport, modelProvider: .ollama)})
         
         let storedModels = (try? await swiftDataService.fetchModels()) ?? []

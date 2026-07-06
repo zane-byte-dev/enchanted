@@ -39,6 +39,24 @@ struct ChatMessageView: View {
         }
     }
     
+    @ViewBuilder
+    private func blockView(_ block: MessageBlock) -> some View {
+        switch block {
+        case .text(let text):
+            Markdown(text)
+#if os(macOS)
+                .textSelection(.enabled)
+#endif
+                .markdownCodeSyntaxHighlighter(.splash(theme: codeHighlightColorScheme))
+                .markdownTheme(MarkdownColours.enchantedTheme)
+        case .thinking(let text):
+            ThinkingBlockView(text: text)
+        case .tool(let tool):
+            ToolCardView(tool: tool)
+                .padding(.vertical, 2)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .trailing, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
@@ -61,6 +79,12 @@ struct ChatMessageView: View {
                 .offset(CGSize(width: 0, height: 6))
                 
                 VStack(alignment: .leading) {
+                    let blocks = message.renderBlocks
+                    if message.role != "user", !blocks.isEmpty {
+                        ForEach(blocks) { block in
+                            blockView(block)
+                        }
+                    } else {
                     if message.hasThink {
                         HStack(spacing: 10.0, content: {
                             Rectangle()
@@ -97,6 +121,7 @@ struct ChatMessageView: View {
                             .markdownTheme(MarkdownColours.enchantedTheme)
                     }
                     
+                    }
                     if let uiImage = image {
                         uiImage
                             .resizable()

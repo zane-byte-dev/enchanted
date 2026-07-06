@@ -52,6 +52,9 @@ final class MessageSD: Identifiable {
         return content
     }
     var role: String
+    /// Structured render blocks (text/thinking/tool) as JSON. nil for legacy
+    /// messages, which fall back to `content` markdown rendering.
+    var blocksJSON: String?
     var done: Bool = false
     var error: Bool = false
     var createdAt: Date = Date.now
@@ -71,6 +74,12 @@ final class MessageSD: Identifiable {
 
     @Transient var model: String {
         conversation?.model?.name ?? ""
+    }
+
+    /// Decoded render blocks, or empty if none.
+    @Transient var renderBlocks: [MessageBlock] {
+        guard let json = blocksJSON, let data = json.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([MessageBlock].self, from: data)) ?? []
     }
 }
 

@@ -15,6 +15,9 @@ final class ConversationSD: Identifiable {
     var name: String
     var createdAt: Date
     var updatedAt: Date
+    /// Per-conversation working directory the agent operates in.
+    /// nil → fall back to the global default.
+    var workingDirectory: String?
 
     @Relationship(deleteRule: .nullify)
     var model: LanguageModelSD?

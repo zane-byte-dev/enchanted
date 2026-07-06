@@ -21,6 +21,10 @@ struct EnchantedApp: App {
 #if os(macOS)
     @NSApplicationDelegateAdaptor(PanelManager.self) var panelManager
 #endif
+
+    init() {
+        AgentBackendConfig.configure()
+    }
     
     var body: some Scene {
         WindowGroup {
