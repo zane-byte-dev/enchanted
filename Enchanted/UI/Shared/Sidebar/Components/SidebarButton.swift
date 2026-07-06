@@ -14,11 +14,11 @@ struct SidebarButton: View {
     
     var body: some View {
         Button(action: onClick) {
-            HStack {
+            HStack(spacing: 8) {
                 Image(systemName: image)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 16)
+                    .frame(width: 16, height: 16)
                 
                 Text(title)
                     .lineLimit(1)
@@ -27,11 +27,27 @@ struct SidebarButton: View {
                 
                 Spacer()
             }
-            .padding(8)
-            .foregroundColor(Color(.label))
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SidebarRowStyle())
+    }
+}
+
+/// Shared sidebar row: consistent insets + hover / pressed highlight.
+struct SidebarRowStyle: ButtonStyle {
+    @State private var hover = false
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundColor(Color(.label))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill((hover || configuration.isPressed) ? Color.gray.opacity(0.15) : Color.clear)
+            )
+            .contentShape(Rectangle())
+            .onHover { hover = $0 }
+            .animation(.easeOut(duration: 0.1), value: hover)
     }
 }
 

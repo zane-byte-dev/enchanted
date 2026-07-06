@@ -78,10 +78,12 @@ struct ConversationHistoryList: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
             Text("PROJECTS")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Color(.systemGray))
+                .padding(.horizontal, 8)
+                .padding(.top, 4)
                 .padding(.bottom, 4)
 
             ForEach(projectGroups) { group in
@@ -96,6 +98,7 @@ struct ConversationHistoryList: View {
                     HStack(spacing: 8) {
                         Image(systemName: "folder")
                             .font(.system(size: 13))
+                            .frame(width: 16, height: 16)
                             .foregroundColor(Color(.systemGray))
                         Text(group.name)
                             .font(.system(size: 15, weight: .medium))
@@ -106,11 +109,9 @@ struct ConversationHistoryList: View {
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(Color(.systemGray))
                     }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SidebarRowStyle())
                 .help(group.path)
-                .padding(.top, 8)
 
                 // Conversations under this project
                 if !isCollapsed {
@@ -118,13 +119,13 @@ struct ConversationHistoryList: View {
                         Button(action: { onTap(conversation) }) {
                             HStack(spacing: 6) {
                                 Circle()
-                                    .frame(width: 6, height: 6)
-                                    .transition(.opacity)
-                                    .showIf(selectedConversation == conversation)
+                                    .frame(width: 5, height: 5)
+                                    .foregroundColor(Color(.label))
+                                    .opacity(selectedConversation == conversation ? 1 : 0)
 
                                 Text(conversation.name)
                                     .lineLimit(1)
-                                    .font(.system(size: 15))
+                                    .font(.system(size: 14))
                                     .foregroundColor(Color(.label))
                                 Spacer(minLength: 4)
                                 ConversationStatusBadge(conversationID: conversation.id)
@@ -132,10 +133,9 @@ struct ConversationHistoryList: View {
                                     .font(.system(size: 12))
                                     .foregroundColor(Color(.systemGray))
                             }
-                            .padding(.leading, 10)
-                            .contentShape(Rectangle())
+                            .padding(.leading, 16)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(SidebarRowStyle())
                         .contextMenu(menuItems: {
                             Button(role: .destructive, action: { onDelete(conversation) }) {
                                 Label("Delete", systemImage: "trash")

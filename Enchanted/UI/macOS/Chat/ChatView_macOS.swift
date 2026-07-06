@@ -33,7 +33,20 @@ struct ChatView: View {
     @State private var editMessage: MessageSD?
     @State var isRecording = false
     @FocusState private var isFocusedInput: Bool
-    
+
+    @ViewBuilder private var composer: some View {
+        InputFieldsView(
+            message: $message,
+            conversationState: conversationState,
+            onStopGenerateTap: onStopGenerateTap,
+            selectedModel: selectedModel,
+            modelsList: modelsList,
+            onSelectModel: onSelectModel,
+            onSendMessageTap: onSendMessageTap,
+            editMessage: $editMessage
+        )
+    }
+
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(
@@ -69,28 +82,39 @@ struct ChatView: View {
                         userInitials: userInitials,
                         editMessage: $editMessage
                     )
+
+                    if !reachable {
+                        UnreachableAPIView()
+                    }
+
+                    composer
+                        .padding()
+                        .frame(maxWidth: 800)
                 } else {
-                    EmptyConversaitonView(sendPrompt: {selectedMessage in
-                        if let selectedModel = selectedModel {
-                            onSendMessageTap(selectedMessage, selectedModel, nil, nil)
+                    // Codex-style new-conversation empty state
+                    Spacer()
+                    Text("What should we do?")
+                        .font(.system(size: 32, weight: .semibold))
+                        .padding(.bottom, 28)
+
+                    if !reachable {
+                        UnreachableAPIView()
+                    }
+
+                    VStack(spacing: 2) {
+                        composer
+                        HStack {
+                            ChooseProjectRow()
+                            Spacer()
                         }
-                    })
+                        .padding(.horizontal, 6)
+                    }
+                    .frame(maxWidth: 720)
+                    .padding(.horizontal)
+
+                    Spacer()
+                    Spacer()
                 }
-                
-                if !reachable {
-                    UnreachableAPIView()
-                }
-                
-                InputFieldsView(
-                    message: $message,
-                    conversationState: conversationState,
-                    onStopGenerateTap: onStopGenerateTap,
-                    selectedModel: selectedModel,
-                    onSendMessageTap: onSendMessageTap,
-                    editMessage: $editMessage
-                )
-                .padding()
-                .frame(maxWidth: 800)
             }
             .toolbar {
                 #if os(visionOS)

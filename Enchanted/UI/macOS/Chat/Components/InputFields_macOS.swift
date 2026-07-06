@@ -13,6 +13,8 @@ struct InputFieldsView: View {
     var conversationState: ConversationState
     var onStopGenerateTap: @MainActor () -> Void
     var selectedModel: LanguageModelSD?
+    var modelsList: [LanguageModelSD] = []
+    var onSelectModel: @MainActor (_ model: LanguageModelSD?) -> () = { _ in }
     var onSendMessageTap: @MainActor (_ prompt: String, _ model: LanguageModelSD, _ image: Image?, _ trimmingMessageId: String?) -> ()
     @Binding var editMessage: MessageSD?
     @State var isRecording = false
@@ -57,82 +59,105 @@ struct InputFieldsView: View {
     }
 #endif
     
+    @ViewBuilder
+    private var sendButton: some View {
+        switch conversationState {
+        case .loading:
+            Button(action: onStopGenerateTap) {
+                Image(systemName: "stop.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(Color.accentColor))
+            }
+            .buttonStyle(.plain)
+        default:
+            Button(action: { Task { sendMessage() } }) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(message.isEmpty ? Color.gray : Color.accentColor))
+            }
+            .buttonStyle(.plain)
+            .disabled(message.isEmpty)
+        }
+    }
+
     var body: some View {
-        HStack(spacing: 20) {
+        VStack(alignment: .leading, spacing: 8) {
             if let image = selectedImage {
                 RemovableImage(
                     image: image,
                     onClick: {selectedImage = nil},
                     height: 70
                 )
-                .padding(5)
+                .padding(.horizontal, 6)
             }
-            
-            ZStack(alignment: .trailing) {
-                TextField("Message", text: $message.animation(.easeOut(duration: 0.3)), axis: .vertical)
-                    .focused($isFocusedInput)
-                    .font(.system(size: 14))
-                    .frame(maxWidth:.infinity, minHeight: 40)
-                    .clipped()
-                    .textFieldStyle(.plain)
+
+            // Text input
+            TextField("Message", text: $message.animation(.easeOut(duration: 0.3)), axis: .vertical)
+                .focused($isFocusedInput)
+                .font(.system(size: 14))
+                .frame(maxWidth: .infinity, minHeight: 32, alignment: .topLeading)
+                .lineLimit(1...12)
+                .textFieldStyle(.plain)
 #if os(macOS)
-                    .onSubmit {
-                        if NSApp.currentEvent?.modifierFlags.contains(.shift) == true {
-                            message += "\n"
-                        } else {
-                            sendMessage()
-                        }
+                .onSubmit {
+                    if NSApp.currentEvent?.modifierFlags.contains(.shift) == true {
+                        message += "\n"
+                    } else {
+                        sendMessage()
                     }
-#endif
-                /// TextField bypasses drop area
-                    .allowsHitTesting(!fileDropActive)
-#if os(macOS)
-                    .addCustomHotkeys(hotkeys)
-#endif
-                    .padding(.trailing, 80)
-                
-                
-                HStack {
-                    RecordingView(isRecording: $isRecording.animation()) { transcription in
-                        withAnimation(.easeIn(duration: 0.3)) {
-                            self.message = transcription
-                        }
-                    }
-                    
-                    SimpleFloatingButton(systemImage: "photo.fill", onClick: { fileSelectingActive.toggle() })
-                        .showIf(selectedModel?.supportsImages ?? false)
-                        .fileImporter(isPresented: $fileSelectingActive,
-                                      allowedContentTypes: [.png, .jpeg, .tiff],
-                                      onCompletion: { result in
-                            switch result {
-                            case .success(let url):
-                                guard url.startAccessingSecurityScopedResource() else { return }
-                                if let imageData = try? Data(contentsOf: url) {
-                                    selectedImage = Image(data: imageData)
-                                }
-                                url.stopAccessingSecurityScopedResource()
-                            case .failure(let error):
-                                print(error)
-                            }
-                        })
-                    
-                    
-                    Group {
-                        switch conversationState {
-                        case .loading:
-                            SimpleFloatingButton(systemImage: "square.fill", onClick: onStopGenerateTap)
-                        default:
-                            SimpleFloatingButton(systemImage: "paperplane.fill", onClick: { Task { sendMessage() } })
-                                .showIf(!message.isEmpty)
-                        }
-                    }
-                    
                 }
+#endif
+                .allowsHitTesting(!fileDropActive)
+#if os(macOS)
+                .addCustomHotkeys(hotkeys)
+#endif
+
+            // Bottom control row (Codex-style)
+            HStack(spacing: 10) {
+                // Attach image
+                SimpleFloatingButton(systemImage: "plus", onClick: { fileSelectingActive.toggle() })
+                    .showIf(selectedModel?.supportsImages ?? false)
+                    .fileImporter(isPresented: $fileSelectingActive,
+                                  allowedContentTypes: [.png, .jpeg, .tiff],
+                                  onCompletion: { result in
+                        switch result {
+                        case .success(let url):
+                            guard url.startAccessingSecurityScopedResource() else { return }
+                            if let imageData = try? Data(contentsOf: url) {
+                                selectedImage = Image(data: imageData)
+                            }
+                            url.stopAccessingSecurityScopedResource()
+                        case .failure(let error):
+                            print(error)
+                        }
+                    })
+
+                // Model selector
+                ModelSelectorView(
+                    modelsList: modelsList,
+                    selectedModel: selectedModel,
+                    onSelectModel: onSelectModel
+                )
+                .font(.system(size: 12))
+
+                Spacer()
+
+                RecordingView(isRecording: $isRecording.animation()) { transcription in
+                    withAnimation(.easeIn(duration: 0.3)) {
+                        self.message = transcription
+                    }
+                }
+
+                sendButton
             }
-            
         }
         .transition(.slide)
-        .padding(.horizontal)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .overlay(
             RoundedRectangle(cornerRadius: 20)
                 .strokeBorder(

@@ -39,13 +39,14 @@ struct SidebarView: View {
             VStack(spacing: 2) {
                 SidebarButton(title: "New Chat", image: "square.and.pencil", onClick: onNewConversation)
 
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 13))
+                        .font(.system(size: 14))
+                        .frame(width: 16, height: 16)
                         .foregroundColor(Color(.systemGray))
                     TextField("Search", text: $searchText)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 15))
+                        .font(.system(size: 14))
                     if !searchText.isEmpty {
                         Button(action: { searchText = "" }) {
                             Image(systemName: "xmark.circle.fill")
@@ -55,7 +56,7 @@ struct SidebarView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 10)
+                .padding(.horizontal, 8)
                 .padding(.vertical, 6)
             }
             .padding(.bottom, 8)
