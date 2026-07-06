@@ -25,6 +25,8 @@ final class AppStore {
     @MainActor var notifications: [NotificationMessage] = []
     @MainActor var menuBarIcon: String? = nil
     var appState: AppState = .chat
+    /// macOS only: replace main window content with full-page Settings.
+    var showSettings: Bool = false
 
     init() {
         if let storedIntervalString = UserDefaults.standard.string(forKey: "pingInterval") {

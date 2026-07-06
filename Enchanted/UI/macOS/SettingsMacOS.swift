@@ -37,7 +37,9 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 // MARK: - Root view
 
 struct SettingsMacOS: View {
-    @Environment(\.dismiss) private var dismiss
+    /// When provided, tapping "返回应用" calls this instead of SwiftUI dismiss.
+    var onDismiss: (() -> Void)? = nil
+    @Environment(\.dismiss) private var envDismiss
 
     @State private var selectedCategory: SettingsCategory? = .general
 
@@ -73,6 +75,11 @@ struct SettingsMacOS: View {
         Task { try? await languageModelStore.loadModels() }
     }
 
+    private func handleDismiss() {
+        save()
+        AppStore.shared.showSettings = false
+    }
+
     private func checkServer() {
         Task {
             OllamaService.shared.initEndpoint(url: ollamaUri)
@@ -105,7 +112,6 @@ struct SettingsMacOS: View {
             voiceCancellable = voiceTimer.sink { _ in speechSynthesiser.fetchVoices() }
         }
         .onDisappear {
-            save()
             voiceCancellable?.cancel()
         }
         .confirmationDialog("Delete All Conversations?", isPresented: $deleteConversationsDialog) {
@@ -126,8 +132,7 @@ struct SettingsMacOS: View {
         VStack(alignment: .leading, spacing: 0) {
             // Back button
             Button {
-                save()
-                dismiss()
+                handleDismiss()
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "chevron.left")

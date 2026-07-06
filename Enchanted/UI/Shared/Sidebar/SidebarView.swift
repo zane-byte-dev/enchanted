@@ -8,7 +8,6 @@
 import SwiftUI
 
 struct SidebarView: View {
-    @Environment(\.openWindow) var openWindow
     var selectedConversation: ConversationSD?
     var conversations: [ConversationSD]
     var onConversationTap: (_ conversation: ConversationSD) -> ()
@@ -17,7 +16,7 @@ struct SidebarView: View {
     var onNewConversation: () -> () = {}
     var onRefresh: () -> () = {}
     @State private var isRefreshing = false
-    @State var showSettings = false
+    @State var showSettings = false   // iOS sheet / ⌘, focus binding
     @State private var showUserMenu = false
     @State private var searchText = ""
     @AppStorage("appUserInitials") private var appUserInitials: String = ""
@@ -29,10 +28,12 @@ struct SidebarView: View {
     }
     
     private func onSettingsTap() {
-        Task {
-            showSettings.toggle()
-            await Haptics.shared.mediumTap()
-        }
+        Task { await Haptics.shared.mediumTap() }
+#if os(macOS)
+        AppStore.shared.showSettings = true
+#else
+        showSettings.toggle()
+#endif
     }
     
     private var initialsLabel: String {
@@ -126,7 +127,7 @@ struct SidebarView: View {
                     onSettings: {
                         showUserMenu = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            showSettings = true
+                            onSettingsTap()
                         }
                     }
                 )
@@ -134,16 +135,20 @@ struct SidebarView: View {
             
         }
         .padding()
-#if os(macOS)
         .focusedSceneValue(\.showSettings, $showSettings)
-#endif
-        .sheet(isPresented: $showSettings) {
+        .onChange(of: showSettings) { _, newVal in
 #if os(macOS)
-            SettingsMacOS()
-#else
-            Settings()
+            if newVal {
+                showSettings = false
+                AppStore.shared.showSettings = true
+            }
 #endif
         }
+#if !os(macOS)
+        .sheet(isPresented: $showSettings) {
+            Settings()
+        }
+#endif
     }
 }
 

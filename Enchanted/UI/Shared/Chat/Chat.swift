@@ -124,7 +124,35 @@ struct Chat: View, Sendable {
     
     var body: some View {
         Group {
-#if os(macOS) || os(visionOS)
+#if os(macOS)
+            if appStore.showSettings {
+                SettingsMacOS()
+            } else {
+                ChatView(
+                    selectedConversation: conversationStore.selectedConversation,
+                    conversations: conversationStore.conversations,
+                    messages: conversationStore.messages,
+                    modelsList: languageModelStore.models,
+                    onMenuTap: toggleMenu,
+                    onNewConversationTap: newConversation,
+                    onSendMessageTap: sendMessage,
+                    onConversationTap:onConversationTap,
+                    conversationState: conversationStore.conversationState,
+                    onStopGenerateTap: onStopGenerateTap,
+                    reachable: appStore.isReachable,
+                    modelSupportsImages: languageModelStore.supportsImages,
+                    selectedModel: languageModelStore.selectedModel,
+                    onSelectModel: languageModelStore.setModel,
+                    onConversationDelete: onConversationDelete,
+                    onDeleteDailyConversations: conversationStore.deleteDailyConversations,
+                    userInitials: userInitials,
+                    copyChat: copyChat,
+                    stats: conversationStore.currentStats,
+                    onSteer: { _ = conversationStore.steerIfRunning($0) },
+                    onRefresh: { Task { await conversationStore.syncPiSessions() } }
+                )
+            }
+#elseif os(visionOS)
             ChatView(
                 selectedConversation: conversationStore.selectedConversation,
                 conversations: conversationStore.conversations,
