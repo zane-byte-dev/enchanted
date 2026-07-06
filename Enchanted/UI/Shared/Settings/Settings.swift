@@ -23,6 +23,8 @@ struct Settings: View {
     @AppStorage("pingInterval") private var pingInterval: String = "5"
     @AppStorage("voiceIdentifier") private var voiceIdentifier: String = ""
     
+    @State private var appLanguage: AppLanguage = AppLanguage.current
+    
     @StateObject private var speechSynthesiser = SpeechSynthesizer.shared
     
     @Environment(\.presentationMode) var presentationMode
@@ -73,6 +75,7 @@ struct Settings: View {
             appUserInitials: $appUserInitials,
             pingInterval: $pingInterval,
             voiceIdentifier: $voiceIdentifier,
+            appLanguage: $appLanguage,
             save: save,
             checkServer: checkServer,
             deleteAll: deleteAll,

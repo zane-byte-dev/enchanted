@@ -19,6 +19,7 @@ struct SettingsView: View {
     @Binding var appUserInitials: String
     @Binding var pingInterval: String
     @Binding var voiceIdentifier: String
+    @Binding var appLanguage: AppLanguage
     @State var ollamaStatus: Bool?
     var save: () -> ()
     var checkServer: () -> ()
@@ -27,6 +28,7 @@ struct SettingsView: View {
     var voices: [AVSpeechSynthesisVoice]
     
     @State private var deleteConversationsDialog = false
+    @State private var languageRestartDialog = false
     
     var body: some View {
         VStack {
@@ -131,6 +133,19 @@ struct SettingsView: View {
                             .foregroundStyle(Color.label)
                     }
                     
+                    Picker(selection: $appLanguage) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language.toString).tag(language)
+                        }
+                    } label: {
+                        Label("Language", systemImage: "globe")
+                            .foregroundStyle(Color.label)
+                    }
+                    .onChange(of: appLanguage) { _, newValue in
+                        newValue.apply()
+                        languageRestartDialog = true
+                    }
+                    
                     Picker(selection: $voiceIdentifier) {
                         ForEach(voices, id:\.self.identifier) { voice in
                             Text(voice.prettyName).tag(voice.identifier)
@@ -195,6 +210,16 @@ struct SettingsView: View {
         } message: {
             Text("Delete All Conversations?")
         }
+        .confirmationDialog("Restart required", isPresented: $languageRestartDialog) {
+            Button("Quit Now", role: .destructive) {
+#if os(macOS)
+                NSApplication.shared.terminate(nil)
+#endif
+            }
+            Button("Later", role: .cancel) { }
+        } message: {
+            Text("The language change takes effect after restarting the app.")
+        }
     }
 }
 
@@ -209,6 +234,7 @@ struct SettingsView: View {
         appUserInitials: .constant("AM"),
         pingInterval: .constant("5"),
         voiceIdentifier: .constant("sample"),
+        appLanguage: .constant(.system),
         save: {},
         checkServer: {},
         deleteAll: {},
