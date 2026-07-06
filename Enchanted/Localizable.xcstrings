@@ -2,6 +2,7 @@
   "sourceLanguage" : "en",
   "version" : "1.0",
   "strings" : {
+    "Bearer Token" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Bearer Token" } } } },
     "Appearance" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "外观" } } } },
     "Cancel" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消" } } } },
     "Checking Ollama connection" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在检查 Ollama 连接" } } } },
@@ -37,6 +38,7 @@
     "New Completion" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建补全" } } } },
     "New blank project…" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建空白项目…" } } } },
     "New project" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建项目" } } } },
+    "Ollama" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Ollama" } } } },
     "Ollama is unreachable. Go to Settings and update your Ollama API endpoint." : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法连接 Ollama。请前往设置更新 Ollama API 地址。" } } } },
     "Ollama server URI" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Ollama 服务器地址" } } } },
     "Only single character keyboard shortcuts allowed." : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅允许单个字符的快捷键。" } } } },
@@ -70,6 +72,10 @@
     "Vibrations" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "振动" } } } },
     "Voice" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "语音" } } } },
     "What should we do?" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "我们要做什么？" } } } },
-    "Your Command" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你的指令" } } } }
+    "Your Command" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你的指令" } } } },
+    "Bearer Token" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Bearer Token（可选）" } } } },
+    "Check" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "检查" } } } },
+    "Select Text" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选中文本" } } } },
+    "Reading Aloud" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在朗读" } } } }
   }
 }

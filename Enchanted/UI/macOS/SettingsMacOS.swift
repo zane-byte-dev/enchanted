@@ -13,14 +13,25 @@ import Combine
 // MARK: - Category enum
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
-    case general     = "General"
-    case appearance  = "Appearance"
-    case voice       = "Voice"
-    case shortcuts   = "Shortcuts"
-    case completions = "Completions"
-    case advanced    = "Advanced"
+    case general     = "general"
+    case appearance  = "appearance"
+    case voice       = "voice"
+    case shortcuts   = "shortcuts"
+    case completions = "completions"
+    case advanced    = "advanced"
 
     var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general:     return "常规"
+        case .appearance:  return "外观"
+        case .voice:       return "语音"
+        case .shortcuts:   return "快捷键"
+        case .completions: return "补全"
+        case .advanced:    return "高级"
+        }
+    }
 
     var icon: String {
         switch self {
@@ -148,7 +159,7 @@ struct SettingsMacOS: View {
             .padding(.bottom, 12)
 
             List(SettingsCategory.allCases, selection: $selectedCategory) { cat in
-                Label(cat.rawValue, systemImage: cat.icon)
+                Label(cat.title, systemImage: cat.icon)
                     .tag(cat)
             }
             .listStyle(.sidebar)
@@ -192,7 +203,7 @@ struct SettingsMacOS: View {
                 deleteConversationsDialog: $deleteConversationsDialog
             )
         case nil:
-            Text("Select a category")
+            Text("请选择一个分类")
                 .foregroundColor(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -215,7 +226,7 @@ private struct GeneralSettingsPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                paneTitle("General")
+                paneTitle("常规")
 
                 // Connection
                 settingsGroup("Ollama 连接") {
@@ -299,7 +310,7 @@ private struct AppearanceSettingsPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                paneTitle("Appearance")
+                paneTitle("外观")
 
                 settingsGroup("主题") {
                     row("配色方案") {
@@ -344,7 +355,7 @@ private struct VoiceSettingsPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                paneTitle("Voice")
+                paneTitle("语音")
 
                 settingsGroup("朗读语音") {
                     row("语音") {
@@ -389,7 +400,7 @@ private struct ShortcutsSettingsPane: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            paneTitle("Shortcuts")
+            paneTitle("快捷键")
                 .padding(28)
                 .padding(.bottom, 0)
 
@@ -414,7 +425,7 @@ private struct ShortcutsSettingsPane: View {
 private struct CompletionsSettingsPane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            paneTitle("Completions")
+            paneTitle("补全")
                 .padding(28)
                 .padding(.bottom, 0)
             CompletionsEditor()
@@ -430,7 +441,7 @@ private struct AdvancedSettingsPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                paneTitle("Advanced")
+                paneTitle("高级")
 
                 settingsGroup("数据管理") {
                     HStack {

@@ -44,11 +44,11 @@ struct KeyboardShortcutsDemo: View {
             }
             
             Table(shortcuts) {
-                TableColumn("Shortcut") { shortcut in
+                TableColumn("快捷键") { shortcut in
                     Text(shortcut.keys.joined(separator: " + "))
                 }
                 .width(min: 100, max: 150)
-                TableColumn("Description") { shortcut in
+                TableColumn("说明") { shortcut in
                     Text(String(shortcut.description))
                 }
             }
