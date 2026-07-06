@@ -33,6 +33,7 @@
     "Keyboard Shortcut Letter" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快捷键字母" } } } },
     "Message" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "消息" } } } },
     "Name" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "名称" } } } },
+    "New Chat" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建对话" } } } },
     "New Completion" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建补全" } } } },
     "New blank project…" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建空白项目…" } } } },
     "New project" : { "localizations" : { "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建项目" } } } },

@@ -18,9 +18,9 @@ struct SidebarView: View {
     var onRefresh: () -> () = {}
     @State private var isRefreshing = false
     @State var showSettings = false
-    @State var showCompletions = false
-    @State var showKeyboardShortcutas = false
+    @State private var showUserMenu = false
     @State private var searchText = ""
+    @AppStorage("appUserInitials") private var appUserInitials: String = ""
 
     private var filteredConversations: [ConversationSD] {
         let q = searchText.trimmingCharacters(in: .whitespaces)
@@ -35,12 +35,17 @@ struct SidebarView: View {
         }
     }
     
+    private var initialsLabel: String {
+        let s = appUserInitials.trimmingCharacters(in: .whitespaces)
+        return s.isEmpty ? "?" : String(s.prefix(2)).uppercased()
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // Top actions
             VStack(spacing: 2) {
                 HStack(spacing: 2) {
-                    SidebarButton(title: "New Chat", image: "square.and.pencil", onClick: onNewConversation)
+                    SidebarButton(title: String(localized: "New Chat"), image: "square.and.pencil", onClick: onNewConversation)
                     Button(action: {
                         isRefreshing = true
                         onRefresh()
@@ -93,13 +98,39 @@ struct SidebarView: View {
             
             Divider()
             
-#if os(macOS)
-            SidebarButton(title: "Completions", image: "textformat.abc", onClick: {showCompletions.toggle()})
-            
-            SidebarButton(title: "Shortcuts", image: "keyboard.fill", onClick: {showKeyboardShortcutas.toggle()})
-#endif
-            
-            SidebarButton(title: "Settings", image: "gearshape.fill", onClick: onSettingsTap)
+            // Bottom: avatar button → popover menu
+            Button {
+                showUserMenu.toggle()
+            } label: {
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.accentColor.opacity(0.15))
+                            .frame(width: 28, height: 28)
+                        Text(initialsLabel)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.accentColor)
+                    }
+                    Text("Enchanted")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color(.label))
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showUserMenu, arrowEdge: .top) {
+                SidebarUserMenu(
+                    onSettings: {
+                        showUserMenu = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            showSettings = true
+                        }
+                    }
+                )
+            }
             
         }
         .padding()
@@ -107,17 +138,12 @@ struct SidebarView: View {
         .focusedSceneValue(\.showSettings, $showSettings)
 #endif
         .sheet(isPresented: $showSettings) {
-            Settings()
-        }
 #if os(macOS)
-        .sheet(isPresented: $showCompletions) {
-            CompletionsEditor()
-        }
-        .sheet(isPresented: $showKeyboardShortcutas) {
-            KeyboardShortcutsDemo()
-        }
+            SettingsMacOS()
+#else
+            Settings()
 #endif
-        
+        }
     }
 }
 

@@ -52,6 +52,8 @@
 		FF2F03422B795E0B00349855 /* Clipboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2F03412B795E0B00349855 /* Clipboard.swift */; };
 		FF2F03442B79631800349855 /* Button+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2F03432B79631800349855 /* Button+Extension.swift */; };
 		FF2F03492B796A6500349855 /* HotkeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2F03482B796A6500349855 /* HotkeyService.swift */; };
+		AA100101CCCC00000011AA01 /* SettingsMacOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100100CCCC00000011AA01 /* SettingsMacOS.swift */; };
+		AA100103CCCC00000011AA01 /* SidebarUserMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100102CCCC00000011AA01 /* SidebarUserMenu.swift */; };
 		FF33066C2B83BB31007B33E5 /* SidebarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF33066B2B83BB31007B33E5 /* SidebarButton.swift */; };
 		FF33066E2B83CFEC007B33E5 /* KeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF33066D2B83CFEC007B33E5 /* KeyboardShortcuts.swift */; };
 		FF38F84F2B7A7B6700546B56 /* MenuBarControlView_macOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF38F84E2B7A7B6700546B56 /* MenuBarControlView_macOS.swift */; };
@@ -177,6 +179,8 @@
 		FF6D82182B912804001183A8 /* CompletionButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionButtonView.swift; sourceTree = "<group>"; };
 		FF6D821B2B914202001183A8 /* CompletionsEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionsEditorView.swift; sourceTree = "<group>"; };
 		FF6D821D2B916053001183A8 /* UpsertCompletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpsertCompletionView.swift; sourceTree = "<group>"; };
+		AA100100CCCC00000011AA01 /* SettingsMacOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsMacOS.swift; sourceTree = "<group>"; };
+		AA100102CCCC00000011AA01 /* SidebarUserMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarUserMenu.swift; sourceTree = "<group>"; };
 		FF6D821F2B916CC3001183A8 /* CompletionsEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionsEditor.swift; sourceTree = "<group>"; };
 		FF6D82242B9204F3001183A8 /* AsyncQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncQueue.swift; sourceTree = "<group>"; };
 		FF7FBE4B2B78E384000901F7 /* SamplePrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SamplePrompt.swift; sourceTree = "<group>"; };
@@ -301,6 +305,7 @@
 			isa = PBXGroup;
 			children = (
 				FF10023F2B24F7320011A4DC /* SideBarMenuView.swift */,
+				AA100102CCCC00000011AA01 /* SidebarUserMenu.swift */,
 				FF1002592B2624C40011A4DC /* ConversationHistoryListView.swift */,
 				FF33066B2B83BB31007B33E5 /* SidebarButton.swift */,
 				FF33066D2B83CFEC007B33E5 /* KeyboardShortcuts.swift */,
@@ -380,6 +385,7 @@
 			isa = PBXGroup;
 			children = (
 				3396E0752BD877D500213816 /* Menus.swift */,
+				AA100100CCCC00000011AA01 /* SettingsMacOS.swift */,
 				FF9300D52B778F1A000859F4 /* Chat */,
 				FF6D821A2B9141F0001183A8 /* CompletionsEditor */,
 				FF464B172B810966008E5130 /* Components */,
@@ -774,6 +780,8 @@
 				FF10025A2B2624C40011A4DC /* ConversationHistoryListView.swift in Sources */,
 				FF10026D2B2751760011A4DC /* SettingsView.swift in Sources */,
 				FF33066C2B83BB31007B33E5 /* SidebarButton.swift in Sources */,
+				AA100101CCCC00000011AA01 /* SettingsMacOS.swift in Sources */,
+				AA100103CCCC00000011AA01 /* SidebarUserMenu.swift in Sources */,
 				FFD57E322BF291B2003FEFF1 /* CodeBlockView.swift in Sources */,
 				FF1002542B261D460011A4DC /* MessageListVIew.swift in Sources */,
 				FF10024E2B25C2A70011A4DC /* ConversationSD.swift in Sources */,
