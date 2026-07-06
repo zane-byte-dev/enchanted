@@ -28,6 +28,9 @@ struct ChatView: View {
     var onDeleteDailyConversations: (_ date: Date) -> ()
     var userInitials: String
     var copyChat: (_ json: Bool) -> ()
+    var stats: PiSessionStats? = nil
+    var onSteer: @MainActor (_ message: String) -> Void = { _ in }
+    var onRefresh: () -> () = {}
     
     @State private var message = ""
     @State private var editMessage: MessageSD?
@@ -43,6 +46,8 @@ struct ChatView: View {
             modelsList: modelsList,
             onSelectModel: onSelectModel,
             onSendMessageTap: onSendMessageTap,
+            stats: stats,
+            onSteer: onSteer,
             editMessage: $editMessage
         )
     }
@@ -55,7 +60,8 @@ struct ChatView: View {
                 onConversationTap: onConversationTap,
                 onConversationDelete: onConversationDelete,
                 onDeleteDailyConversations: onDeleteDailyConversations,
-                onNewConversation: onNewConversationTap
+                onNewConversation: onNewConversationTap,
+                onRefresh: onRefresh
             )
             .toolbar {
 #if os(visionOS)

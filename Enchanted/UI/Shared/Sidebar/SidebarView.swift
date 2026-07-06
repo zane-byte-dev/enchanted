@@ -15,6 +15,8 @@ struct SidebarView: View {
     var onConversationDelete: (_ conversation: ConversationSD) -> ()
     var onDeleteDailyConversations: (_ date: Date) -> ()
     var onNewConversation: () -> () = {}
+    var onRefresh: () -> () = {}
+    @State private var isRefreshing = false
     @State var showSettings = false
     @State var showCompletions = false
     @State var showKeyboardShortcutas = false
@@ -37,7 +39,24 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             // Top actions
             VStack(spacing: 2) {
-                SidebarButton(title: "New Chat", image: "square.and.pencil", onClick: onNewConversation)
+                HStack(spacing: 2) {
+                    SidebarButton(title: "New Chat", image: "square.and.pencil", onClick: onNewConversation)
+                    Button(action: {
+                        isRefreshing = true
+                        onRefresh()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { isRefreshing = false }
+                    }) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color(.systemGray))
+                            .rotationEffect(.degrees(isRefreshing ? 360 : 0))
+                            .animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
+                            .frame(width: 30, height: 30)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Sync pi sessions")
+                }
 
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")

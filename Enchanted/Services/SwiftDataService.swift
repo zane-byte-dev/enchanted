@@ -131,6 +131,14 @@ extension SwiftDataService {
         self.modelContext.insert(mesasge)
         try modelContext.saveChanges()
     }
+
+    /// Delete all messages belonging to a conversation (used when re-syncing an
+    /// externally-updated pi session).
+    func deleteMessages(forConversation conversationId: UUID) throws {
+        let predicate = #Predicate<MessageSD>{ $0.conversation?.id == conversationId }
+        try modelContext.delete(model: MessageSD.self, where: predicate)
+        try modelContext.saveChanges()
+    }
 }
 
 // MARK: - CompletionInstruction

@@ -16,6 +16,8 @@ struct InputFieldsView: View {
     var modelsList: [LanguageModelSD] = []
     var onSelectModel: @MainActor (_ model: LanguageModelSD?) -> () = { _ in }
     var onSendMessageTap: @MainActor (_ prompt: String, _ model: LanguageModelSD, _ image: Image?, _ trimmingMessageId: String?) -> ()
+    var stats: PiSessionStats? = nil
+    var onSteer: @MainActor (_ message: String) -> Void = { _ in }
     @Binding var editMessage: MessageSD?
     @State var isRecording = false
     
@@ -25,6 +27,16 @@ struct InputFieldsView: View {
     @FocusState private var isFocusedInput: Bool
     
     @MainActor private func sendMessage() {
+        // While a turn is running, Enter steers the in-flight run instead of
+        // starting a new one (the stop button still aborts).
+        if conversationState == .loading {
+            let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            onSteer(trimmed)
+            withAnimation { message = "" }
+            return
+        }
+
         guard let selectedModel = selectedModel else { return }
         
         onSendMessageTap(
@@ -147,6 +159,10 @@ struct InputFieldsView: View {
                 // Reasoning level
                 ThinkingLevelMenu()
 
+                if let stats {
+                    SessionStatsBadge(stats: stats)
+                }
+
                 Spacer()
 
                 RecordingView(isRecording: $isRecording.animation()) { transcription in
@@ -189,6 +205,56 @@ struct InputFieldsView: View {
             // allow focusing text area on greater tap area
             isFocusedInput = true
         }
+    }
+}
+
+/// Compact token / cost / context indicator for the composer (Codex-style).
+struct SessionStatsBadge: View {
+    let stats: PiSessionStats
+
+    private func fmt(_ n: Int) -> String {
+        if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
+        if n >= 1_000 { return String(format: "%.1fk", Double(n) / 1_000) }
+        return "\(n)"
+    }
+
+    private var contextColor: Color {
+        guard let p = stats.contextPercent else { return .secondary }
+        if p >= 85 { return .red }
+        if p >= 60 { return .orange }
+        return .secondary
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let p = stats.contextPercent {
+                HStack(spacing: 3) {
+                    Image(systemName: "gauge.with.dots.needle.33percent")
+                        .font(.system(size: 10))
+                    Text("\(Int(p.rounded()))%")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundStyle(contextColor)
+            }
+            Text(fmt(stats.totalTokens))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            if stats.cost > 0 {
+                Text(String(format: "$%.3f", stats.cost))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .help(contextTooltip)
+    }
+
+    private var contextTooltip: String {
+        var parts = ["Tokens: \(stats.totalTokens) (in \(stats.inputTokens) / out \(stats.outputTokens))"]
+        if let t = stats.contextTokens, let w = stats.contextWindow {
+            parts.append("Context: \(t) / \(w)")
+        }
+        if stats.cost > 0 { parts.append(String(format: "Cost: $%.4f", stats.cost)) }
+        return parts.joined(separator: "\n")
     }
 }
 

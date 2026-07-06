@@ -143,7 +143,10 @@ struct Chat: View, Sendable {
                 onConversationDelete: onConversationDelete,
                 onDeleteDailyConversations: conversationStore.deleteDailyConversations,
                 userInitials: userInitials,
-                copyChat: copyChat
+                copyChat: copyChat,
+                stats: conversationStore.currentStats,
+                onSteer: { _ = conversationStore.steerIfRunning($0) },
+                onRefresh: { Task { await conversationStore.syncPiSessions() } }
             )
 #else
             SideBarStack(sidebarWidth: 300,showSidebar: $showMenu, sidebar: {
@@ -180,9 +183,11 @@ struct Chat: View, Sendable {
             }
         })
         .onChange(of: conversationStore.selectedConversation, initial: true, { _, newConversation in
-            if let conversation = newConversation {
+            if let conversation = newConversation, conversation.model != nil {
                 languageModelStore.setModel(model: conversation.model)
             } else {
+                // Imported / model-less conversations: fall back to a default so
+                // the composer can still send.
                 updateSelectedModel()
             }
         })

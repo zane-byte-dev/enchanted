@@ -16,6 +16,30 @@
 import Foundation
 import Combine
 
+/// Token / cost / context usage for a pi session (from `get_session_stats`).
+struct PiSessionStats: Equatable {
+    var totalTokens: Int
+    var inputTokens: Int
+    var outputTokens: Int
+    var cost: Double
+    var contextTokens: Int?
+    var contextWindow: Int?
+    var contextPercent: Double?
+
+    init?(_ data: [String: Any]) {
+        let tokens = data["tokens"] as? [String: Any] ?? [:]
+        totalTokens = (tokens["total"] as? NSNumber)?.intValue ?? 0
+        inputTokens = (tokens["input"] as? NSNumber)?.intValue ?? 0
+        outputTokens = (tokens["output"] as? NSNumber)?.intValue ?? 0
+        cost = (data["cost"] as? NSNumber)?.doubleValue ?? 0
+        if let ctx = data["contextUsage"] as? [String: Any] {
+            contextTokens = (ctx["tokens"] as? NSNumber)?.intValue
+            contextWindow = (ctx["contextWindow"] as? NSNumber)?.intValue
+            contextPercent = (ctx["percent"] as? NSNumber)?.doubleValue
+        }
+    }
+}
+
 final class PiConnector: AgentBackend, @unchecked Sendable {
     struct Config {
         /// Absolute path to the `pi` executable (or a launcher that runs it).
@@ -125,6 +149,34 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     /// Ask pi to abort the in-flight turn (real stop, not just local unsubscribe).
     func abort() {
         try? send(["id": nextId(), "type": "abort"])
+    }
+
+    /// Send a steering message into an in-flight turn (adjust course mid-run).
+    func steer(_ message: String) {
+        try? send(["id": nextId(), "type": "steer", "message": message])
+    }
+
+    /// Fetch token/cost/context stats for the current session.
+    func sessionStats() async -> PiSessionStats? {
+        guard process?.isRunning == true else { return nil }
+        let id = nextId()
+        let response: [String: Any]? = await withCheckedContinuation { continuation in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { obj in
+                if resumed { return }; resumed = true
+                continuation.resume(returning: obj)
+            }
+            lock.lock()
+            pending[id] = { obj in finish(obj) }
+            lock.unlock()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
+                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                finish(nil)
+            }
+            try? send(["id": id, "type": "get_session_stats"])
+        }
+        guard let data = response?["data"] as? [String: Any] else { return nil }
+        return PiSessionStats(data)
     }
 
     func reachable() async -> Bool {

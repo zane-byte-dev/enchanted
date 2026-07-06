@@ -41,8 +41,18 @@ struct ApplicationEntry: View {
                     _ = try await loadModels
                     _ = try await loadConversations
                     _ = try await loadCompletions
+                    // Surface pi sessions created elsewhere (VS Code / CLI).
+                    await conversationStore.syncPiSessions()
                 } catch {
                     print("Unexpected error: \(error).")
+                }
+            }
+
+            // Poll for external pi session changes (new tasks / new messages).
+            Task.detached {
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                    await conversationStore.syncPiSessions()
                 }
             }
         }

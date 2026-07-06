@@ -41,7 +41,7 @@ struct MessageListView: View {
         ZStack(alignment: .top) {
             ScrollViewReader { scrollViewProxy in
                 ScrollView {
-                    VStack {
+                    LazyVStack {
                         ForEach(messages) { message in
                             let contextMenu = ContextMenu(menuItems: {
                                 Button(action: {Clipboard.shared.setString(message.content)}) {
