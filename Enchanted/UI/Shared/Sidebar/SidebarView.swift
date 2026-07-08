@@ -17,7 +17,6 @@ struct SidebarView: View {
     var onRefresh: () -> () = {}
     @State private var isRefreshing = false
     @State var showSettings = false   // iOS sheet / ⌘, focus binding
-    @State private var showUserMenu = false
     @State private var searchText = ""
     @AppStorage("appUserInitials") private var appUserInitials: String = ""
 
@@ -83,6 +82,8 @@ struct SidebarView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(6)
             }
             .padding(.bottom, 8)
 
@@ -99,9 +100,9 @@ struct SidebarView: View {
             
             Divider()
             
-            // Bottom: avatar button → popover menu
+            // Bottom: avatar button → open settings
             Button {
-                showUserMenu.toggle()
+                onSettingsTap()
             } label: {
                 HStack(spacing: 10) {
                     ZStack {
@@ -114,7 +115,7 @@ struct SidebarView: View {
                     }
                     Text("Enchanted")
                         .font(.system(size: 13))
-                        .foregroundColor(Color(.label))
+                        .foregroundColor(.primary)
                     Spacer()
                 }
                 .padding(.horizontal, 8)
@@ -122,16 +123,6 @@ struct SidebarView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .popover(isPresented: $showUserMenu, arrowEdge: .top) {
-                SidebarUserMenu(
-                    onSettings: {
-                        showUserMenu = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            onSettingsTap()
-                        }
-                    }
-                )
-            }
             
         }
         .padding()

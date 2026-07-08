@@ -8,23 +8,10 @@
 #if os(macOS)
 import SwiftUI
 import Carbon
-import AsyncAlgorithms
-
-final actor Printer {
-    func write(_ message: String) {
-        Clipboard.shared.setString(message)
-        usleep(50000)
-        Accessibility.simulatePasteCommand()
-    }
-}
 
 class PanelManager: NSObject, NSApplicationDelegate {
     var targetApplication: NSRunningApplication?
-    var lastPrintApplication: NSRunningApplication?
     var panel: FloatingPanel!
-    var completionsPanelVM = CompletionsPanelVM()
-    @MainActor var allowPrinting = true
-    let printer = Printer()
     
     override init() {
         super.init()
@@ -32,39 +19,8 @@ class PanelManager: NSObject, NSApplicationDelegate {
         Task {
             await NSApp.setActivationPolicy(.regular)
             await NSApp.activate(ignoringOtherApps: true)
-            await handleNewMessages()
         }
     }
-    
-    private func handleNewMessages() async {
-        let timer = AsyncTimerSequence(interval: .seconds(0.1), clock: .continuous)
-        for await _ in timer {
-            // If user focused different application stop writing
-            if lastPrintApplication != nil && lastPrintApplication?.localizedName != NSWorkspace.shared.runningApplications.first(where: {$0.isActive})?.localizedName {
-                // dequeue all and stop execution
-                await completionsPanelVM.cancel()
-                _ = await completionsPanelVM.sentenceQueue.dequeueAll()
-                lastPrintApplication = nil
-                continue
-            }
-            
-            // hold printing until user action and ensuring that your driving experience
-            if await !allowPrinting {
-                continue
-            }
-            
-            let sentencesToConsume = await completionsPanelVM.sentenceQueue.dequeueAll().joined()
-            
-            if sentencesToConsume.isEmpty {
-                continue
-            }
-            
-            print("printing: \((sentencesToConsume)) \(Date())")
-            lastPrintApplication = NSWorkspace.shared.runningApplications.first{$0.isActive}
-            await printer.write(sentencesToConsume)
-        }
-    }
-    
     
     @MainActor
     @objc func togglePanel() {
@@ -75,23 +31,12 @@ class PanelManager: NSObject, NSApplicationDelegate {
         
         targetApplication = NSWorkspace.shared.runningApplications.first{$0.isActive}
 
-        Task {
-            completionsPanelVM.selectedText = Accessibility.shared.getSelectedText()
-            print("selected message", completionsPanelVM.selectedText as Any)
-            
-            if panel == nil || !panel.isVisible {
-                showPanel()
-                
-                // subscribe to keybaord event to avoid beep
-//                HotkeyService.shared.registerSingleUseEscape(modifiers: []) { [weak self] in
-//                    self?.hidePanel()
-//                }
-                
-                return
-            }
-            
-            hidePanel()
+        if panel == nil || !panel.isVisible {
+            showPanel()
+            return
         }
+        
+        hidePanel()
     }
     
     @MainActor
@@ -108,7 +53,6 @@ class PanelManager: NSObject, NSApplicationDelegate {
     
     @MainActor
     @objc func onSubmitMessage() {
-        allowPrinting = true
         hidePanel()
         
         /// Focus Enchanted
@@ -124,27 +68,9 @@ class PanelManager: NSObject, NSApplicationDelegate {
     }
     
     @MainActor
-    @objc func onSubmitCompletion(scheduledTyping: Bool) {
-        allowPrinting = true
-        
-        if scheduledTyping {
-            self.allowPrinting = false
-            HotkeyService.shared.registerSingleUseSpace(modifiers: []) { [weak self] in
-                self?.allowPrinting = true
-                self?.hidePanel()
-            }
-        } else {
-            hidePanel()
-        }
-        targetApplication?.activate()
-    }
-    
-    @MainActor
     func createPanel() {
         let contentView = PromptPanel(
-            completionsPanelVM: completionsPanelVM,
             onSubmitPanel: onSubmitMessage,
-            onSubmitCompletion: onSubmitCompletion,
             onLayoutUpdate: updatePanelSizeIfNeeded
         )
         let hostingView = NSHostingView(rootView: contentView)

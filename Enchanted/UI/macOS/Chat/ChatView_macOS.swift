@@ -93,14 +93,17 @@ struct ChatView: View {
                         UnreachableAPIView()
                     }
 
-                    composer
-                        .padding()
-                        .frame(maxWidth: 800)
+                    VStack(spacing: 2) {
+                        composer
+                    }
+                    .padding()
+                    .frame(maxWidth: 800)
                 } else {
                     // Codex-style new-conversation empty state
                     Spacer()
                     Text("What should we do?")
                         .font(.system(size: 32, weight: .semibold))
+                        .foregroundStyle(.primary.opacity(0.85))
                         .padding(.bottom, 28)
 
                     if !reachable {
@@ -109,11 +112,6 @@ struct ChatView: View {
 
                     VStack(spacing: 2) {
                         composer
-                        HStack {
-                            ChooseProjectRow()
-                            Spacer()
-                        }
-                        .padding(.horizontal, 6)
                     }
                     .frame(maxWidth: 720)
                     .padding(.horizontal)
@@ -138,9 +136,6 @@ struct ChatView: View {
                     Text("Enchanted")
                 }
                 #else
-                ToolbarItem(placement: .navigation) {
-                    Text("Enchanted")
-                }
                 #endif
 
                 
@@ -149,13 +144,12 @@ struct ChatView: View {
                         modelsList: modelsList,
                         selectedModel: selectedModel,
                         onSelectModel: onSelectModel,
-                        onNewConversationTap: onNewConversationTap,
                         copyChat: copyChat
                     )
                 }
             }
         }
-        .navigationTitle("")
+        .navigationTitle(selectedConversation?.name ?? "")
         .onChange(of: editMessage, initial: false) { _, newMessage in
             if let newMessage = newMessage {
                 message = newMessage.content

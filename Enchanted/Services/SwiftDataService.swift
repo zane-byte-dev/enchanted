@@ -20,8 +20,7 @@ final actor SwiftDataService: ModelActor {
             let schema = Schema([
                 LanguageModelSD.self,
                 ConversationSD.self,
-                MessageSD.self,
-                CompletionInstructionSD.self
+                MessageSD.self
             ])
             let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
             
@@ -141,35 +140,12 @@ extension SwiftDataService {
     }
 }
 
-// MARK: - CompletionInstruction
-extension SwiftDataService {
-    func fetchCompletionInstructions() throws -> [CompletionInstructionSD] {
-        let sortDescriptor = SortDescriptor(\CompletionInstructionSD.order, order: .forward)
-        let fetchDescriptor = FetchDescriptor<CompletionInstructionSD>(sortBy: [sortDescriptor])
-        return try modelContext.fetch(fetchDescriptor)
-    }
-    
-    func updateCompletionInstructions(_ instructions: [CompletionInstructionSD]) throws {
-        for index in instructions.indices {
-            instructions[index].order = index
-            modelContext.insert(instructions[index])
-        }
-        try modelContext.saveChanges()
-    }
-    
-    func deleteCompletionInstruction(_ instruction: CompletionInstructionSD) throws {
-        self.modelContext.delete(instruction)
-        try modelContext.saveChanges()
-    }
-}
-
 // MARK: - General
 extension SwiftDataService {
     func deleteEverything() throws {
         try modelContext.delete(model: ConversationSD.self)
         try modelContext.delete(model: LanguageModelSD.self)
         try modelContext.delete(model: MessageSD.self)
-        try modelContext.delete(model: CompletionInstructionSD.self)
         try modelContext.saveChanges()
     }
 }

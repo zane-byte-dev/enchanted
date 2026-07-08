@@ -17,7 +17,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     case appearance  = "appearance"
     case voice       = "voice"
     case shortcuts   = "shortcuts"
-    case completions = "completions"
     case advanced    = "advanced"
 
     var id: String { rawValue }
@@ -28,7 +27,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .appearance:  return "外观"
         case .voice:       return "语音"
         case .shortcuts:   return "快捷键"
-        case .completions: return "补全"
         case .advanced:    return "高级"
         }
     }
@@ -39,7 +37,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .appearance:  return "paintbrush"
         case .voice:       return "waveform"
         case .shortcuts:   return "keyboard"
-        case .completions: return "textformat.abc"
         case .advanced:    return "wrench.and.screwdriver"
         }
     }
@@ -196,8 +193,6 @@ struct SettingsMacOS: View {
             )
         case .shortcuts:
             ShortcutsSettingsPane()
-        case .completions:
-            CompletionsSettingsPane()
         case .advanced:
             AdvancedSettingsPane(
                 deleteConversationsDialog: $deleteConversationsDialog
@@ -416,19 +411,6 @@ private struct ShortcutsSettingsPane: View {
                 }
             }
             .padding(.horizontal, 28)
-        }
-    }
-}
-
-// MARK: - Completions
-
-private struct CompletionsSettingsPane: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            paneTitle("补全")
-                .padding(28)
-                .padding(.bottom, 0)
-            CompletionsEditor()
         }
     }
 }

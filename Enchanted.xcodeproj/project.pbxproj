@@ -53,7 +53,6 @@
 		FF2F03442B79631800349855 /* Button+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2F03432B79631800349855 /* Button+Extension.swift */; };
 		FF2F03492B796A6500349855 /* HotkeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2F03482B796A6500349855 /* HotkeyService.swift */; };
 		AA100101CCCC00000011AA01 /* SettingsMacOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100100CCCC00000011AA01 /* SettingsMacOS.swift */; };
-		AA100103CCCC00000011AA01 /* SidebarUserMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100102CCCC00000011AA01 /* SidebarUserMenu.swift */; };
 		FF33066C2B83BB31007B33E5 /* SidebarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF33066B2B83BB31007B33E5 /* SidebarButton.swift */; };
 		FF33066E2B83CFEC007B33E5 /* KeyboardShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF33066D2B83CFEC007B33E5 /* KeyboardShortcuts.swift */; };
 		FF38F84F2B7A7B6700546B56 /* MenuBarControlView_macOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF38F84E2B7A7B6700546B56 /* MenuBarControlView_macOS.swift */; };
@@ -67,14 +66,7 @@
 		FF5FA0D62B35169400BC471D /* Binding+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF5FA0D52B35169400BC471D /* Binding+Extension.swift */; };
 		FF66A51D2B76949A00FAAC1E /* Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF66A51C2B76949A00FAAC1E /* Helpers.swift */; };
 		FF6B7B132B3EE7AC00E8FEA3 /* Throttler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6B7B122B3EE7AC00E8FEA3 /* Throttler.swift */; };
-		FF6D820D2B90C925001183A8 /* CompletionPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6D820C2B90C925001183A8 /* CompletionPanelView.swift */; };
-		FF6D82122B911079001183A8 /* PanelCompletionsVM.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6D82112B911079001183A8 /* PanelCompletionsVM.swift */; };
 		FF6D82152B911536001183A8 /* Accessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6D82142B911536001183A8 /* Accessibility.swift */; };
-		FF6D82172B9122F9001183A8 /* CompletionInstructionSD.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6D82162B9122F9001183A8 /* CompletionInstructionSD.swift */; };
-		FF6D82192B912804001183A8 /* CompletionButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6D82182B912804001183A8 /* CompletionButtonView.swift */; };
-		FF6D821C2B914202001183A8 /* CompletionsEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6D821B2B914202001183A8 /* CompletionsEditorView.swift */; };
-		FF6D821E2B916053001183A8 /* UpsertCompletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6D821D2B916053001183A8 /* UpsertCompletionView.swift */; };
-		FF6D82202B916CC3001183A8 /* CompletionsEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6D821F2B916CC3001183A8 /* CompletionsEditor.swift */; };
 		FF6D82252B9204F3001183A8 /* AsyncQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6D82242B9204F3001183A8 /* AsyncQueue.swift */; };
 		FF79AEB62CE72ECE00EDE10C /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = FF79AEB52CE72ECE00EDE10C /* MarkdownUI */; };
 		FF7FBE4C2B78E384000901F7 /* SamplePrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF7FBE4B2B78E384000901F7 /* SamplePrompt.swift */; };
@@ -113,7 +105,6 @@
 		FFEC9BE12B81327B00AFBA63 /* DragAndDrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFEC9BE02B81327B00AFBA63 /* DragAndDrop.swift */; };
 		FFEC9BE32B81358800AFBA63 /* DeallocPrinter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFEC9BE22B81358800AFBA63 /* DeallocPrinter.swift */; };
 		FFEC9BE72B813A8D00AFBA63 /* RemovableImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFEC9BE62B813A8D00AFBA63 /* RemovableImage.swift */; };
-		FFFD00C22B92607800392AE6 /* CompletionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFD00C12B92607800392AE6 /* CompletionsStore.swift */; };
 		FFFD00C92B94CB5E00392AE6 /* AsyncAlgorithms in Frameworks */ = {isa = PBXBuildFile; productRef = FFFD00C82B94CB5E00392AE6 /* AsyncAlgorithms */; };
 /* End PBXBuildFile section */
 
@@ -172,16 +163,8 @@
 		FF5FA0D52B35169400BC471D /* Binding+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Binding+Extension.swift"; sourceTree = "<group>"; };
 		FF66A51C2B76949A00FAAC1E /* Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Helpers.swift; sourceTree = "<group>"; };
 		FF6B7B122B3EE7AC00E8FEA3 /* Throttler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Throttler.swift; sourceTree = "<group>"; };
-		FF6D820C2B90C925001183A8 /* CompletionPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionPanelView.swift; sourceTree = "<group>"; };
-		FF6D82112B911079001183A8 /* PanelCompletionsVM.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCompletionsVM.swift; sourceTree = "<group>"; };
 		FF6D82142B911536001183A8 /* Accessibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Accessibility.swift; sourceTree = "<group>"; };
-		FF6D82162B9122F9001183A8 /* CompletionInstructionSD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionInstructionSD.swift; sourceTree = "<group>"; };
-		FF6D82182B912804001183A8 /* CompletionButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionButtonView.swift; sourceTree = "<group>"; };
-		FF6D821B2B914202001183A8 /* CompletionsEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionsEditorView.swift; sourceTree = "<group>"; };
-		FF6D821D2B916053001183A8 /* UpsertCompletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpsertCompletionView.swift; sourceTree = "<group>"; };
 		AA100100CCCC00000011AA01 /* SettingsMacOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsMacOS.swift; sourceTree = "<group>"; };
-		AA100102CCCC00000011AA01 /* SidebarUserMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarUserMenu.swift; sourceTree = "<group>"; };
-		FF6D821F2B916CC3001183A8 /* CompletionsEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionsEditor.swift; sourceTree = "<group>"; };
 		FF6D82242B9204F3001183A8 /* AsyncQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncQueue.swift; sourceTree = "<group>"; };
 		FF7FBE4B2B78E384000901F7 /* SamplePrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SamplePrompt.swift; sourceTree = "<group>"; };
 		FF9300D32B778829000859F4 /* ChatView_macOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView_macOS.swift; sourceTree = "<group>"; };
@@ -220,7 +203,6 @@
 		FFEC9BE02B81327B00AFBA63 /* DragAndDrop.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DragAndDrop.swift; sourceTree = "<group>"; };
 		FFEC9BE22B81358800AFBA63 /* DeallocPrinter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DeallocPrinter.swift; sourceTree = "<group>"; };
 		FFEC9BE62B813A8D00AFBA63 /* RemovableImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemovableImage.swift; sourceTree = "<group>"; };
-		FFFD00C12B92607800392AE6 /* CompletionsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionsStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -274,7 +256,6 @@
 			isa = PBXGroup;
 			children = (
 				FF1002742B278C170011A4DC /* AppStore.swift */,
-				FFFD00C12B92607800392AE6 /* CompletionsStore.swift */,
 				FF1002432B25BB730011A4DC /* ConversationStore.swift */,
 				FF1002452B25BCE70011A4DC /* LanguageModelStore.swift */,
 			);
@@ -284,7 +265,6 @@
 		FF1002482B25BE580011A4DC /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				FF6D82162B9122F9001183A8 /* CompletionInstructionSD.swift */,
 				FF10024D2B25C2A70011A4DC /* ConversationSD.swift */,
 				FF1002492B25BE740011A4DC /* LanguageModelSD.swift */,
 				FF10024B2B25BEA00011A4DC /* MessageSD.swift */,
@@ -305,7 +285,6 @@
 			isa = PBXGroup;
 			children = (
 				FF10023F2B24F7320011A4DC /* SideBarMenuView.swift */,
-				AA100102CCCC00000011AA01 /* SidebarUserMenu.swift */,
 				FF1002592B2624C40011A4DC /* ConversationHistoryListView.swift */,
 				FF33066B2B83BB31007B33E5 /* SidebarButton.swift */,
 				FF33066D2B83CFEC007B33E5 /* KeyboardShortcuts.swift */,
@@ -351,7 +330,6 @@
 			isa = PBXGroup;
 			children = (
 				FF38F8552B7AB01E00546B56 /* FloatingPanel.swift */,
-				FF6D82112B911079001183A8 /* PanelCompletionsVM.swift */,
 				FF38F8572B7AB1AD00546B56 /* PanelManager.swift */,
 				FF38F85B2B7ABC2C00546B56 /* PromptPanel.swift */,
 			);
@@ -373,8 +351,6 @@
 		FF464B172B810966008E5130 /* Components */ = {
 			isa = PBXGroup;
 			children = (
-				FF6D82182B912804001183A8 /* CompletionButtonView.swift */,
-				FF6D820C2B90C925001183A8 /* CompletionPanelView.swift */,
 				FFEC9BE02B81327B00AFBA63 /* DragAndDrop.swift */,
 				FF38F8592B7AB28300546B56 /* PromptPanelView.swift */,
 			);
@@ -387,7 +363,6 @@
 				3396E0752BD877D500213816 /* Menus.swift */,
 				AA100100CCCC00000011AA01 /* SettingsMacOS.swift */,
 				FF9300D52B778F1A000859F4 /* Chat */,
-				FF6D821A2B9141F0001183A8 /* CompletionsEditor */,
 				FF464B172B810966008E5130 /* Components */,
 				FF38F84D2B7A7B5300546B56 /* MenuBar */,
 				FF38F8542B7AB00100546B56 /* PromptPanel */,
@@ -402,16 +377,6 @@
 				FFEC32A92B24797C003E5C04 /* ChatView_iOS.swift */,
 			);
 			path = iOS;
-			sourceTree = "<group>";
-		};
-		FF6D821A2B9141F0001183A8 /* CompletionsEditor */ = {
-			isa = PBXGroup;
-			children = (
-				FF6D821F2B916CC3001183A8 /* CompletionsEditor.swift */,
-				FF6D821B2B914202001183A8 /* CompletionsEditorView.swift */,
-				FF6D821D2B916053001183A8 /* UpsertCompletionView.swift */,
-			);
-			path = CompletionsEditor;
 			sourceTree = "<group>";
 		};
 		FF9300D52B778F1A000859F4 /* Chat */ = {
@@ -737,13 +702,11 @@
 				FF0146CB2B3DA1DF00A2A9F6 /* Settings.swift in Sources */,
 				FF0611F32C04BEFE00443B33 /* AVSpeechSynthesisVoice+Extension.swift in Sources */,
 				FF38F8532B7AA9C400546B56 /* ApplicationEntry.swift in Sources */,
-				FF6D82202B916CC3001183A8 /* CompletionsEditor.swift in Sources */,
 				FF38F85C2B7ABC2C00546B56 /* PromptPanel.swift in Sources */,
 				FFEC9BE12B81327B00AFBA63 /* DragAndDrop.swift in Sources */,
 				FFB56F432C0353CF0020AFFD /* ReadingAloudView.swift in Sources */,
 				FF2F03442B79631800349855 /* Button+Extension.swift in Sources */,
 				FF1002682B2668790011A4DC /* Date+Extension.swift in Sources */,
-				FF6D821E2B916053001183A8 /* UpsertCompletionView.swift in Sources */,
 				FFBB2C7B2C03D8AD00509204 /* Voice.swift in Sources */,
 				FF9300D42B778829000859F4 /* ChatView_macOS.swift in Sources */,
 				FF38F8512B7A919C00546B56 /* MenuBarControl_macOS.swift in Sources */,
@@ -754,19 +717,15 @@
 				FF1002392B24BBF20011A4DC /* Chat.swift in Sources */,
 				FFB0327D2B312F3D0066A9DB /* RecordingView.swift in Sources */,
 				FFBB2C7D2C047B6C00509204 /* Image+Extension.swift in Sources */,
-				FF6D82192B912804001183A8 /* CompletionButtonView.swift in Sources */,
 				FF10024A2B25BE740011A4DC /* LanguageModelSD.swift in Sources */,
 				FF6B7B132B3EE7AC00E8FEA3 /* Throttler.swift in Sources */,
 				FF1002402B24F7320011A4DC /* SideBarMenuView.swift in Sources */,
 				FF9300DE2B782A28000859F4 /* UnreachableAPIView.swift in Sources */,
-				FF6D820D2B90C925001183A8 /* CompletionPanelView.swift in Sources */,
-				FF6D821C2B914202001183A8 /* CompletionsEditorView.swift in Sources */,
 				FFD57E302BF29145003FEFF1 /* MarkdownColours.swift in Sources */,
 				FF9300DC2B7823B0000859F4 /* EmptyConversaitonView.swift in Sources */,
 				FFBBF4882B34F9C8008D611C /* View+Extension.swift in Sources */,
 				FFEC9BE32B81358800AFBA63 /* DeallocPrinter.swift in Sources */,
 				FFBBF4842B34881B008D611C /* SpeechRecogniser.swift in Sources */,
-				FF6D82122B911079001183A8 /* PanelCompletionsVM.swift in Sources */,
 				FFEC32AA2B24797C003E5C04 /* ChatView_iOS.swift in Sources */,
 				FF6D82152B911536001183A8 /* Accessibility.swift in Sources */,
 				FF0146CD2B3DADCA00A2A9F6 /* HapticsService.swift in Sources */,
@@ -775,13 +734,11 @@
 				FF1002502B25C79F0011A4DC /* SwiftDataService.swift in Sources */,
 				FF7FBE4C2B78E384000901F7 /* SamplePrompt.swift in Sources */,
 				FF38F8582B7AB1AD00546B56 /* PanelManager.swift in Sources */,
-				FF6D82172B9122F9001183A8 /* CompletionInstructionSD.swift in Sources */,
 				FF226A652BE2A0EC00CC91F1 /* SelectTextSheet.swift in Sources */,
 				FF10025A2B2624C40011A4DC /* ConversationHistoryListView.swift in Sources */,
 				FF10026D2B2751760011A4DC /* SettingsView.swift in Sources */,
 				FF33066C2B83BB31007B33E5 /* SidebarButton.swift in Sources */,
 				AA100101CCCC00000011AA01 /* SettingsMacOS.swift in Sources */,
-				AA100103CCCC00000011AA01 /* SidebarUserMenu.swift in Sources */,
 				FFD57E322BF291B2003FEFF1 /* CodeBlockView.swift in Sources */,
 				FF1002542B261D460011A4DC /* MessageListVIew.swift in Sources */,
 				FF10024E2B25C2A70011A4DC /* ConversationSD.swift in Sources */,
@@ -797,7 +754,6 @@
 				C80100000000000000000004 /* AppLanguage.swift in Sources */,
 				FF10025E2B2648460011A4DC /* ConversationState.swift in Sources */,
 				FFEC9BE72B813A8D00AFBA63 /* RemovableImage.swift in Sources */,
-				FFFD00C22B92607800392AE6 /* CompletionsStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

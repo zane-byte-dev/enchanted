@@ -101,8 +101,8 @@ struct ConversationHistoryList: View {
                             .frame(width: 16, height: 16)
                             .foregroundColor(Color(.systemGray))
                         Text(group.name)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(Color(.label))
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundColor(.primary)
                             .lineLimit(1)
                         Spacer()
                         Image(systemName: isCollapsed ? "chevron.forward" : "chevron.down")
@@ -115,32 +115,36 @@ struct ConversationHistoryList: View {
 
                 // Conversations under this project
                 if !isCollapsed {
-                    ForEach(group.conversations, id:\.self) { conversation in
-                        Button(action: { onTap(conversation) }) {
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .frame(width: 5, height: 5)
-                                    .foregroundColor(Color(.label))
-                                    .opacity(selectedConversation == conversation ? 1 : 0)
-
-                                Text(conversation.name)
-                                    .lineLimit(1)
-                                    .font(.system(size: 14))
-                                    .foregroundColor(Color(.label))
-                                Spacer(minLength: 4)
-                                ConversationStatusBadge(conversationID: conversation.id)
-                                Text(conversation.updatedAt.shortAgoString())
-                                    .font(.system(size: 12))
-                                    .foregroundColor(Color(.systemGray))
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(group.conversations, id:\.self) { conversation in
+                            Button(action: { onTap(conversation) }) {
+                                HStack(spacing: 6) {
+                                    Text(conversation.name)
+                                        .lineLimit(1)
+                                        .font(.system(size: 14, weight: .regular))
+                                        .foregroundColor(.primary)
+                                    Spacer(minLength: 4)
+                                    ConversationStatusBadge(conversationID: conversation.id)
+                                    Text(conversation.updatedAt.shortAgoString())
+                                        .font(.system(size: 12))
+                                        .foregroundColor(Color(hex: "9CA3AF"))
+                                }
+                                .padding(.leading, 8)
                             }
-                            .padding(.leading, 16)
+                            .buttonStyle(SidebarRowStyle(isSelected: selectedConversation == conversation))
+                            .contextMenu(menuItems: {
+                                Button(role: .destructive, action: { onDelete(conversation) }) {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            })
                         }
-                        .buttonStyle(SidebarRowStyle())
-                        .contextMenu(menuItems: {
-                            Button(role: .destructive, action: { onDelete(conversation) }) {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        })
+                    }
+                    .padding(.leading, 10)
+                    .overlay(alignment: .leading) {
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.18))
+                            .frame(width: 1)
+                            .padding(.vertical, 3)
                     }
                 }
             }

@@ -54,6 +54,11 @@ struct ModelSelectorView: View {
                     .showIf(showChevron)
             }
         }
+#if os(macOS)
+        .menuStyle(.borderlessButton)
+#endif
+        .menuIndicator(.hidden)
+        .fixedSize()
     }
 }
 

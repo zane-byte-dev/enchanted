@@ -9,9 +9,6 @@ import SwiftUI
 
 // MARK: - Palette
 extension Color {
-    static let primary = Color(.label)
-    static let secondary =  Color(.systemGray)
-    
     static let labelCustom = Color("label")
 }
 

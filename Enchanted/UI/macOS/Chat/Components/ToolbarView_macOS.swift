@@ -15,27 +15,10 @@ struct ToolbarView: View {
     var modelsList: [LanguageModelSD]
     var selectedModel: LanguageModelSD?
     var onSelectModel: @MainActor (_ model: LanguageModelSD?) -> ()
-    var onNewConversationTap: () -> ()
     var copyChat: (_ json: Bool) -> ()
-    
-    @State private var workspace = WorkspaceStore.shared
 
     var body: some View {
-        WorkingDirectoryButton(workspace: workspace)
-            .frame(height: 20)
-
         MoreOptionsMenuView(copyChat: copyChat)
-        
-        Button(action: onNewConversationTap) {
-            Image(systemName: "square.and.pencil")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(height: 20)
-                .padding(5)
-        }
-        .buttonStyle(PlainButtonStyle())
-        .keyboardShortcut(KeyEquivalent("n"), modifiers: .command)
     }
 }
 
@@ -43,6 +26,7 @@ struct ToolbarView: View {
 /// empty state. Opens a project picker popover (search + existing projects +
 /// new project) and sets the default working directory for the next conversation.
 struct ChooseProjectRow: View {
+    var compact: Bool = false
     @State private var workspace = WorkspaceStore.shared
     @State private var store = ConversationStore.shared
     @State private var showPicker = false
@@ -74,21 +58,37 @@ struct ChooseProjectRow: View {
 
     var body: some View {
         Button(action: { showPicker.toggle() }) {
-            HStack(spacing: 8) {
-                Image(systemName: "folder")
-                    .font(.system(size: 13))
-                Text(isDefault ? "Choose project" : workspace.displayName)
-                    .font(.system(size: 14))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.tertiary)
+            if compact {
+                HStack(spacing: 5) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 11))
+                    Text(isDefault ? "Project" : workspace.displayName)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .foregroundStyle(isDefault ? Color.secondary : Color.primary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.06)))
+                .contentShape(Rectangle())
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 13))
+                    Text(isDefault ? "Choose project" : workspace.displayName)
+                        .font(.system(size: 14))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                }
+                .foregroundStyle(isDefault ? Color.secondary : Color.primary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
             }
-            .foregroundStyle(isDefault ? Color.secondary : Color.primary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help(workspace.currentDirectory)
@@ -240,16 +240,19 @@ struct WorkingDirectoryButton: View {
 
     var body: some View {
         Button(action: pickDirectory) {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 Image(systemName: "folder")
+                    .font(.system(size: 11))
                 Text(URL(fileURLWithPath: currentPath).lastPathComponent)
+                    .font(.system(size: 12))
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Color.gray.opacity(0.15))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .foregroundStyle(Color.primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.06)))
+            .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
         .help(currentPath)
@@ -276,12 +279,27 @@ struct WorkingDirectoryButton: View {
     }
 }
 
+/// Compact project/working-directory badge shown inside the composer.
+/// Picks the per-conversation directory when a conversation is selected,
+/// otherwise the workspace default (rich project picker) for new chats.
+struct ComposerContextBadge: View {
+    @State private var conversationStore = ConversationStore.shared
+    @State private var workspace = WorkspaceStore.shared
+
+    var body: some View {
+        if conversationStore.selectedConversation != nil {
+            WorkingDirectoryButton(workspace: workspace)
+        } else {
+            ChooseProjectRow(compact: true)
+        }
+    }
+}
+
 #Preview {
     ToolbarView(
         modelsList: LanguageModelSD.sample,
         selectedModel: LanguageModelSD.sample[0],
         onSelectModel: {_ in},
-        onNewConversationTap: {}, 
         copyChat: {_ in}
     )
 }

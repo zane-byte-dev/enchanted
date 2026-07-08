@@ -32,22 +32,33 @@ struct SidebarButton: View {
     }
 }
 
-/// Shared sidebar row: consistent insets + hover / pressed highlight.
+/// Shared sidebar row: consistent insets + hover / pressed / active highlight.
 struct SidebarRowStyle: ButtonStyle {
+    var isSelected: Bool = false
     @State private var hover = false
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundColor(Color(.label))
+            .foregroundColor(.primary)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill((hover || configuration.isPressed) ? Color.gray.opacity(0.15) : Color.clear)
+                    .fill(fillColor(configuration))
             )
             .contentShape(Rectangle())
             .onHover { hover = $0 }
             .animation(.easeOut(duration: 0.1), value: hover)
+    }
+
+    private func fillColor(_ configuration: Configuration) -> Color {
+        if isSelected {
+            return Color.accentColor.opacity(0.14)
+        }
+        if hover || configuration.isPressed {
+            return Color.gray.opacity(0.12)
+        }
+        return .clear
     }
 }
 

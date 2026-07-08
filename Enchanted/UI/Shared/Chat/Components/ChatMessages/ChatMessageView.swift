@@ -88,7 +88,7 @@ struct ChatMessageView: View {
                     if message.hasThink {
                         HStack(spacing: 10.0, content: {
                             Rectangle()
-                                .fill(Color.black)
+                                .fill(Color.secondary)
                                 .frame(width: 10)
                             if showThink {
                                 if let think = message.think {

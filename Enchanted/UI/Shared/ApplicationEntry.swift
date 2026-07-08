@@ -12,7 +12,6 @@ struct ApplicationEntry: View {
     @AppStorage("colorScheme") private var colorScheme: AppColorScheme = .system
     @State private var languageModelStore = LanguageModelStore.shared
     @State private var conversationStore = ConversationStore.shared
-    @State private var completionsStore = CompletionsStore.shared
     @State private var appStore = AppStore.shared
     
     var body: some View {
@@ -35,12 +34,10 @@ struct ApplicationEntry: View {
             Task.detached {
                 async let loadModels: () = languageModelStore.loadModels()
                 async let loadConversations: () = conversationStore.loadConversations()
-                async let loadCompletions: () = completionsStore.load()
                 
                 do {
                     _ = try await loadModels
                     _ = try await loadConversations
-                    _ = try await loadCompletions
                     // Surface pi sessions created elsewhere (VS Code / CLI).
                     await conversationStore.syncPiSessions()
                 } catch {
