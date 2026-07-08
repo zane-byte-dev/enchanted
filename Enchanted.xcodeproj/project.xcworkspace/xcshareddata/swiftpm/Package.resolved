@@ -1,5 +1,5 @@
 {
-  "originHash" : "3fe20c6c704d04e2f924250b1ce019f513915d235cdd9aedc57f51a0a1a94763",
+  "originHash" : "19e2aab0be1a34e9eacd2fd99f8ea077057553d8980bb8923e6c50b1d8183f5d",
   "pins" : [
     {
       "identity" : "activityindicatorview",
@@ -74,6 +74,15 @@
       }
     },
     {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser",
+      "state" : {
+        "revision" : "6a52f3251125d74daf04fcbd5e6f08a75d074382",
+        "version" : "1.8.2"
+      }
+    },
+    {
       "identity" : "swift-async-algorithms",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-async-algorithms.git",
@@ -107,6 +116,15 @@
       "state" : {
         "revision" : "5f613358148239d0292c0cef674a3c2314737f9e",
         "version" : "2.4.1"
+      }
+    },
+    {
+      "identity" : "swiftterm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/migueldeicaza/SwiftTerm",
+      "state" : {
+        "revision" : "8e7a1e154f470e19c709a00a8768df348ba5fc43",
+        "version" : "1.13.0"
       }
     },
     {

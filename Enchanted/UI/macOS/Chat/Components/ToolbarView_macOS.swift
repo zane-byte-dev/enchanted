@@ -18,7 +18,24 @@ struct ToolbarView: View {
     var copyChat: (_ json: Bool) -> ()
 
     var body: some View {
+        TerminalToggleButton()
         MoreOptionsMenuView(copyChat: copyChat)
+    }
+}
+
+/// Top-right toolbar toggle that shows/hides the embedded bottom terminal panel.
+struct TerminalToggleButton: View {
+    @State private var store = TerminalStore.shared
+
+    var body: some View {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.2)) { store.toggle() }
+        }) {
+            Image(systemName: "terminal")
+                .symbolVariant(store.isVisible ? .fill : .none)
+        }
+        .help("Toggle terminal")
+        .foregroundStyle(store.isVisible ? Color.accentColor : Color.primary)
     }
 }
 

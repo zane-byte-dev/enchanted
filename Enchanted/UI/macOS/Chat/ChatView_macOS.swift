@@ -36,6 +36,9 @@ struct ChatView: View {
     @State private var editMessage: MessageSD?
     @State var isRecording = false
     @FocusState private var isFocusedInput: Bool
+#if os(macOS)
+    @State private var terminalStore = TerminalStore.shared
+#endif
 
     @ViewBuilder private var composer: some View {
         InputFieldsView(
@@ -80,6 +83,34 @@ struct ChatView: View {
 #endif
             }
         } detail: {
+            detailContent
+        }
+        .navigationTitle(selectedConversation?.name ?? "")
+        .onChange(of: editMessage, initial: false) { _, newMessage in
+            if let newMessage = newMessage {
+                message = newMessage.content
+                isFocusedInput = true
+            }
+        }
+#if os(macOS)
+        .onChange(of: selectedConversation?.id, initial: true) { _, newID in
+            terminalStore.setConversation(newID)
+        }
+#endif
+    }
+
+    @ViewBuilder private var detailContent: some View {
+        VStack(spacing: 0) {
+            chatDetail
+#if os(macOS)
+            if terminalStore.isVisible {
+                TerminalPanelView()
+            }
+#endif
+        }
+    }
+
+    @ViewBuilder private var chatDetail: some View {
             VStack(alignment: .center) {
                 if selectedConversation != nil {
                     MessageListView(
@@ -148,14 +179,6 @@ struct ChatView: View {
                     )
                 }
             }
-        }
-        .navigationTitle(selectedConversation?.name ?? "")
-        .onChange(of: editMessage, initial: false) { _, newMessage in
-            if let newMessage = newMessage {
-                message = newMessage.content
-                isFocusedInput = true
-            }
-        }
     }
 }
 
