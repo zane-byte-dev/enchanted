@@ -103,6 +103,10 @@ struct ChatView: View {
 
     @ViewBuilder private var detailContent: some View {
 #if os(macOS)
+        // Manual width management (fixed frame + custom resize handle) is the
+        // only way to make the width per-conversation: native HSplitView /
+        // inspector keep a single divider position that ignores each chat's
+        // stored width. The panel owns its resize handle (see RightSidebarPanelView).
         HStack(spacing: 0) {
             VStack(spacing: 0) {
                 chatDetail

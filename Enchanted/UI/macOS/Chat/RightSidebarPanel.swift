@@ -67,23 +67,31 @@ final class RightSidebarSession {
     var isVisible = false
     /// The tool whose inline view is being shown. `nil` shows the tool list.
     var activeInlineTool: RightSidebarTool? = nil
+    /// This conversation's own sidebar width (points).
+    var width: CGFloat = RightSidebarStore.defaultWidth
 }
 
-/// State for the right sidebar. Kept as a singleton so the toolbar toggle, the
-/// app-level keyboard-shortcut menu and the panel itself share one source of
-/// truth. Visibility / active tool are tracked per conversation; the width is a
-/// global UI preference shared across sessions.
+/// State for the right sidebar, shared by the toolbar toggle, the app-level
+/// keyboard-shortcut menu, and the panel itself.
+///
+/// Visibility and the active inline tool are tracked *per conversation* (in
+/// memory, mirroring `TerminalStore`) so each chat remembers whether its
+/// sidebar was open and which tool it was showing. Switching conversations
+/// swaps the whole set. The native `.inspector` binds to `isVisibleBinding`.
 @Observable
 @MainActor
 final class RightSidebarStore {
     static let shared = RightSidebarStore()
 
+    /// Width bounds (shared) and per-conversation default.
+    static let defaultWidth: CGFloat = 300
+    static let minWidth: CGFloat = 240
+    static let maxWidth: CGFloat = 520
+
     /// Sessions keyed by conversation id (or "new" for the empty state).
     private var sessions: [String: RightSidebarSession] = [:]
     /// Key of the conversation currently shown in the UI.
     private(set) var currentKey: String = RightSidebarStore.newKey
-    /// Sidebar width in points (a global UI preference).
-    var width: CGFloat = 280
 
     private static let newKey = "new"
     private static let animation = Animation.easeInOut(duration: 0.25)
@@ -98,29 +106,34 @@ final class RightSidebarStore {
     /// The session for the conversation being displayed.
     private var current: RightSidebarSession { session(currentKey) }
 
-    /// Whether the sidebar is currently shown for the current conversation.
+    /// Whether the sidebar is shown for the current conversation.
     var isVisible: Bool {
         get { current.isVisible }
         set { current.isVisible = newValue }
     }
-    /// The inline tool shown for the current conversation.
+
+    /// The inline tool shown for the current conversation (`nil` = tool list).
     var activeInlineTool: RightSidebarTool? {
         get { current.activeInlineTool }
         set { current.activeInlineTool = newValue }
     }
 
-    /// Point the store at a conversation. The panel automatically reflects that
-    /// conversation's own sidebar state.
+    /// This conversation's sidebar width, clamped to the shared bounds.
+    var width: CGFloat {
+        get { current.width }
+        set { current.width = min(max(newValue, Self.minWidth), Self.maxWidth) }
+    }
+
+    /// Point the store at a conversation so the panel reflects its own state.
     func setConversation(_ id: UUID?) {
         currentKey = id?.uuidString ?? Self.newKey
     }
 
-    /// Toggle the whole sidebar (the top-right title-bar button uses this).
+    /// Toggle the whole sidebar (title-bar button / ⌥⌘B).
     func toggle() {
-        let s = current
         withAnimation(Self.animation) {
-            s.isVisible.toggle()
-            if !s.isVisible { s.activeInlineTool = nil }
+            isVisible.toggle()
+            if !isVisible { activeInlineTool = nil }
         }
     }
 
@@ -133,18 +146,16 @@ final class RightSidebarStore {
         case .terminal:
             TerminalStore.shared.reveal()
         default:
-            let s = current
             withAnimation(Self.animation) {
-                s.isVisible = true
-                s.activeInlineTool = tool
+                isVisible = true
+                activeInlineTool = tool
             }
         }
     }
 
     /// Return from a tool's inline view back to the tool list.
     func backToList() {
-        let s = current
-        withAnimation(Self.animation) { s.activeInlineTool = nil }
+        withAnimation(Self.animation) { activeInlineTool = nil }
     }
 }
 
@@ -161,21 +172,46 @@ struct RightSidebarPanelView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if let tool = store.activeInlineTool {
-                inlineHeader(tool)
-                Divider()
-                RightSidebarToolContent(tool: tool)
-            } else {
-                listHeader
-                Divider()
-                toolList
-                Spacer(minLength: 0)
+        HStack(spacing: 0) {
+            resizeHandle
+            VStack(spacing: 0) {
+                if let tool = store.activeInlineTool {
+                    inlineHeader(tool)
+                    Divider()
+                    RightSidebarToolContent(tool: tool)
+                } else {
+                    listHeader
+                    Divider()
+                    toolList
+                    Spacer(minLength: 0)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .frame(width: store.width)
         .background(panelBackground)
         .overlay(alignment: .leading) { Divider() }
+    }
+
+    /// Draggable leading edge to resize the panel width. AppKit-style: shows the
+    /// resizeLeftRight cursor on hover and writes the new width straight into the
+    /// current conversation's state (which clamps it to the allowed bounds), so
+    /// each chat remembers its own width. Mirrors `TerminalPanelView`.
+    private var resizeHandle: some View {
+        SwiftUI.Color.clear
+            .frame(width: 5)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                if hovering { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+            }
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        // Dragging left (negative translation) widens the panel.
+                        store.width -= value.translation.width
+                    }
+            )
     }
 
     // MARK: List mode

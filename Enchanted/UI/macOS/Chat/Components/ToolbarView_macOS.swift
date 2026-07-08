@@ -24,7 +24,8 @@ struct ToolbarView: View {
     }
 }
 
-/// Top-right title-bar toggle that slides the multi-purpose tool sidebar in/out.
+/// Top-right title-bar toggle that shows/hides the native inspector sidebar for
+/// the current conversation.
 struct SidebarToggleButton: View {
     @State private var store = RightSidebarStore.shared
 
