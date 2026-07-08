@@ -44,6 +44,15 @@ struct ChatMessageView: View {
     var image: Image? {
         message.image != nil ? Image(data: message.image!) : nil
     }
+
+    /// Only show the standalone "waiting" spinner before any content has
+    /// arrived. Once text/blocks stream in, the streaming content itself (and
+    /// the activity header) is the progress indicator. Keeping the spinner in
+    /// the row for the whole turn shifted the content horizontally the moment
+    /// it disappeared on completion — the end-of-turn flash.
+    private var showWaitingLoader: Bool {
+        showLoader && message.content.isEmpty && message.renderBlocks.isEmpty
+    }
     
     private var codeHighlightColorScheme: Splash.Theme {
         switch colorScheme {
@@ -108,7 +117,7 @@ struct ChatMessageView: View {
                     )
                     .markdownTheme(MarkdownColours.enchantedTheme)
             case .activity(let items):
-                ActivityGroupView(blocks: items, isComplete: messageDone)
+                ActivityGroupView(blocks: items)
             }
         }
     }
@@ -144,7 +153,7 @@ struct ChatMessageView: View {
             HStack(alignment: .firstTextBaseline) {
                 if message.role == "user" {
                     Spacer()
-                } else if showLoader {
+                } else if showWaitingLoader {
                     ActivityIndicatorView(isVisible: .constant(true), type: .rotatingDots(count: 5))
                         .frame(width: 14, height: 14)
                         .rotationEffect(.degrees(90))

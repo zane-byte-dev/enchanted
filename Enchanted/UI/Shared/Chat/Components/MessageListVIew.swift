@@ -59,6 +59,7 @@ struct MessageListView: View {
     var body: some View {
         ZStack(alignment: .top) {
             ScrollViewReader { scrollViewProxy in
+                GeometryReader { geo in
                 ScrollView {
                     // Plain (non-lazy) VStack: renders every row eagerly so all
                     // heights are known at layout time. `LazyVStack` only
@@ -68,7 +69,8 @@ struct MessageListView: View {
                     // in empty space (the intermittent "blank on enter" bug).
                     // Turns are small now (read-tool dumps are stripped from
                     // `blocksJSON`), so eager layout is cheap and reliable.
-                    VStack {
+                    VStack(spacing: 0) {
+                        VStack {
                         Group {
                         ForEach(messages) { message in
                             let contextMenu = ContextMenu(menuItems: {
@@ -120,17 +122,25 @@ struct MessageListView: View {
                             .runningBorder(animated: message.id == editMessage?.id)
                             .id(message.id)
                         }
+                        }
+                        .frame(maxWidth: 720)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 16)
+                        }
+                        // Pin content to the top when it doesn't fill the
+                        // viewport (short conversations), so it starts under the
+                        // header rather than being pushed down by
+                        // `defaultScrollAnchor`. The spacer collapses once the
+                        // content is tall enough to scroll and stick to bottom.
+                        Spacer(minLength: 0)
                         // Stable zero-height bottom marker. We always scroll to
                         // this instead of the growing last message, which keeps
                         // streaming follow smooth (no jitter).
                         Color.clear
                             .frame(height: 1)
                             .id(Self.bottomAnchorID)
-                        }
-                        .frame(maxWidth: 720)
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 16)
                     }
+                    .frame(minHeight: geo.size.height, alignment: .top)
                 }
                 // Native chat-style "stick to bottom" behaviour: the scroll
                 // view starts at the bottom and stays pinned there as content
@@ -163,6 +173,7 @@ struct MessageListView: View {
                     SelectTextSheet(message: message)
                 }
 #endif
+                }
             }
             
             ReadingAloudView(onStopTap: stopReadingAloud)

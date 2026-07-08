@@ -12,28 +12,16 @@ import MarkdownUI
 /// Expanded while the turn is streaming, auto-collapses once complete.
 struct ActivityGroupView: View {
     let blocks: [MessageBlock]
-    let isComplete: Bool
-    @State private var expanded: Bool
+    // Always start collapsed and leave expand/collapse entirely to the user:
+    // no auto-expand while streaming, no auto-collapse on completion (that
+    // round-trip caused a visible flash). The header still shows a live
+    // spinner + tool count so progress is visible without expanding.
+    @State private var expanded = false
 
-    init(blocks: [MessageBlock], isComplete: Bool) {
-        self.blocks = blocks
-        self.isComplete = isComplete
-        // Start collapsed for already-finished turns and expanded for
-        // in-flight ones. Initializing here (rather than a fixed `= true`
-        // plus `.onAppear` collapse) avoids a one-frame expand→collapse
-        // flash every time a completed group is recycled back into view by
-        // the `LazyVStack` while scrolling.
-        _expanded = State(initialValue: !isComplete)
+    private var tools: [ToolCall] {
+        blocks.compactMap { if case .tool(let t) = $0 { return t } else { return nil } }
     }
-
-    private var displayableTools: [ToolCall] {
-        blocks.compactMap { if case .tool(let t) = $0, !t.isReadOnly { return t } else { return nil } }
-    }
-    private var readOnlyTools: [ToolCall] {
-        blocks.compactMap { if case .tool(let t) = $0, t.isReadOnly { return t } else { return nil } }
-    }
-    private var toolCount: Int { displayableTools.count }
-    private var readOnlyCount: Int { readOnlyTools.count }
+    private var toolCount: Int { tools.count }
 
     private var hasThinking: Bool {
         blocks.contains { if case .thinking = $0 { return true } else { return false } }
@@ -47,7 +35,6 @@ struct ActivityGroupView: View {
         var parts: [String] = []
         if hasThinking { parts.append("Reasoning") }
         if toolCount > 0 { parts.append("\(toolCount) tool\(toolCount > 1 ? "s" : "")") }
-        if readOnlyCount > 0 { parts.append("\(readOnlyCount) read-only") }
         return parts.isEmpty ? "Activity" : parts.joined(separator: " · ")
     }
 
@@ -82,17 +69,11 @@ struct ActivityGroupView: View {
                                 .textSelection(.enabled)
 #endif
                                 .markdownTextStyle { ForegroundColor(.secondary) }
-                        case .tool(let tool) where tool.isReadOnly:
-                            // Suppressed — rendered as a single summary below.
-                            EmptyView()
                         case .tool(let tool):
                             ToolCardView(tool: tool)
                         case .text:
                             EmptyView()
                         }
-                    }
-                    if readOnlyCount > 0 {
-                        ReadOnlyToolSummary(count: readOnlyCount)
                     }
                 }
                 .padding(.leading, 8)
@@ -103,28 +84,6 @@ struct ActivityGroupView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 2)
-        // Auto-collapse once the assistant turn finishes.
-        .onChange(of: isComplete) { _, done in
-            if done { withAnimation(.easeInOut(duration: 0.15)) { expanded = false } }
-        }
-    }
-}
-
-/// One-line, non-expandable summary for suppressed read-only tool calls
-/// (read/grep/glob/…). Keeps the user aware the agent inspected files
-/// without dumping their contents — the whole point of suppressing them.
-private struct ReadOnlyToolSummary: View {
-    let count: Int
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 11))
-            Text("\(count) read-only tool\(count > 1 ? "s" : "") (read / grep / glob)")
-                .font(.system(size: 11))
-        }
-        .foregroundStyle(.tertiary)
-        .padding(.vertical, 2)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -138,10 +97,22 @@ struct ToolCardView: View {
         return .green
     }
 
+    /// Whether the card has anything to show when expanded. Read-only tools
+    /// (read/grep/glob/…) have their result payload stripped at write time, so
+    /// they render as a header-only card — no chevron, no expand.
+    private var hasBody: Bool {
+        !tool.editHunks.isEmpty
+            || tool.writeContent != nil
+            || (tool.resultText.map { !$0.isEmpty } ?? false)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
-            Button(action: { withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() } }) {
+            Button(action: {
+                guard hasBody else { return }
+                withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
+            }) {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: tool.icon)
                         .font(.system(size: 12, weight: .medium))
@@ -162,9 +133,11 @@ struct ToolCardView: View {
                     } else {
                         Circle().fill(statusColor).frame(width: 7, height: 7)
                     }
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.tertiary)
+                    if hasBody {
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
@@ -173,7 +146,7 @@ struct ToolCardView: View {
             .buttonStyle(.plain)
 
             // Body
-            if expanded {
+            if expanded && hasBody {
                 Divider()
                 Group {
                     if !tool.editHunks.isEmpty {
