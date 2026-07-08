@@ -10,6 +10,26 @@ import MarkdownUI
 import ActivityIndicatorView
 import Splash
 
+/// A code highlighter that switches between cheap plain text (used while the
+/// streaming tail is still growing) and full Splash syntax highlighting (used
+/// once the text is final) *without* changing the SwiftUI view identity.
+///
+/// Previously this was done with an `if/else` around two separate `Markdown`
+/// views, which made SwiftUI tear down and rebuild the whole block the instant
+/// streaming completed — a visible flash / relayout. Swapping only the
+/// highlighter value keeps the same view identity, so no rebuild happens.
+private struct StreamAwareCodeHighlighter: CodeSyntaxHighlighter {
+    let plain: Bool
+    let theme: Splash.Theme
+
+    func highlightCode(_ content: String, language: String?) -> Text {
+        if plain {
+            return Text(content)
+        }
+        return SplashCodeSyntaxHighlighter(theme: theme).highlightCode(content, language: language)
+    }
+}
+
 struct ChatMessageView: View {
     @Environment(\.colorScheme) var colorScheme
     @StateObject private var speechSynthesizer = SpeechSynthesizer.shared
@@ -20,11 +40,6 @@ struct ChatMessageView: View {
     @State private var mouseHover = false
     @State private var isSpeaking = false
     @State private var showThink = false
-    
-    var roleName: String  {
-        let userInitialsNotEmpty = userInitials != "" ? userInitials : "AM"
-        return message.role == "user" ? userInitialsNotEmpty.uppercased() : "AI"
-    }
     
     var image: Image? {
         message.image != nil ? Image(data: message.image!) : nil
@@ -41,13 +56,61 @@ struct ChatMessageView: View {
     
     /// A rendered segment: either a text answer, or a group of consecutive
     /// thinking/tool blocks that collapse together under one button.
-    private enum SegmentKind {
+    private enum SegmentKind: Equatable {
         case text(String)
         case activity([MessageBlock])
     }
-    private struct RenderSegment: Identifiable {
+    private struct RenderSegment: Identifiable, Equatable {
         let id: Int
         let kind: SegmentKind
+    }
+
+    /// Renders a single segment.
+    ///
+    /// NOTE: this used to also conform to `Equatable` with a `.equatable()`
+    /// call site so SwiftUI could skip re-evaluating unchanged segments, but
+    /// that caused completed messages (esp. ones with code blocks) to
+    /// sometimes lay out with extra blank space below them — looks like an
+    /// interaction between `EquatableView` short-circuiting and the
+    /// horizontal `ScrollView` inside `CodeBlockView` not getting re-measured.
+    /// Dropped it; the streaming-tail plain-text optimization below is kept
+    /// since it doesn't need `.equatable()` to be effective.
+    private struct SegmentView: View {
+        let segment: RenderSegment
+        let isLast: Bool
+        let messageDone: Bool
+        let colorScheme: ColorScheme
+
+        /// While the tail segment is still streaming, skip Splash syntax
+        /// highlighting (which re-tokenizes the whole code block on every
+        /// tick) and fall back to plain text. Once the message is done (or
+        /// this isn't the tail anymore) it gets highlighted once, for good.
+        private var isStreamingTail: Bool { isLast && !messageDone }
+
+        private var codeHighlightColorScheme: Splash.Theme {
+            switch colorScheme {
+            case .dark:
+                return .wwdc17(withFont: .init(size: 16))
+            default:
+                return .sunset(withFont: .init(size: 16))
+            }
+        }
+
+        var body: some View {
+            switch segment.kind {
+            case .text(let text):
+                Markdown(text)
+#if os(macOS)
+                    .textSelection(.enabled)
+#endif
+                    .markdownCodeSyntaxHighlighter(
+                        StreamAwareCodeHighlighter(plain: isStreamingTail, theme: codeHighlightColorScheme)
+                    )
+                    .markdownTheme(MarkdownColours.enchantedTheme)
+            case .activity(let items):
+                ActivityGroupView(blocks: items, isComplete: messageDone)
+            }
+        }
     }
 
     /// Split blocks into text segments and grouped activity (thinking + tool)
@@ -76,24 +139,6 @@ struct ChatMessageView: View {
         return result
     }
 
-    @ViewBuilder
-    private func blockView(_ block: MessageBlock) -> some View {
-        switch block {
-        case .text(let text):
-            Markdown(text)
-#if os(macOS)
-                .textSelection(.enabled)
-#endif
-                .markdownCodeSyntaxHighlighter(.splash(theme: codeHighlightColorScheme))
-                .markdownTheme(MarkdownColours.enchantedTheme)
-        case .thinking(let text):
-            ThinkingBlockView(text: text)
-        case .tool(let tool):
-            ToolCardView(tool: tool)
-                .padding(.vertical, 2)
-        }
-    }
-
     var body: some View {
         VStack(alignment: .trailing, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
@@ -109,13 +154,14 @@ struct ChatMessageView: View {
                 VStack(alignment: .leading) {
                     let blocks = message.renderBlocks
                     if message.role != "user", !blocks.isEmpty {
-                        ForEach(segments(blocks)) { segment in
-                            switch segment.kind {
-                            case .text(let text):
-                                blockView(.text(text))
-                            case .activity(let items):
-                                ActivityGroupView(blocks: items, isComplete: message.done)
-                            }
+                        let segs = segments(blocks)
+                        ForEach(segs) { segment in
+                            SegmentView(
+                                segment: segment,
+                                isLast: segment.id == segs.last?.id,
+                                messageDone: message.done,
+                                colorScheme: colorScheme
+                            )
                         }
                     } else {
                     if message.hasThink {
@@ -150,7 +196,9 @@ struct ChatMessageView: View {
     #if os(macOS)
                             .textSelection(.enabled)
     #endif
-                            .markdownCodeSyntaxHighlighter(.splash(theme: codeHighlightColorScheme))
+                            .markdownCodeSyntaxHighlighter(
+                                StreamAwareCodeHighlighter(plain: !message.done, theme: codeHighlightColorScheme)
+                            )
                             .markdownTheme(MarkdownColours.enchantedTheme)
                     }
                     

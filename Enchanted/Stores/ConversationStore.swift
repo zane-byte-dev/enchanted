@@ -53,7 +53,11 @@ final class AgentRun: @unchecked Sendable {
             if case .tool(let t) = $0 { return t.callId == callId && t.running } else { return false }
         }) else { return }
         if case .tool(var t) = blocks[idx] {
-            t.resultText = result
+            // Read-only tools (read/grep/glob/…) can return whole-file contents
+            // — megabytes that bloat `blocksJSON` and cause long white-screen
+            // relayouts on return. We never render their result, so drop the
+            // payload here; keep only the call metadata for the summary line.
+            t.resultText = t.isReadOnly ? nil : result
             t.isError = isError
             t.running = false
             blocks[idx] = .tool(t)

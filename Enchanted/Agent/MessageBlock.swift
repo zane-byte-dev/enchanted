@@ -34,6 +34,19 @@ struct ToolCall: Codable, Equatable, Identifiable {
 
     var id: String { callId }
 
+    // MARK: - Read-only classification
+
+    /// Tools that only inspect the workspace (no mutations, no remote calls,
+    /// no shell). Their results can be huge (whole-file dumps) and add nothing
+    /// to the transcript, so we strip the result payload from the stored block
+    /// (see `AgentRun.endTool`) and render them as a single compact summary
+    /// line instead of full cards. This keeps `blocksJSON` small and avoids the
+    /// long white-screen when SwiftUI relayouts a busy chat on return.
+    static let readOnlyToolNames: Set<String> = ["read", "grep", "glob", "ls", "list", "find", "search"]
+
+    /// True for read-only inspection tools — suppressed from full-card rendering.
+    var isReadOnly: Bool { Self.readOnlyToolNames.contains(name) }
+
     // MARK: - Presentation helpers
 
     private var args: [String: Any] {

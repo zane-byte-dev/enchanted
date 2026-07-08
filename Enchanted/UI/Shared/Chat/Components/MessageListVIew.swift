@@ -37,12 +37,38 @@ struct MessageListView: View {
             await speechSynthesizer.stopSpeaking()
         }
     }
+
+    /// Pin the scroll view to the stable bottom marker, retried across a few
+    /// runloop hops.
+    ///
+    /// `onChange(of: messages)` does not fire for the initial value, so a
+    /// freshly-entered conversation relies on `defaultScrollAnchor` alone;
+    /// the retries here guarantee we land at the bottom even if the anchor
+    /// resolves before Markdown finishes its first measurement.
+    private func pinToBottom(_ proxy: ScrollViewProxy) {
+        proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+        DispatchQueue.main.async {
+            proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+        }
+    }
+
     
     var body: some View {
         ZStack(alignment: .top) {
             ScrollViewReader { scrollViewProxy in
                 ScrollView {
-                    LazyVStack {
+                    // Plain (non-lazy) VStack: renders every row eagerly so all
+                    // heights are known at layout time. `LazyVStack` only
+                    // materialised visible rows and measured Markdown/code
+                    // heights asynchronously, which lost the race with
+                    // `defaultScrollAnchor`/`scrollTo` and parked the viewport
+                    // in empty space (the intermittent "blank on enter" bug).
+                    // Turns are small now (read-tool dumps are stripped from
+                    // `blocksJSON`), so eager layout is cheap and reliable.
+                    VStack {
                         Group {
                         ForEach(messages) { message in
                             let contextMenu = ContextMenu(menuItems: {
@@ -92,12 +118,11 @@ struct MessageListView: View {
                             .contentShape(Rectangle())
                             .contextMenu(contextMenu)
                             .runningBorder(animated: message.id == editMessage?.id)
-                            .id(message)
+                            .id(message.id)
                         }
                         // Stable zero-height bottom marker. We always scroll to
                         // this instead of the growing last message, which keeps
-                        // streaming follow smooth (no jitter) and reliably
-                        // materialises the LazyVStack on first appear.
+                        // streaming follow smooth (no jitter).
                         Color.clear
                             .frame(height: 1)
                             .id(Self.bottomAnchorID)
@@ -107,20 +132,27 @@ struct MessageListView: View {
                         .padding(.horizontal, 16)
                     }
                 }
+                // Native chat-style "stick to bottom" behaviour: the scroll
+                // view starts at the bottom and stays pinned there as content
+                // is added, without needing to lay out/measure every row in
+                // between (which is what made manual `scrollTo` calls slow or
+                // land short on long conversations — the exact "blank until I
+                // scroll" symptom). Requires macOS 14 / iOS 17, which is
+                // already our deployment target.
+                .defaultScrollAnchor(.bottom)
+                // First entry into a conversation: `onChange(of: messages)`
+                // does NOT fire for the initial value, so the freshly-mounted
+                // list relies solely on `defaultScrollAnchor` — which loses the
+                // race against lazy Markdown measurement and lands blank. Pin
+                // explicitly once the view appears (with retries) to fix it.
                 .onAppear {
-                    // Defer to the next layout pass, otherwise the scroll runs
-                    // before the (async-loaded) messages are laid out and the
-                    // LazyVStack stays blank until the user scrolls.
-                    DispatchQueue.main.async {
-                        scrollViewProxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
-                    }
+                    pinToBottom(scrollViewProxy)
                 }
                 // Fires when the messages array is replaced (switching
-                // conversations / new message).
+                // conversations / new message) — extra safety net in case the
+                // anchor doesn't re-trigger on its own for a brand new list.
                 .onChange(of: messages) {
-                    DispatchQueue.main.async {
-                        scrollViewProxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
-                    }
+                    pinToBottom(scrollViewProxy)
                 }
                 // Follow the stream as the last message grows.
                 .onChange(of: messages.last?.content) {

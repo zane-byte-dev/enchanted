@@ -140,6 +140,52 @@ extension SwiftDataService {
     }
 }
 
+// MARK: - Read-only tool result migration
+
+extension SwiftDataService {
+    /// One-time migration: strip the `resultText` payload from read-only tool
+    /// blocks (read/grep/glob/…) in every persisted message. Those results used
+    /// to embed whole-file contents — megabytes that bloat `blocksJSON` and
+    /// cause long white-screen relayouts when SwiftUI re-evaluates
+    /// `renderBlocks` on return. New turns already drop them at write time
+    /// (see `AgentRun.endTool`); this rewrites existing history.
+    ///
+    /// Idempotent and guarded by a `UserDefaults` flag so it runs exactly once.
+    func migrateReadOnlyToolResults() throws {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: "migrated.readOnlyToolResults.v1") else { return }
+
+        let descriptor = FetchDescriptor<MessageSD>()
+        let messages = try modelContext.fetch(descriptor)
+        var changed = 0
+        for message in messages {
+            guard let json = message.blocksJSON,
+                  let data = json.data(using: .utf8),
+                  var blocks = try? JSONDecoder().decode([MessageBlock].self, from: data)
+            else { continue }
+
+            var mutated = false
+            for i in blocks.indices {
+                guard case .tool(var t) = blocks[i], t.isReadOnly, t.resultText != nil else { continue }
+                t.resultText = nil
+                blocks[i] = .tool(t)
+                mutated = true
+            }
+            guard mutated,
+                  let rewritten = try? JSONEncoder().encode(blocks),
+                  let rewrittenJSON = String(data: rewritten, encoding: .utf8)
+            else { continue }
+            message.blocksJSON = rewrittenJSON
+            changed += 1
+        }
+        try modelContext.saveChanges()
+        defaults.set(true, forKey: "migrated.readOnlyToolResults.v1")
+        if changed > 0 {
+            AgentBackendConfig.debugLog("migrateReadOnlyToolResults: trimmed \(changed) messages")
+        }
+    }
+}
+
 // MARK: - General
 extension SwiftDataService {
     func deleteEverything() throws {

@@ -35,6 +35,14 @@ struct ApplicationEntry: View {
             // next use via switch_session).
             conversationStore.startIdleReaper()
 
+            // One-time migration: strip whole-file `read`/`grep` results from
+            // existing message blocks so old conversations don't carry the
+            // megabyte payloads that caused the return-from-background white
+            // screen. New turns already drop them at write time.
+            Task.detached {
+                try? await SwiftDataService.shared.migrateReadOnlyToolResults()
+            }
+
             Task.detached {
                 async let loadModels: () = languageModelStore.loadModels()
                 async let loadConversations: () = conversationStore.loadConversations()

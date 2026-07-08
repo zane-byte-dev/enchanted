@@ -8,57 +8,32 @@
 import SwiftUI
 import MarkdownUI
 
-/// Collapsible reasoning/thinking block.
-struct ThinkingBlockView: View {
-    let text: String
-    @State private var expanded = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Button(action: { withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() } }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "brain")
-                        .font(.system(size: 11))
-                    Text("Reasoning")
-                        .font(.system(size: 12, weight: .medium))
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.tertiary)
-                }
-                .foregroundStyle(.secondary)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if expanded {
-                Markdown(text)
-#if os(macOS)
-                    .textSelection(.enabled)
-#endif
-                    .markdownTextStyle { ForegroundColor(.secondary) }
-                    .padding(.leading, 6)
-                    .overlay(alignment: .leading) {
-                        Rectangle().fill(Color.gray.opacity(0.3)).frame(width: 2)
-                    }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 2)
-    }
-}
-
 /// Codex-style collapsible group wrapping a run of thinking + tool blocks.
 /// Expanded while the turn is streaming, auto-collapses once complete.
 struct ActivityGroupView: View {
     let blocks: [MessageBlock]
     let isComplete: Bool
-    @State private var expanded = true
+    @State private var expanded: Bool
 
-    private var toolCount: Int {
-        blocks.reduce(into: 0) { acc, b in
-            if case .tool = b { acc += 1 }
-        }
+    init(blocks: [MessageBlock], isComplete: Bool) {
+        self.blocks = blocks
+        self.isComplete = isComplete
+        // Start collapsed for already-finished turns and expanded for
+        // in-flight ones. Initializing here (rather than a fixed `= true`
+        // plus `.onAppear` collapse) avoids a one-frame expand→collapse
+        // flash every time a completed group is recycled back into view by
+        // the `LazyVStack` while scrolling.
+        _expanded = State(initialValue: !isComplete)
     }
+
+    private var displayableTools: [ToolCall] {
+        blocks.compactMap { if case .tool(let t) = $0, !t.isReadOnly { return t } else { return nil } }
+    }
+    private var readOnlyTools: [ToolCall] {
+        blocks.compactMap { if case .tool(let t) = $0, t.isReadOnly { return t } else { return nil } }
+    }
+    private var toolCount: Int { displayableTools.count }
+    private var readOnlyCount: Int { readOnlyTools.count }
 
     private var hasThinking: Bool {
         blocks.contains { if case .thinking = $0 { return true } else { return false } }
@@ -72,6 +47,7 @@ struct ActivityGroupView: View {
         var parts: [String] = []
         if hasThinking { parts.append("Reasoning") }
         if toolCount > 0 { parts.append("\(toolCount) tool\(toolCount > 1 ? "s" : "")") }
+        if readOnlyCount > 0 { parts.append("\(readOnlyCount) read-only") }
         return parts.isEmpty ? "Activity" : parts.joined(separator: " · ")
     }
 
@@ -106,11 +82,17 @@ struct ActivityGroupView: View {
                                 .textSelection(.enabled)
 #endif
                                 .markdownTextStyle { ForegroundColor(.secondary) }
+                        case .tool(let tool) where tool.isReadOnly:
+                            // Suppressed — rendered as a single summary below.
+                            EmptyView()
                         case .tool(let tool):
                             ToolCardView(tool: tool)
                         case .text:
                             EmptyView()
                         }
+                    }
+                    if readOnlyCount > 0 {
+                        ReadOnlyToolSummary(count: readOnlyCount)
                     }
                 }
                 .padding(.leading, 8)
@@ -125,9 +107,24 @@ struct ActivityGroupView: View {
         .onChange(of: isComplete) { _, done in
             if done { withAnimation(.easeInOut(duration: 0.15)) { expanded = false } }
         }
-        .onAppear {
-            if isComplete { expanded = false }
+    }
+}
+
+/// One-line, non-expandable summary for suppressed read-only tool calls
+/// (read/grep/glob/…). Keeps the user aware the agent inspected files
+/// without dumping their contents — the whole point of suppressing them.
+private struct ReadOnlyToolSummary: View {
+    let count: Int
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11))
+            Text("\(count) read-only tool\(count > 1 ? "s" : "") (read / grep / glob)")
+                .font(.system(size: 11))
         }
+        .foregroundStyle(.tertiary)
+        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
