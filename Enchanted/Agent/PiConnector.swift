@@ -78,6 +78,10 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     /// One-shot response continuations keyed by command id (for request/reply
     /// commands like get_available_models).
     private var pending: [String: ([String: Any]) -> Void] = [:]
+    /// Set when a fresh process was spawned with a `resumeSessionPath`; cleared
+    /// once `switch_session` has completed. Guards the first prompt so it never
+    /// races the (async) session restore.
+    private var needsResume = false
 
     init(config: Config) {
         self.config = config
@@ -92,25 +96,63 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         self.subject = subject
         lock.unlock()
 
-        do {
-            try ensureProcess()
-            // Apply the user-selected reasoning level before prompting.
-            if let level = UserDefaults.standard.string(forKey: "piThinkingLevel"), !level.isEmpty {
-                try? send(["id": nextId(), "type": "set_thinking_level", "level": level])
+        // pi keeps history itself → only forward the newest user turn.
+        let lastUser = messages.last(where: { $0.role == .user })?.content ?? ""
+
+        Task {
+            do {
+                try ensureProcess()
+                // Restore prior context BEFORE prompting. pi handles stdin lines
+                // concurrently and `switch_session` rebuilds the session runtime
+                // asynchronously, so we must await its response — otherwise the
+                // prompt hits a half-torn-down session and is silently lost
+                // (the "can't continue after restart" bug).
+                await resumeSessionIfNeeded()
+                // Apply the user-selected reasoning level before prompting.
+                if let level = UserDefaults.standard.string(forKey: "piThinkingLevel"), !level.isEmpty {
+                    try? send(["id": nextId(), "type": "set_thinking_level", "level": level])
+                }
+                try send([
+                    "id": nextId(),
+                    "type": "prompt",
+                    "message": lastUser,
+                ])
+            } catch {
+                subject.send(completion: .failure(error))
             }
-            // pi keeps history itself → only forward the newest user turn.
-            let lastUser = messages.last(where: { $0.role == .user })?.content ?? ""
-            let command: [String: Any] = [
-                "id": nextId(),
-                "type": "prompt",
-                "message": lastUser,
-            ]
-            try send(command)
-        } catch {
-            subject.send(completion: .failure(error))
         }
 
         return subject.eraseToAnyPublisher()
+    }
+
+    /// If the process was just spawned for a resumed conversation, send
+    /// `switch_session` and wait for its response before continuing.
+    private func resumeSessionIfNeeded() async {
+        lock.lock()
+        let shouldResume = needsResume
+        let resume = config.resumeSessionPath
+        if shouldResume { needsResume = false }
+        lock.unlock()
+
+        guard shouldResume, let resume, !resume.isEmpty else { return }
+
+        let id = nextId()
+        _ = await withCheckedContinuation { (continuation: CheckedContinuation<[String: Any]?, Never>) in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { obj in
+                if resumed { return }; resumed = true
+                continuation.resume(returning: obj)
+            }
+            lock.lock()
+            pending[id] = { obj in finish(obj) }
+            lock.unlock()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
+                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                finish(nil)
+            }
+            try? send(["id": id, "type": "switch_session", "sessionPath": resume])
+            AgentBackendConfig.debugLog("PiConnector: switch_session -> \(resume)")
+        }
     }
 
     func models() async throws -> [LanguageModel] {
@@ -230,16 +272,11 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         self.stdinPipe = inPipe
         self.stdoutBuffer.removeAll()
 
-        // Restore prior context if resuming an existing conversation.
+        // Mark that context must be restored before the first prompt. The actual
+        // (awaited) `switch_session` happens in `resumeSessionIfNeeded()` so it
+        // never races the prompt — see `chat(...)`.
         if let resume = config.resumeSessionPath, !resume.isEmpty {
-            commandCounter += 1
-            let restoreId = "c\(commandCounter)"
-            var line = try JSONSerialization.data(withJSONObject: [
-                "id": restoreId, "type": "switch_session", "sessionPath": resume,
-            ])
-            line.append(0x0A)
-            inPipe.fileHandleForWriting.write(line)
-            AgentBackendConfig.debugLog("PiConnector: switch_session -> \(resume)")
+            needsResume = true
         }
     }
 
@@ -333,7 +370,7 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
             let callId = obj["toolCallId"] as? String ?? ""
             let name = obj["toolName"] as? String ?? "tool"
             let isError = obj["isError"] as? Bool ?? false
-            subject?.send(.toolEnd(callId: callId, name: name, result: jsonString(obj["result"]), isError: isError))
+            subject?.send(.toolEnd(callId: callId, name: name, result: toolResultText(obj["result"]), isError: isError))
 
         case "agent_end":
             subject?.send(.done)
@@ -358,6 +395,24 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         default:
             break
         }
+    }
+
+    /// Extract human-readable text from a pi tool result.
+    /// Results follow the MCP shape `{ content: [{ type, text }], details, isError }`.
+    /// We join the text blocks; fall back to common keys, then pretty JSON.
+    private func toolResultText(_ value: Any?) -> String {
+        guard let value else { return "" }
+        if let string = value as? String { return string }
+        if let dict = value as? [String: Any] {
+            if let content = dict["content"] as? [[String: Any]] {
+                let text = content.compactMap { $0["text"] as? String }
+                    .joined(separator: "\n")
+                if !text.isEmpty { return text }
+            }
+            if let output = dict["output"] as? String { return output }
+            if let text = dict["text"] as? String { return text }
+        }
+        return jsonString(value)
     }
 
     private func jsonString(_ value: Any?) -> String {

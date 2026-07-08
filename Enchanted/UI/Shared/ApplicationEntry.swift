@@ -31,6 +31,10 @@ struct ApplicationEntry: View {
                 print("Bundle Identifier not found.")
             }
             
+            // Reclaim idle pi processes to free memory (context restored on
+            // next use via switch_session).
+            conversationStore.startIdleReaper()
+
             Task.detached {
                 async let loadModels: () = languageModelStore.loadModels()
                 async let loadConversations: () = conversationStore.loadConversations()
@@ -38,18 +42,8 @@ struct ApplicationEntry: View {
                 do {
                     _ = try await loadModels
                     _ = try await loadConversations
-                    // Surface pi sessions created elsewhere (VS Code / CLI).
-                    await conversationStore.syncPiSessions()
                 } catch {
                     print("Unexpected error: \(error).")
-                }
-            }
-
-            // Poll for external pi session changes (new tasks / new messages).
-            Task.detached {
-                while !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: 5_000_000_000)
-                    await conversationStore.syncPiSessions()
                 }
             }
         }

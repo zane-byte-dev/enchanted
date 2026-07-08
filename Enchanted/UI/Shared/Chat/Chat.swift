@@ -149,7 +149,7 @@ struct Chat: View, Sendable {
                     copyChat: copyChat,
                     stats: conversationStore.currentStats,
                     onSteer: { _ = conversationStore.steerIfRunning($0) },
-                    onRefresh: { Task { await conversationStore.syncPiSessions() } }
+                    onRefresh: { Task { try? await conversationStore.loadConversations() } }
                 )
             }
 #elseif os(visionOS)
@@ -174,7 +174,7 @@ struct Chat: View, Sendable {
                 copyChat: copyChat,
                 stats: conversationStore.currentStats,
                 onSteer: { _ = conversationStore.steerIfRunning($0) },
-                onRefresh: { Task { await conversationStore.syncPiSessions() } }
+                onRefresh: { Task { try? await conversationStore.loadConversations() } }
             )
 #else
             SideBarStack(sidebarWidth: 300,showSidebar: $showMenu, sidebar: {

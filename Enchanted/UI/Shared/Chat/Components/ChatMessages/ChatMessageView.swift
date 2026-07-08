@@ -39,6 +39,43 @@ struct ChatMessageView: View {
         }
     }
     
+    /// A rendered segment: either a text answer, or a group of consecutive
+    /// thinking/tool blocks that collapse together under one button.
+    private enum SegmentKind {
+        case text(String)
+        case activity([MessageBlock])
+    }
+    private struct RenderSegment: Identifiable {
+        let id: Int
+        let kind: SegmentKind
+    }
+
+    /// Split blocks into text segments and grouped activity (thinking + tool)
+    /// segments, preserving order.
+    private func segments(_ blocks: [MessageBlock]) -> [RenderSegment] {
+        var result: [RenderSegment] = []
+        var activity: [MessageBlock] = []
+        var idx = 0
+        func flush() {
+            guard !activity.isEmpty else { return }
+            result.append(RenderSegment(id: idx, kind: .activity(activity)))
+            idx += 1
+            activity = []
+        }
+        for block in blocks {
+            switch block {
+            case .text(let text):
+                flush()
+                result.append(RenderSegment(id: idx, kind: .text(text)))
+                idx += 1
+            case .thinking, .tool:
+                activity.append(block)
+            }
+        }
+        flush()
+        return result
+    }
+
     @ViewBuilder
     private func blockView(_ block: MessageBlock) -> some View {
         switch block {
@@ -60,29 +97,25 @@ struct ChatMessageView: View {
     var body: some View {
         VStack(alignment: .trailing, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Group {
-                    if message.role == "user" {
-                        Spacer()
-                    } else {
-                        if showLoader {
-                            ActivityIndicatorView(isVisible: .constant(true), type: .rotatingDots(count: 5))
-                                .frame(width: 24, height: 24)
-                                .rotationEffect(.degrees(90))
-                        } else {
-                            Image("logo-nobg")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 24, height: 24)
-                        }
-                    }
+                if message.role == "user" {
+                    Spacer()
+                } else if showLoader {
+                    ActivityIndicatorView(isVisible: .constant(true), type: .rotatingDots(count: 5))
+                        .frame(width: 14, height: 14)
+                        .rotationEffect(.degrees(90))
+                        .offset(CGSize(width: 0, height: 6))
                 }
-                .offset(CGSize(width: 0, height: 6))
                 
                 VStack(alignment: .leading) {
                     let blocks = message.renderBlocks
                     if message.role != "user", !blocks.isEmpty {
-                        ForEach(blocks) { block in
-                            blockView(block)
+                        ForEach(segments(blocks)) { segment in
+                            switch segment.kind {
+                            case .text(let text):
+                                blockView(.text(text))
+                            case .activity(let items):
+                                ActivityGroupView(blocks: items, isComplete: message.done)
+                            }
                         }
                     } else {
                     if message.hasThink {

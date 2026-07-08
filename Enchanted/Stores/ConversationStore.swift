@@ -85,6 +85,12 @@ final class ConversationStore: Sendable {
 
     /// One backend (e.g. a pi RPC process) per conversation, keyed by id.
     @MainActor private var connectors: [UUID: AgentBackend] = [:]
+    /// Last time each connector was used — drives idle reclamation.
+    @MainActor private var lastActivity: [UUID: Date] = [:]
+    /// Idle pi processes are terminated after this long to free memory; context
+    /// is restored on next use via `switch_session`. Set 0 to disable.
+    @MainActor private let idleTimeout: TimeInterval = 10 * 60
+    @MainActor private var idleReaperStarted = false
     /// Active generations, keyed by conversation id — enables parallel runs.
     @MainActor private var runs: [UUID: AgentRun] = [:]
     /// Per-conversation UI state.
@@ -146,108 +152,6 @@ final class ConversationStore: Sendable {
         DispatchQueue.main.async {
             self.conversations = fetchedConversations
         }
-    }
-
-    @MainActor private var isSyncing = false
-    /// Last mtime we processed per session file — kills repeated re-sync churn.
-    @MainActor private var syncedMtimes: [String: Date] = [:]
-
-    /// Sync pi sessions created/updated elsewhere (VS Code extension, CLI/TUI):
-    /// import new sessions and refresh ones whose file changed on disk. Safe to
-    /// call repeatedly (polled). Skips conversations the GUI is actively running.
-    func syncPiSessions() async {
-        guard AgentBackendConfig.currentKind == .pi else { return }
-        let alreadySyncing = await MainActor.run { () -> Bool in
-            if isSyncing { return true }
-            isSyncing = true
-            return false
-        }
-        if alreadySyncing { return }
-        defer { Task { @MainActor in self.isSyncing = false } }
-
-        let existing = (try? await swiftDataService.fetchConversations()) ?? []
-        var byPath: [String: ConversationSD] = [:]
-        for c in existing { if let p = c.piSessionPath { byPath[p] = c } }
-        // Conversations the GUI owns a live connector for — pi is writing these,
-        // so never touch them from the sync path (would corrupt an active run).
-        let ownedIDs = await MainActor.run { Set(self.connectors.keys) }
-
-        let files = await Task.detached(priority: .utility) { PiSessionImporter.listFiles() }.value
-
-        var newCount = 0
-        var changedCount = 0
-
-        for file in files {
-            if let conv = byPath[file.path] {
-                // Existing conversation: refresh only if the file changed since we
-                // last processed it, the GUI doesn't own it, and it's idle.
-                let lastSeen = await MainActor.run { self.syncedMtimes[file.path] }
-                guard lastSeen != file.mtime,
-                      !ownedIDs.contains(conv.id),
-                      file.mtime.timeIntervalSince(conv.updatedAt) > 2
-                else { continue }
-                // Re-check right before the destructive rewrite: skip if a run
-                // started or a connector was created in the meantime.
-                let raceOwned = await MainActor.run {
-                    self.runs[conv.id] != nil || self.connectors[conv.id] != nil
-                }
-                if raceOwned { continue }
-                guard let session = await Task.detached(priority: .utility, operation: {
-                    PiSessionImporter.parse(path: file.path)
-                }).value else { continue }
-                try? await swiftDataService.deleteMessages(forConversation: conv.id)
-                await MainActor.run {
-                    conv.name = session.name
-                    conv.updatedAt = session.updatedAt
-                    self.syncedMtimes[file.path] = file.mtime
-                }
-                try? await swiftDataService.updateConversation(conv)
-                await insertMessages(session, into: conv)
-                changedCount += 1
-            } else {
-                // New session on disk → import.
-                guard let session = await Task.detached(priority: .utility, operation: {
-                    PiSessionImporter.parse(path: file.path)
-                }).value else { continue }
-                let conversation = await MainActor.run { () -> ConversationSD in
-                    let c = ConversationSD(name: session.name, updatedAt: session.updatedAt)
-                    c.createdAt = session.createdAt
-                    c.workingDirectory = session.cwd
-                    c.piSessionPath = session.path
-                    return c
-                }
-                try? await swiftDataService.createConversation(conversation)
-                await insertMessages(session, into: conversation)
-                await MainActor.run { self.syncedMtimes[file.path] = file.mtime }
-                newCount += 1
-            }
-        }
-
-        if newCount > 0 || changedCount > 0 {
-            AgentBackendConfig.debugLog("syncPiSessions: +\(newCount) new, \(changedCount) updated")
-            try? await loadConversations()
-            await refreshSelectedIfNeeded()
-        }
-    }
-
-    private func insertMessages(_ session: ImportedSession, into conversation: ConversationSD) async {
-        for m in session.messages.sorted(by: { $0.order < $1.order }) {
-            let msg = await MainActor.run { () -> MessageSD in
-                let msg = MessageSD(content: m.content, role: m.role, done: true)
-                msg.blocksJSON = m.blocksJSON
-                msg.createdAt = session.createdAt.addingTimeInterval(Double(m.order))
-                msg.conversation = conversation
-                return msg
-            }
-            try? await swiftDataService.createMessage(msg)
-        }
-    }
-
-    /// If the currently-open conversation was refreshed, reload its messages.
-    @MainActor
-    private func refreshSelectedIfNeeded() async {
-        guard let selected = selectedConversation else { return }
-        try? await reloadConversation(selected)
     }
 
     func deleteAllConversations() {
@@ -324,6 +228,7 @@ final class ConversationStore: Sendable {
 
     @MainActor
     private func connector(for conversation: ConversationSD) -> AgentBackend {
+        lastActivity[conversation.id] = .now
         if let existing = connectors[conversation.id] { return existing }
         let cwd = workingDirectory(for: conversation)
         let backend = AgentBackendConfig.makeChatBackend(
@@ -332,6 +237,45 @@ final class ConversationStore: Sendable {
         )
         connectors[conversation.id] = backend
         return backend
+    }
+
+    // MARK: - Idle reclamation
+
+    /// Start a periodic sweep that terminates pi processes for conversations
+    /// that have been idle too long. Safe to call more than once (no-ops after
+    /// the first). Context is restored on next use via `switch_session`.
+    @MainActor
+    func startIdleReaper() {
+        guard !idleReaperStarted, idleTimeout > 0 else { return }
+        idleReaperStarted = true
+        Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+                await self?.reapIdleConnectors()
+            }
+        }
+    }
+
+    @MainActor
+    private func reapIdleConnectors() {
+        let now = Date()
+        for (id, backend) in connectors {
+            guard let connector = backend as? PiConnector else { continue }
+            // Never reap a conversation with a live run.
+            if runs[id] != nil { continue }
+            // Only reap if context can be restored next time (needs a session file).
+            guard
+                let conv = conversations.first(where: { $0.id == id }),
+                conv.piSessionPath != nil
+            else { continue }
+            let last = lastActivity[id] ?? .distantPast
+            guard now.timeIntervalSince(last) > idleTimeout else { continue }
+            connector.terminate()
+            connectors[id] = nil
+            stats[id] = nil
+            lastActivity[id] = nil
+            AgentBackendConfig.debugLog("reapIdleConnectors: terminated idle pi for conversation \(id)")
+        }
     }
 
     private func teardownConnector(_ id: UUID) async {
@@ -491,6 +435,7 @@ final class ConversationStore: Sendable {
             Task(priority: .background) { try? await self.swiftDataService.updateMessage(message) }
         }
         runs[convID] = nil
+        lastActivity[convID] = .now
         withAnimation { states[convID] = .completed }
         persistSessionPath(convID)
         refreshStats(for: convID)

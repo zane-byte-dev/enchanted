@@ -12,6 +12,7 @@ import AppKit
 #endif
 
 struct MessageListView: View {
+    private static let bottomAnchorID = "bottomAnchor"
     var messages: [MessageSD]
     var conversationState: ConversationState
     var userInitials: String
@@ -42,6 +43,7 @@ struct MessageListView: View {
             ScrollViewReader { scrollViewProxy in
                 ScrollView {
                     LazyVStack {
+                        Group {
                         ForEach(messages) { message in
                             let contextMenu = ContextMenu(menuItems: {
                                 Button(action: {Clipboard.shared.setString(message.content)}) {
@@ -92,16 +94,37 @@ struct MessageListView: View {
                             .runningBorder(animated: message.id == editMessage?.id)
                             .id(message)
                         }
+                        // Stable zero-height bottom marker. We always scroll to
+                        // this instead of the growing last message, which keeps
+                        // streaming follow smooth (no jitter) and reliably
+                        // materialises the LazyVStack on first appear.
+                        Color.clear
+                            .frame(height: 1)
+                            .id(Self.bottomAnchorID)
+                        }
+                        .frame(maxWidth: 720)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 16)
                     }
                 }
                 .onAppear {
-                    scrollViewProxy.scrollTo(messages.last, anchor: .bottom)
+                    // Defer to the next layout pass, otherwise the scroll runs
+                    // before the (async-loaded) messages are laid out and the
+                    // LazyVStack stays blank until the user scrolls.
+                    DispatchQueue.main.async {
+                        scrollViewProxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+                    }
                 }
-                .onChange(of: messages) { oldMessages, newMessages in
-                    scrollViewProxy.scrollTo(messages.last, anchor: .bottom)
+                // Fires when the messages array is replaced (switching
+                // conversations / new message).
+                .onChange(of: messages) {
+                    DispatchQueue.main.async {
+                        scrollViewProxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+                    }
                 }
+                // Follow the stream as the last message grows.
                 .onChange(of: messages.last?.content) {
-                    scrollViewProxy.scrollTo(messages.last, anchor: .bottom)
+                    scrollViewProxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
                 }
 #if os(iOS) || os(visionOS)
                 .sheet(item: $messageSelected) { message in

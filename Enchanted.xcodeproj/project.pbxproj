@@ -24,7 +24,6 @@
 		B7F2899F2B24F4900011A4DC /* AgentBackendConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E1799F2B24F4900011A4DC /* AgentBackendConfig.swift */; };
 		B7F289A02B24F4900011A4DC /* MessageBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E179A02B24F4900011A4DC /* MessageBlock.swift */; };
 		B7F2899E2B24F4900011A4DC /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E1799E2B24F4900011A4DC /* WorkspaceStore.swift */; };
-		B7F289C12B24F4900011A4DC /* PiSessionImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E179C12B24F4900011A4DC /* PiSessionImporter.swift */; };
 		FF1002402B24F7320011A4DC /* SideBarMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF10023F2B24F7320011A4DC /* SideBarMenuView.swift */; };
 		FF1002442B25BB730011A4DC /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002432B25BB730011A4DC /* ConversationStore.swift */; };
 		FF1002462B25BCE70011A4DC /* LanguageModelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002452B25BCE70011A4DC /* LanguageModelStore.swift */; };
@@ -124,7 +123,6 @@
 		A6E1799F2B24F4900011A4DC /* AgentBackendConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentBackendConfig.swift; sourceTree = "<group>"; };
 		A6E179A02B24F4900011A4DC /* MessageBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBlock.swift; sourceTree = "<group>"; };
 		A6E1799E2B24F4900011A4DC /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceStore.swift; sourceTree = "<group>"; };
-		A6E179C12B24F4900011A4DC /* PiSessionImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiSessionImporter.swift; sourceTree = "<group>"; };
 		FF10023F2B24F7320011A4DC /* SideBarMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SideBarMenuView.swift; sourceTree = "<group>"; };
 		FF1002432B25BB730011A4DC /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationStore.swift; sourceTree = "<group>"; };
 		FF1002452B25BCE70011A4DC /* LanguageModelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageModelStore.swift; sourceTree = "<group>"; };
@@ -521,7 +519,6 @@
 				A6E1799F2B24F4900011A4DC /* AgentBackendConfig.swift */,
 				A6E179A02B24F4900011A4DC /* MessageBlock.swift */,
 				A6E1799E2B24F4900011A4DC /* WorkspaceStore.swift */,
-				A6E179C12B24F4900011A4DC /* PiSessionImporter.swift */,
 			);
 			path = Agent;
 			sourceTree = "<group>";
@@ -682,7 +679,6 @@
 				B7F2899F2B24F4900011A4DC /* AgentBackendConfig.swift in Sources */,
 				B7F289A02B24F4900011A4DC /* MessageBlock.swift in Sources */,
 				B7F2899E2B24F4900011A4DC /* WorkspaceStore.swift in Sources */,
-				B7F289C12B24F4900011A4DC /* PiSessionImporter.swift in Sources */,
 				FFBBF48C2B35051D008D611C /* UIImage+Extension.swift in Sources */,
 				FF1002302B2482BA0011A4DC /* ChatMessageView.swift in Sources */,
 				B7F289A22B24F4900011A4DC /* ToolCardView.swift in Sources */,

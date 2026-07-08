@@ -35,6 +35,22 @@ struct MarkdownColours {
     )
     static let checkbox = Color(rgba: 0xb9b9_bbff)
     static let checkboxBackground = Color(rgba: 0xeeee_efff)
+
+    // Inline code (`code`): subtle wrap + accent text colour.
+    static let inlineCodeText = Color(
+        light: Color(rgba: 0xd633_6cff), dark: Color(rgba: 0xf19a_b1ff)
+    )
+    static let inlineCodeBackground = Color(
+        light: Color(rgba: 0xf1f3_f5ff), dark: Color(rgba: 0x2b2d_33ff)
+    )
+
+    // Tables: light header + horizontal zebra striping.
+    static let tableHeaderBackground = Color(
+        light: Color(rgba: 0xf3f4_f6ff), dark: Color(rgba: 0x2526_2aff)
+    )
+    static let tableRowAlt = Color(
+        light: Color(rgba: 0xf8f9_faff), dark: Color(rgba: 0x2021_26ff)
+    )
     
     static let enchantedTheme = Theme()
         .text {
@@ -42,8 +58,9 @@ struct MarkdownColours {
         }
         .code {
             FontFamilyVariant(.monospaced)
-            FontSize(.em(0.85))
-            BackgroundColor(secondaryBackground)
+            FontSize(.em(0.88))
+            ForegroundColor(inlineCodeText)
+            BackgroundColor(inlineCodeBackground)
         }
         .strong {
             FontWeight(.semibold)
@@ -52,38 +69,30 @@ struct MarkdownColours {
             ForegroundColor(link)
         }
         .heading1 { configuration in
-            VStack(alignment: .leading, spacing: 0) {
-                configuration.label
-                    .relativePadding(.bottom, length: .em(0.3))
-                    .relativeLineSpacing(.em(0.125))
-                    .markdownMargin(top: 24, bottom: 16)
-                    .markdownTextStyle {
-                        FontWeight(.semibold)
-                        FontSize(.em(2))
-                    }
-                Divider().overlay(divider)
-            }
-        }
-        .heading2 { configuration in
-            VStack(alignment: .leading, spacing: 0) {
-                configuration.label
-                    .relativePadding(.bottom, length: .em(0.3))
-                    .relativeLineSpacing(.em(0.125))
-                    .markdownMargin(top: 24, bottom: 16)
-                    .markdownTextStyle {
-                        FontWeight(.semibold)
-                        FontSize(.em(1.5))
-                    }
-                Divider().overlay(divider)
-            }
-        }
-        .heading3 { configuration in
             configuration.label
                 .relativeLineSpacing(.em(0.125))
                 .markdownMargin(top: 24, bottom: 16)
                 .markdownTextStyle {
-                    FontWeight(.semibold)
-                    FontSize(.em(1.25))
+                    FontWeight(.medium)
+                    FontSize(.em(1.5))
+                }
+        }
+        .heading2 { configuration in
+            configuration.label
+                .relativeLineSpacing(.em(0.125))
+                .markdownMargin(top: 22, bottom: 14)
+                .markdownTextStyle {
+                    FontWeight(.medium)
+                    FontSize(.em(1.3))
+                }
+        }
+        .heading3 { configuration in
+            configuration.label
+                .relativeLineSpacing(.em(0.125))
+                .markdownMargin(top: 20, bottom: 12)
+                .markdownTextStyle {
+                    FontWeight(.medium)
+                    FontSize(.em(1.15))
                 }
         }
         .heading4 { configuration in
@@ -116,7 +125,7 @@ struct MarkdownColours {
         .paragraph { configuration in
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
-                .relativeLineSpacing(.em(0.25))
+                .relativeLineSpacing(.em(0.4))
                 .markdownMargin(top: 0, bottom: 16)
         }
         .blockquote { configuration in
@@ -135,7 +144,8 @@ struct MarkdownColours {
         }
         .listItem { configuration in
             configuration.label
-                .padding(.bottom, 10)
+                .relativeLineSpacing(.em(0.4))
+                .markdownMargin(top: 0, bottom: 6)
         }
         .taskListMarker { configuration in
             Image(systemName: configuration.isCompleted ? "checkmark.square.fill" : "square")
@@ -148,8 +158,13 @@ struct MarkdownColours {
             configuration.label
                 .fixedSize(horizontal: false, vertical: true)
                 .markdownTableBorderStyle(.init(color: border))
+                // Header row gets a light fill; data rows use horizontal zebra
+                // striping (row 0 = header, data rows start at 1).
                 .markdownTableBackgroundStyle(
-                    .alternatingRows(background, secondaryBackground)
+                    TableBackgroundStyle { row, _ in
+                        if row == 0 { return tableHeaderBackground }
+                        return row.isMultiple(of: 2) ? tableRowAlt : background
+                    }
                 )
                 .markdownMargin(top: 0, bottom: 16)
         }
@@ -162,9 +177,9 @@ struct MarkdownColours {
                     BackgroundColor(nil)
                 }
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.vertical, 6)
-                .padding(.horizontal, 13)
-                .relativeLineSpacing(.em(0.25))
+                .padding(.vertical, 10)
+                .padding(.horizontal, 14)
+                .relativeLineSpacing(.em(0.3))
         }
         .thematicBreak {
             Divider()
