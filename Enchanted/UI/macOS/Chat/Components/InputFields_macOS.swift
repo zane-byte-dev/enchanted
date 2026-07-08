@@ -161,7 +161,6 @@ struct InputFieldsView: View {
                 .font(.system(size: 12))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.06)))
 
                 // Reasoning level
                 ThinkingLevelMenu()
@@ -189,19 +188,10 @@ struct InputFieldsView: View {
                 .fill(Color(nsColor: .textBackgroundColor))
                 .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
         )
-        // Clear blue focus ring (Cursor/Codex style)
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(
-                    isFocusedInput ? Color.accentColor : Color.gray2Custom.opacity(0.6),
-                    lineWidth: isFocusedInput ? 2 : 1
-                )
+                .strokeBorder(Color.gray2Custom.opacity(0.6), lineWidth: 1)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.accentColor.opacity(isFocusedInput ? 0.22 : 0), lineWidth: 4)
-        )
-        .animation(.easeOut(duration: 0.16), value: isFocusedInput)
         .overlay {
             if fileDropActive {
                 DragAndDrop(cornerRadius: 10)
@@ -316,7 +306,6 @@ struct ThinkingLevelMenu: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.06)))
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)

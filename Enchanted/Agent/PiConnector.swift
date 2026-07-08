@@ -138,11 +138,13 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
             let models = data["models"] as? [[String: Any]],
             !models.isEmpty
         else {
-            return [LanguageModel(name: "pi", provider: .ollama, imageSupport: false)]
+            return [LanguageModel(name: "pi", provider: .unknown, imageSupport: false)]
         }
         return models.compactMap { m in
             guard let mid = m["id"] as? String else { return nil }
-            return LanguageModel(name: mid, provider: .ollama, imageSupport: false)
+            let providerStr = m["provider"] as? String ?? "ollama"
+            let provider = ModelProvider(rawValue: providerStr.lowercased()) ?? .unknown
+            return LanguageModel(name: mid, provider: provider, imageSupport: false)
         }
     }
 

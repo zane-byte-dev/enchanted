@@ -13,6 +13,32 @@ struct LanguageModel {
     var imageSupport: Bool
 }
 
-enum ModelProvider: Codable {
+enum ModelProvider: String, Codable, Equatable, Hashable {
     case ollama
+    case openai
+    case anthropic
+    case google
+    case xai
+    case groq
+    case deepseek
+    case mistral
+    case idealab
+    case opencodeGo = "opencode-go"
+    case unknown
+
+    var iconName: String {
+        switch self {
+        case .ollama: return "cube"
+        case .openai: return "sparkles"
+        case .anthropic: return "brain.head.profile"
+        case .google: return "g.circle"
+        case .xai: return "xmark"
+        case .groq: return "bolt"
+        case .deepseek: return "magnifyingglass"
+        case .mistral: return "wind"
+        case .idealab: return "lightbulb"
+        case .opencodeGo: return "network"
+        case .unknown: return "cpu"
+        }
+    }
 }

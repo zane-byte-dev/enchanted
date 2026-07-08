@@ -52,11 +52,8 @@ struct SidebarRowStyle: ButtonStyle {
     }
 
     private func fillColor(_ configuration: Configuration) -> Color {
-        if isSelected {
-            return Color.accentColor.opacity(0.14)
-        }
-        if hover || configuration.isPressed {
-            return Color.gray.opacity(0.12)
+        if isSelected || hover || configuration.isPressed {
+            return Color.gray.opacity(0.05)
         }
         return .clear
     }

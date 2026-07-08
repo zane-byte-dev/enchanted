@@ -21,9 +21,12 @@ struct ModelSelectorView: View {
                         onSelectModel(model)
                     }
                 }) {
-                    Text(model.name)
-                        .font(.body)
-                        .tag(model.name)
+                    HStack {
+                        Image(systemName: model.modelProvider?.iconName ?? "cpu")
+                        Text(model.name)
+                            .font(.body)
+                    }
+                    .tag(model.name)
                 }
             }
         } label: {
@@ -32,8 +35,13 @@ struct ModelSelectorView: View {
                     HStack(alignment: .bottom, spacing: 5) {
                         
                         #if os(macOS) || os(visionOS)
-                        Text(selectedModel.name)
-                            .font(.body)
+                        HStack(spacing: 4) {
+                            Image(systemName: selectedModel.modelProvider?.iconName ?? "cpu")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                            Text(selectedModel.name)
+                                .font(.body)
+                        }
                         #elseif os(iOS)
                         Text(selectedModel.prettyName )
                             .font(.body)
