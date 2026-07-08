@@ -38,6 +38,7 @@ struct ChatView: View {
     @FocusState private var isFocusedInput: Bool
 #if os(macOS)
     @State private var terminalStore = TerminalStore.shared
+    @State private var rightSidebarStore = RightSidebarStore.shared
 #endif
 
     @ViewBuilder private var composer: some View {
@@ -95,19 +96,30 @@ struct ChatView: View {
 #if os(macOS)
         .onChange(of: selectedConversation?.id, initial: true) { _, newID in
             terminalStore.setConversation(newID)
+            rightSidebarStore.setConversation(newID)
         }
 #endif
     }
 
     @ViewBuilder private var detailContent: some View {
+#if os(macOS)
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                chatDetail
+                if terminalStore.isVisible {
+                    TerminalPanelView()
+                }
+            }
+            if rightSidebarStore.isVisible {
+                RightSidebarPanelView()
+                    .transition(.move(edge: .trailing))
+            }
+        }
+#else
         VStack(spacing: 0) {
             chatDetail
-#if os(macOS)
-            if terminalStore.isVisible {
-                TerminalPanelView()
-            }
-#endif
         }
+#endif
     }
 
     @ViewBuilder private var chatDetail: some View {

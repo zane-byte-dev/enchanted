@@ -72,6 +72,8 @@
 		FF911DF12B98F08800915E94 /* WrappingHStack in Frameworks */ = {isa = PBXBuildFile; productRef = FF911DF02B98F08800915E94 /* WrappingHStack */; };
 		FF9300D42B778829000859F4 /* ChatView_macOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9300D32B778829000859F4 /* ChatView_macOS.swift */; };
 		FFA0000000000000000000B2 /* TerminalPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA0000000000000000000B1 /* TerminalPanel.swift */; };
+		FFA0000000000000000000C2 /* RightSidebarPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA0000000000000000000C1 /* RightSidebarPanel.swift */; };
+		FFA0000000000000000000D2 /* ToolsCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA0000000000000000000D1 /* ToolsCommands.swift */; };
 		FFA0000000000000000000A3 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = FFA0000000000000000000A2 /* SwiftTerm */; };
 		FF9300DA2B781D97000859F4 /* ToolbarView_macOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9300D92B781D97000859F4 /* ToolbarView_macOS.swift */; };
 		FF9300DC2B7823B0000859F4 /* EmptyConversaitonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9300DB2B7823B0000859F4 /* EmptyConversaitonView.swift */; };
@@ -169,6 +171,8 @@
 		FF7FBE4B2B78E384000901F7 /* SamplePrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SamplePrompt.swift; sourceTree = "<group>"; };
 		FF9300D32B778829000859F4 /* ChatView_macOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView_macOS.swift; sourceTree = "<group>"; };
 		FFA0000000000000000000B1 /* TerminalPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPanel.swift; sourceTree = "<group>"; };
+		FFA0000000000000000000C1 /* RightSidebarPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RightSidebarPanel.swift; sourceTree = "<group>"; };
+		FFA0000000000000000000D1 /* ToolsCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsCommands.swift; sourceTree = "<group>"; };
 		FF9300D92B781D97000859F4 /* ToolbarView_macOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarView_macOS.swift; sourceTree = "<group>"; };
 		FF9300DB2B7823B0000859F4 /* EmptyConversaitonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyConversaitonView.swift; sourceTree = "<group>"; };
 		FF9300DD2B782A28000859F4 /* UnreachableAPIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnreachableAPIView.swift; sourceTree = "<group>"; };
@@ -363,6 +367,7 @@
 			isa = PBXGroup;
 			children = (
 				3396E0752BD877D500213816 /* Menus.swift */,
+				FFA0000000000000000000D1 /* ToolsCommands.swift */,
 				AA100100CCCC00000011AA01 /* SettingsMacOS.swift */,
 				FF9300D52B778F1A000859F4 /* Chat */,
 				FF464B172B810966008E5130 /* Components */,
@@ -387,6 +392,7 @@
 				FF9300D62B778F23000859F4 /* Components */,
 				FF9300D32B778829000859F4 /* ChatView_macOS.swift */,
 				FFA0000000000000000000B1 /* TerminalPanel.swift */,
+				FFA0000000000000000000C1 /* RightSidebarPanel.swift */,
 			);
 			path = Chat;
 			sourceTree = "<group>";
@@ -713,6 +719,8 @@
 				FFBB2C7B2C03D8AD00509204 /* Voice.swift in Sources */,
 				FF9300D42B778829000859F4 /* ChatView_macOS.swift in Sources */,
 				FFA0000000000000000000B2 /* TerminalPanel.swift in Sources */,
+				FFA0000000000000000000C2 /* RightSidebarPanel.swift in Sources */,
+				FFA0000000000000000000D2 /* ToolsCommands.swift in Sources */,
 				FF38F8512B7A919C00546B56 /* MenuBarControl_macOS.swift in Sources */,
 				FF38F85A2B7AB28300546B56 /* PromptPanelView.swift in Sources */,
 				FF1002462B25BCE70011A4DC /* LanguageModelStore.swift in Sources */,

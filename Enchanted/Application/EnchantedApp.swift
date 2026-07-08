@@ -42,6 +42,7 @@ struct EnchantedApp: App {
 #if os(macOS)
         .commands {
             Menus()
+            ToolsCommands()
         }
 #endif
 #if os(macOS)

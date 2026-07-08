@@ -20,6 +20,21 @@ struct ToolbarView: View {
     var body: some View {
         TerminalToggleButton()
         MoreOptionsMenuView(copyChat: copyChat)
+        SidebarToggleButton()
+    }
+}
+
+/// Top-right title-bar toggle that slides the multi-purpose tool sidebar in/out.
+struct SidebarToggleButton: View {
+    @State private var store = RightSidebarStore.shared
+
+    var body: some View {
+        Button(action: { store.toggle() }) {
+            Image(systemName: "sidebar.right")
+                .symbolVariant(store.isVisible ? .fill : .none)
+        }
+        .help("Toggle tool sidebar (\u{2325}\u{2318}B)")
+        .foregroundStyle(store.isVisible ? Color.accentColor : Color.primary)
     }
 }
 

@@ -150,6 +150,18 @@ final class TerminalStore {
         }
     }
 
+    /// Always show + focus the terminal for the current conversation, creating
+    /// the first tab if none exist. Used by the tool sidebar / global shortcut
+    /// so the panel appears regardless of its previous open/closed state.
+    func reveal() {
+        let s = current
+        if s.tabs.isEmpty {
+            newTab() // sets isVisible = true
+        } else {
+            s.isVisible = true
+        }
+    }
+
     @discardableResult
     func newTab() -> TerminalTab {
         counter += 1
