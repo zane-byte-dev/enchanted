@@ -474,6 +474,7 @@ private struct ShortcutsSettingsPane: View {
         }
         .padding(28)
         .frame(maxWidth: 820, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
       .onDisappear { stopRecording() }
     }
