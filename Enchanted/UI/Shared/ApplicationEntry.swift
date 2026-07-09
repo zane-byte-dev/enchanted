@@ -8,6 +8,23 @@
 import SwiftUI
 import SwiftData
 
+#if os(macOS)
+/// Sets the host NSWindow's background color once, so every detail area
+/// (chat, skills, settings) shares one white base while the sidebar keeps its
+/// own vibrant material. Unified alternative to per-page `.background(...)`.
+private struct WindowBackgroundSetter: NSViewRepresentable {
+    var color: NSColor
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { view.window?.backgroundColor = color }
+        return view
+    }
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { nsView.window?.backgroundColor = color }
+    }
+}
+#endif
+
 struct ApplicationEntry: View {
     @AppStorage("colorScheme") private var colorScheme: AppColorScheme = .system
     @State private var languageModelStore = LanguageModelStore.shared
@@ -23,6 +40,9 @@ struct ApplicationEntry: View {
                 Voice(languageModelStore: languageModelStore, conversationStore: conversationStore, appStore: appStore)
             }
         }
+#if os(macOS)
+        .background(WindowBackgroundSetter(color: .textBackgroundColor))
+#endif
         .task {
             
             if let bundleIdentifier = Bundle.main.bundleIdentifier {

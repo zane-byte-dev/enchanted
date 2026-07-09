@@ -136,6 +136,8 @@ struct ChatView: View {
                     .transition(.move(edge: .trailing))
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(NSColor.textBackgroundColor).ignoresSafeArea())
     }
 #endif
 

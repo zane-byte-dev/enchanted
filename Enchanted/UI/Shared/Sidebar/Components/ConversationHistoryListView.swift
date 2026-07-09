@@ -108,17 +108,17 @@ struct ConversationHistoryList: View {
                             .foregroundColor(.primary)
                             .lineLimit(1)
                         Spacer()
-                        if hoveredProject == group.path {
-                            Button(action: { onNewConversationInProject(group.path) }) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(Color(.systemGray))
-                                    .frame(width: 18, height: 18)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .help("New chat in this project")
+                        Button(action: { onNewConversationInProject(group.path) }) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(Color(.systemGray))
+                                .frame(width: 18, height: 18)
+                                .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .help("New chat in this project")
+                        .opacity(hoveredProject == group.path ? 1 : 0)
+                        .allowsHitTesting(hoveredProject == group.path)
                         Image(systemName: isCollapsed ? "chevron.forward" : "chevron.down")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(Color(.systemGray))

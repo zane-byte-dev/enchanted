@@ -77,6 +77,7 @@ struct SkillsMacOS: View {
             .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(NSColor.textBackgroundColor))
         .task { await store.load() }
         .overlay {
             if let skill = selectedSkill {
