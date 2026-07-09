@@ -146,21 +146,15 @@ final class ShortcutStore: ObservableObject {
 
 // MARK: - View helper
 
-/// Applies a `Shortcut` (or nothing, if nil) to a view's `.keyboardShortcut`.
-private struct ShortcutModifier: ViewModifier {
-    let shortcut: Shortcut?
-    func body(content: Content) -> some View {
-        if let s = shortcut {
-            content.keyboardShortcut(s.keyEquivalent, modifiers: s.eventModifiers)
-        } else {
-            content
-        }
-    }
-}
-
 extension View {
-    /// Bind an optional `Shortcut`; no-ops when nil (unassigned command).
+    /// Bind an optional `Shortcut` to this view. Applies SwiftUI's built-in
+    /// `keyboardShortcut(_:)` directly (not via a custom `ViewModifier`) so the
+    /// menu/command builder reliably picks up the key equivalent. `nil` clears
+    /// the shortcut (unassigned command). `SwiftUI.KeyboardShortcut` is fully
+    /// qualified because a legacy type of the same name shadows it in this module.
     func shortcut(_ shortcut: Shortcut?) -> some View {
-        modifier(ShortcutModifier(shortcut: shortcut))
+        keyboardShortcut(shortcut.map {
+            SwiftUI.KeyboardShortcut($0.keyEquivalent, modifiers: $0.eventModifiers)
+        })
     }
 }

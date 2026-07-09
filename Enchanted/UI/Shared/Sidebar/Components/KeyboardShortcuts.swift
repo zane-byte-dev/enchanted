@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct KeyboardShortcut: Identifiable {
+struct ShortcutRow: Identifiable {
     let id: Int
     var keys: [String]
     var description: String
@@ -16,10 +16,10 @@ struct KeyboardShortcut: Identifiable {
 struct KeyboardShortcutsDemo: View {
     @Environment(\.presentationMode) var presentationMode
     var shortcuts = [
-        KeyboardShortcut(id: 1, keys: ["⌃", "⌘", "K"], description: "Open Panel Window"),
-        KeyboardShortcut(id: 2, keys: ["⌘", "N"], description: "New Conversation"),
-        KeyboardShortcut(id: 3, keys: ["⌘", "⌥", "S"], description: "Hide/Show sidebar"),
-        KeyboardShortcut(id: 4, keys: ["⌘", "V"], description: "Paste text or image from clipboard into message box ")
+        ShortcutRow(id: 1, keys: ["⌃", "⌘", "K"], description: "Open Panel Window"),
+        ShortcutRow(id: 2, keys: ["⌘", "N"], description: "New Conversation"),
+        ShortcutRow(id: 3, keys: ["⌘", "⌥", "S"], description: "Hide/Show sidebar"),
+        ShortcutRow(id: 4, keys: ["⌘", "V"], description: "Paste text or image from clipboard into message box ")
     ]
     
     private func close() {
