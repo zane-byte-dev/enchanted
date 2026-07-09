@@ -30,6 +30,7 @@
 		FF1002402B24F7320011A4DC /* SideBarMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF10023F2B24F7320011A4DC /* SideBarMenuView.swift */; };
 		FF1002442B25BB730011A4DC /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002432B25BB730011A4DC /* ConversationStore.swift */; };
 		AA100400DDDD00000011AA01 /* ProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100400DDDD00000011AA02 /* ProjectStore.swift */; };
+		AA100500EEEE00000011AA01 /* ShortcutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100500EEEE00000011AA02 /* ShortcutStore.swift */; };
 		FF1002462B25BCE70011A4DC /* LanguageModelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002452B25BCE70011A4DC /* LanguageModelStore.swift */; };
 		FF10024A2B25BE740011A4DC /* LanguageModelSD.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002492B25BE740011A4DC /* LanguageModelSD.swift */; };
 		FF10024C2B25BEA00011A4DC /* MessageSD.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF10024B2B25BEA00011A4DC /* MessageSD.swift */; };
@@ -138,6 +139,7 @@
 		FF10023F2B24F7320011A4DC /* SideBarMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SideBarMenuView.swift; sourceTree = "<group>"; };
 		FF1002432B25BB730011A4DC /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationStore.swift; sourceTree = "<group>"; };
 		AA100400DDDD00000011AA02 /* ProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectStore.swift; sourceTree = "<group>"; };
+		AA100500EEEE00000011AA02 /* ShortcutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutStore.swift; sourceTree = "<group>"; };
 		FF1002452B25BCE70011A4DC /* LanguageModelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageModelStore.swift; sourceTree = "<group>"; };
 		FF1002492B25BE740011A4DC /* LanguageModelSD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageModelSD.swift; sourceTree = "<group>"; };
 		FF10024B2B25BEA00011A4DC /* MessageSD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageSD.swift; sourceTree = "<group>"; };
@@ -274,6 +276,7 @@
 				FF1002742B278C170011A4DC /* AppStore.swift */,
 				FF1002432B25BB730011A4DC /* ConversationStore.swift */,
 				AA100400DDDD00000011AA02 /* ProjectStore.swift */,
+				AA100500EEEE00000011AA02 /* ShortcutStore.swift */,
 				FF1002452B25BCE70011A4DC /* LanguageModelStore.swift */,
 				AA100300CCCC00000011AA01 /* SkillStore.swift */,
 			);
@@ -696,6 +699,7 @@
 				FF6D82252B9204F3001183A8 /* AsyncQueue.swift in Sources */,
 				FF1002442B25BB730011A4DC /* ConversationStore.swift in Sources */,
 				AA100400DDDD00000011AA01 /* ProjectStore.swift in Sources */,
+				AA100500EEEE00000011AA01 /* ShortcutStore.swift in Sources */,
 				FF15EF6A2B826C0300D4A541 /* SimpleFloatingButton.swift in Sources */,
 				FF24B30E2B66BE8500AB618F /* RunningBorder.swift in Sources */,
 				FF1002602B26499B0011A4DC /* ConversationStatusView.swift in Sources */,

@@ -45,15 +45,20 @@ enum RightSidebarTool: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Human-readable shortcut hint shown right-aligned in each row. Keep this
-    /// in sync with `ToolsCommands` where the shortcuts are actually bound.
-    var shortcutHint: String {
+    /// The `ShortcutStore` command id backing this tool.
+    var shortcutCommandID: String {
         switch self {
-        case .review:   return "⌃⇧G"
-        case .terminal: return "⌃`"
-        case .browser:  return "⌘T"
-        case .sideChat: return "⌥⌘S"
+        case .review:   return "review"
+        case .terminal: return "terminal"
+        case .browser:  return "browser"
+        case .sideChat: return "sideChat"
         }
+    }
+
+    /// Human-readable shortcut hint shown right-aligned in each row. Reads the
+    /// live binding from `ShortcutStore` so custom keys are reflected here too.
+    var shortcutHint: String {
+        ShortcutStore.shared.effective(shortcutCommandID)?.displayKeys.joined() ?? ""
     }
 }
 

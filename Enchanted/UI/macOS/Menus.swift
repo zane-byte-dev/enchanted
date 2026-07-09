@@ -22,13 +22,14 @@ extension FocusedValues {
 
 struct Menus: Commands {
    @FocusedValue(\.showSettings) var showSettings
+   @ObservedObject private var store = ShortcutStore.shared
 
    var body: some Commands {
        CommandGroup(replacing: .appSettings) {
            Button("Settings") {
                showSettings?.wrappedValue = true
            }
-           .keyboardShortcut(",", modifiers: .command)
+           .shortcut(store.effective("settings"))
        }
   }
 }

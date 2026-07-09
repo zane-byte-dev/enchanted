@@ -16,34 +16,37 @@
 import SwiftUI
 
 struct ToolsCommands: Commands {
+    // Observe the store so rebinding a shortcut in Settings updates the menu.
+    @ObservedObject private var store = ShortcutStore.shared
+
     var body: some Commands {
         CommandMenu("Tools") {
             Button("Review") {
                 RightSidebarStore.shared.activate(.review)
             }
-            .keyboardShortcut("g", modifiers: [.control, .shift]) // ⌃⇧G
+            .shortcut(store.effective("review"))
 
             Button("Browser") {
                 RightSidebarStore.shared.activate(.browser)
             }
-            .keyboardShortcut("t", modifiers: .command) // ⌘T
+            .shortcut(store.effective("browser"))
 
             Button("Side Chat") {
                 RightSidebarStore.shared.activate(.sideChat)
             }
-            .keyboardShortcut("s", modifiers: [.option, .command]) // ⌥⌘S
+            .shortcut(store.effective("sideChat"))
 
             Divider()
 
             Button("Terminal") {
                 TerminalStore.shared.reveal()
             }
-            .keyboardShortcut("`", modifiers: .control) // ⌃`
+            .shortcut(store.effective("terminal"))
 
             Button("Toggle Tool Sidebar") {
                 RightSidebarStore.shared.toggle()
             }
-            .keyboardShortcut("b", modifiers: [.option, .command]) // ⌥⌘B
+            .shortcut(store.effective("toolSidebar"))
         }
     }
 }

@@ -385,41 +385,37 @@ private struct VoiceSettingsPane: View {
 
 // MARK: - Shortcuts
 
-/// One customizable command binding. `keys` are the individual keycap symbols
-/// (e.g. ["⌥", "⌘", "S"]); an empty array renders as “未指定”.
-private struct ShortcutItem: Identifiable {
-    let id: String
-    let title: String        // Chinese command name
-    let subtitle: String     // English description
-    var keys: [String]
-}
-
 private struct ShortcutsSettingsPane: View {
+    @ObservedObject private var store = ShortcutStore.shared
     @State private var query: String = ""
+    @State private var recordingId: String?
+    @State private var monitor: Any?
+    @State private var conflictMessage: String?
 
-    // Mirrors the real menu commands wired in Menus.swift / ToolsCommands.swift.
-    private let shortcuts: [ShortcutItem] = [
-        ShortcutItem(id: "settings",   title: "打开设置",   subtitle: "Open app settings",           keys: ["⌘", ","]),
-        ShortcutItem(id: "review",     title: "代码评审",   subtitle: "Open code review",            keys: ["⌃", "⇧", "G"]),
-        ShortcutItem(id: "browser",    title: "浏览器",     subtitle: "Open the in-app browser",     keys: ["⌘", "T"]),
-        ShortcutItem(id: "sideChat",   title: "侧边聊天",   subtitle: "Open the side chat",          keys: ["⌥", "⌘", "S"]),
-        ShortcutItem(id: "terminal",   title: "终端",       subtitle: "Toggle the terminal",         keys: ["⌃", "`"]),
-        ShortcutItem(id: "toolSidebar",title: "切换工具侧栏", subtitle: "Toggle the tools sidebar",     keys: ["⌥", "⌘", "B"]),
-    ]
-
-    private var filtered: [ShortcutItem] {
+    private var filtered: [ShortcutCommandMeta] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return shortcuts }
-        return shortcuts.filter {
+        guard !q.isEmpty else { return ShortcutStore.all }
+        return ShortcutStore.all.filter {
             $0.title.lowercased().contains(q)
                 || $0.subtitle.lowercased().contains(q)
-                || $0.keys.joined().lowercased().contains(q)
+                || (store.effective($0.id)?.displayKeys.joined().lowercased().contains(q) ?? false)
         }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            paneTitle("键盘快捷键")
+            HStack {
+                paneTitle("键盘快捷键")
+                Spacer()
+                Button {
+                    stopRecording()
+                    store.resetAll()
+                } label: {
+                    Label("恢复默认", systemImage: "arrow.counterclockwise")
+                        .font(.system(size: 12))
+                }
+                .help("将所有快捷键恢复为默认值")
+            }
 
             // Search box
             HStack(spacing: 8) {
@@ -436,14 +432,19 @@ private struct ShortcutsSettingsPane: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2)))
 
+            if let conflictMessage {
+                Text(conflictMessage)
+                    .font(.system(size: 12))
+                    .foregroundColor(.orange)
+            }
+
             // Table
             VStack(spacing: 0) {
-                // Header
                 HStack {
                     Text("命令")
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text("按键绑定")
-                        .frame(width: 220, alignment: .leading)
+                        .frame(width: 260, alignment: .leading)
                 }
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.secondary)
@@ -473,10 +474,14 @@ private struct ShortcutsSettingsPane: View {
         }
         .padding(28)
         .frame(maxWidth: 820, alignment: .leading)
+        .onDisappear { stopRecording() }
     }
 
     @ViewBuilder
-    private func shortcutRow(_ item: ShortcutItem) -> some View {
+    private func shortcutRow(_ item: ShortcutCommandMeta) -> some View {
+        let binding = store.effective(item.id)
+        let isRecording = recordingId == item.id
+
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
@@ -489,23 +494,64 @@ private struct ShortcutsSettingsPane: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 6) {
-                if item.keys.isEmpty {
+                if isRecording {
+                    Text("按下快捷键… (Esc 取消)")
+                        .font(.system(size: 12))
+                        .foregroundColor(.accentColor)
+                } else if let binding {
+                    ForEach(Array(binding.displayKeys.enumerated()), id: \.offset) { _, key in
+                        keycap(key)
+                    }
+                } else {
                     Text("未指定")
                         .font(.system(size: 13))
                         .foregroundColor(.secondary)
-                } else {
-                    ForEach(Array(item.keys.enumerated()), id: \.offset) { _, key in
-                        keycap(key)
+                }
+
+                Spacer(minLength: 8)
+
+                Button {
+                    if isRecording { stopRecording() } else { startRecording(item.id) }
+                } label: {
+                    Image(systemName: isRecording ? "xmark.circle" : "pencil")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(isRecording ? "取消录制" : "修改快捷键")
+
+                Button {
+                    stopRecording()
+                    store.clear(item.id)
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(binding == nil)
+                .help("清除快捷键")
+
+                if store.isCustomized(item.id) {
+                    Button {
+                        stopRecording()
+                        store.reset(item.id)
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
                     }
+                    .buttonStyle(.plain)
+                    .help("恢复默认")
                 }
             }
-            .frame(width: 220, alignment: .leading)
+            .frame(width: 260, alignment: .leading)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .background(isRecording ? Color.accentColor.opacity(0.08) : Color.clear)
     }
 
-    /// A single keycap chip.
     private func keycap(_ symbol: String) -> some View {
         Text(symbol)
             .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -515,6 +561,49 @@ private struct ShortcutsSettingsPane: View {
             .background(Color.gray.opacity(0.12))
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.gray.opacity(0.22)))
+    }
+
+    // MARK: Key recording
+
+    private func startRecording(_ id: String) {
+        stopRecording()
+        conflictMessage = nil
+        recordingId = id
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            handleRecordingEvent(event)
+            return nil // swallow the event so it doesn't trigger anything else
+        }
+    }
+
+    private func stopRecording() {
+        if let m = monitor { NSEvent.removeMonitor(m); monitor = nil }
+        recordingId = nil
+    }
+
+    private func handleRecordingEvent(_ event: NSEvent) {
+        guard let id = recordingId else { return }
+        // Esc cancels.
+        if event.keyCode == 53 { stopRecording(); return }
+        guard let chars = event.charactersIgnoringModifiers, let ch = chars.first else { return }
+
+        let flags = event.modifierFlags
+        var s = Shortcut(key: String(ch).lowercased())
+        s.command = flags.contains(.command)
+        s.option  = flags.contains(.option)
+        s.control = flags.contains(.control)
+        s.shift   = flags.contains(.shift)
+
+        // Require at least one non-shift modifier so plain typing can't bind.
+        guard s.command || s.option || s.control else { return }
+
+        if let other = store.conflict(with: s, excluding: id) {
+            conflictMessage = "“\(s.displayKeys.joined())” 已用于“\(other.title)”，已重新分配。"
+            store.clear(other.id)
+        } else {
+            conflictMessage = nil
+        }
+        store.setShortcut(s, for: id)
+        stopRecording()
     }
 }
 
