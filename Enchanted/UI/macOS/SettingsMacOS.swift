@@ -220,7 +220,7 @@ private struct GeneralSettingsPane: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 20) {
                 paneTitle("常规")
 
                 // Connection
@@ -304,7 +304,7 @@ private struct AppearanceSettingsPane: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 20) {
                 paneTitle("外观")
 
                 settingsGroup("主题") {
@@ -349,7 +349,7 @@ private struct VoiceSettingsPane: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 20) {
                 paneTitle("语音")
 
                 settingsGroup("朗读语音") {
@@ -525,7 +525,7 @@ private struct AdvancedSettingsPane: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 20) {
                 paneTitle("高级")
 
                 settingsGroup("数据管理") {
@@ -569,10 +569,10 @@ private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content:
             content()
         }
         .background(Color(NSColor.controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.15)))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.15)))
     }
-    .frame(maxWidth: 580)
+    .frame(maxWidth: 764, alignment: .leading)
 }
 
 private func row<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
@@ -584,7 +584,7 @@ private func row<Content: View>(_ label: String, @ViewBuilder content: () -> Con
         content()
     }
     .padding(.horizontal, 16)
-    .padding(.vertical, 10)
+    .padding(.vertical, 12)
 }
 
 #endif
