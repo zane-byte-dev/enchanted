@@ -403,6 +403,7 @@ private struct ShortcutsSettingsPane: View {
     }
 
     var body: some View {
+      ScrollView {
         VStack(alignment: .leading, spacing: 20) {
             HStack {
                 paneTitle("键盘快捷键")
@@ -470,11 +471,11 @@ private struct ShortcutsSettingsPane: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.15)))
 
-            Spacer(minLength: 0)
         }
         .padding(28)
         .frame(maxWidth: 820, alignment: .leading)
-        .onDisappear { stopRecording() }
+      }
+      .onDisappear { stopRecording() }
     }
 
     @ViewBuilder
