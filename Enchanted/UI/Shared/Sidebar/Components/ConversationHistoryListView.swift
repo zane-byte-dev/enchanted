@@ -69,6 +69,10 @@ struct ConversationHistoryList: View {
     @State private var collapsed: Set<String> = []
     @State private var renamingConversation: ConversationSD?
     @State private var renameText: String = ""
+    @State private var projectStore = ProjectStore.shared
+    @State private var renamingProject: String?
+    @State private var projectRenameText: String = ""
+    @State private var removingProject: String?
 
     /// Reveal a conversation's working directory in Finder (macOS only).
     private func revealInFinder(_ conversation: ConversationSD) {
@@ -76,6 +80,58 @@ struct ConversationHistoryList: View {
         let path = conversation.workingDirectory ?? WorkspaceStore.shared.currentDirectory
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
 #endif
+    }
+
+    /// Reveal an arbitrary directory path in Finder (macOS only).
+    private func revealInFinder(path: String) {
+#if os(macOS)
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+#endif
+    }
+
+    /// The Codex-aligned project (folder) menu, shared between the header's
+    /// "…" button and its right-click context menu.
+    @ViewBuilder
+    private func projectMenuItems(_ group: ProjectGroup) -> some View {
+        Button(action: { onNewConversationInProject(group.path) }) {
+            Label("New Chat", systemImage: "square.and.pencil")
+        }
+
+        Divider()
+
+        Button(action: { projectStore.togglePin(group.path) }) {
+            Label(projectStore.isPinned(group.path) ? "Unpin Project" : "Pin Project",
+                  systemImage: projectStore.isPinned(group.path) ? "pin.slash" : "pin")
+        }
+#if os(macOS)
+        Button(action: { revealInFinder(path: group.path) }) {
+            Label("Show in Finder", systemImage: "folder")
+        }
+        Button(action: {
+            Task {
+                if let worktreePath = await ConversationStore.shared.createPermanentWorktree(from: group.path) {
+                    await MainActor.run { onNewConversationInProject(worktreePath) }
+                }
+            }
+        }) {
+            Label("Create Worktree", systemImage: "arrow.triangle.branch")
+        }
+#endif
+        Button(action: {
+            projectRenameText = projectStore.displayName(for: group.path)
+            renamingProject = group.path
+        }) {
+            Label("Rename Project", systemImage: "pencil")
+        }
+        Button(action: { ConversationStore.shared.archiveProject(path: group.path) }) {
+            Label("Archive Conversations", systemImage: "archivebox")
+        }
+
+        Divider()
+
+        Button(role: .destructive, action: { removingProject = group.path }) {
+            Label("Remove Project", systemImage: "xmark")
+        }
     }
 
     func groupConversationsByProject(_ conversations: [ConversationSD]) -> [ProjectGroup] {
@@ -89,7 +145,13 @@ struct ConversationHistoryList: View {
                 return $0.updatedAt > $1.updatedAt
             }
             return ProjectGroup(path: path, conversations: sorted)
-        }.sorted { $0.mostRecent > $1.mostRecent }
+        }.sorted { lhs, rhs in
+            // Pinned projects float to the top, then by recency.
+            let lPinned = projectStore.isPinned(lhs.path)
+            let rPinned = projectStore.isPinned(rhs.path)
+            if lPinned != rPinned { return lPinned }
+            return lhs.mostRecent > rhs.mostRecent
+        }
     }
 
     var projectGroups: [ProjectGroup] {
@@ -212,11 +274,12 @@ struct ConversationHistoryList: View {
                     }
                 }) {
                     HStack(spacing: 8) {
-                        Image(systemName: "folder")
+                        Image(systemName: projectStore.isPinned(group.path) ? "pin.fill" : "folder")
                             .font(.system(size: 13))
                             .frame(width: 16, height: 16)
                             .foregroundColor(Color(.systemGray))
-                        Text(group.name)
+                            .rotationEffect(.degrees(projectStore.isPinned(group.path) ? 45 : 0))
+                        Text(projectStore.displayName(for: group.path))
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(.primary)
                             .lineLimit(1)
@@ -230,6 +293,20 @@ struct ConversationHistoryList: View {
                         }
                         .buttonStyle(.plain)
                         .help("New chat in this project")
+                        .opacity(hoveredProject == group.path ? 1 : 0)
+                        .allowsHitTesting(hoveredProject == group.path)
+                        Menu {
+                            projectMenuItems(group)
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(Color(.systemGray))
+                                .frame(width: 18, height: 18)
+                                .contentShape(Rectangle())
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .fixedSize()
                         .opacity(hoveredProject == group.path ? 1 : 0)
                         .allowsHitTesting(hoveredProject == group.path)
                         Image(systemName: isCollapsed ? "chevron.forward" : "chevron.down")
@@ -247,9 +324,7 @@ struct ConversationHistoryList: View {
                     }
                 }
                 .contextMenu {
-                    Button(action: { onNewConversationInProject(group.path) }) {
-                        Label("New Chat", systemImage: "square.and.pencil")
-                    }
+                    projectMenuItems(group)
                 }
 
                 // Conversations under this project
@@ -323,6 +398,33 @@ struct ConversationHistoryList: View {
                 }
                 renamingConversation = nil
             }
+        }
+        .alert("Rename Project", isPresented: Binding(
+            get: { renamingProject != nil },
+            set: { if !$0 { renamingProject = nil } }
+        )) {
+            TextField("Name", text: $projectRenameText)
+            Button("Cancel", role: .cancel) { renamingProject = nil }
+            Button("Rename") {
+                if let path = renamingProject {
+                    projectStore.setDisplayName(projectRenameText, for: path)
+                }
+                renamingProject = nil
+            }
+        }
+        .alert("Remove Project", isPresented: Binding(
+            get: { removingProject != nil },
+            set: { if !$0 { removingProject = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { removingProject = nil }
+            Button("Remove", role: .destructive) {
+                if let path = removingProject {
+                    ConversationStore.shared.deleteProject(path: path)
+                }
+                removingProject = nil
+            }
+        } message: {
+            Text("This deletes all conversations in this project. This cannot be undone.")
         }
     }
 }

@@ -396,6 +396,70 @@ final class ConversationStore: Sendable {
         try? await selectConversation(forked)
     }
 
+    // MARK: - Project-level operations
+
+    /// Archive every non-archived conversation in a project (working directory).
+    @MainActor
+    func archiveProject(path: String) {
+        let targets = conversations.filter {
+            !$0.isArchived && ($0.workingDirectory ?? WorkspaceStore.shared.currentDirectory) == path
+        }
+        guard !targets.isEmpty else { return }
+        for conversation in targets {
+            conversation.isArchived = true
+            conversation.isPinned = false
+            if selectedConversation?.id == conversation.id {
+                selectedConversation = nil
+                messages = []
+            }
+        }
+        Task {
+            for conversation in targets {
+                try? await swiftDataService.updateConversation(conversation)
+            }
+            let fetched = try? await swiftDataService.fetchConversations()
+            if let fetched { await MainActor.run { self.conversations = fetched } }
+        }
+    }
+
+    /// Remove a project: delete all its conversations and forget its metadata.
+    @MainActor
+    func deleteProject(path: String) {
+        let targets = conversations.filter {
+            ($0.workingDirectory ?? WorkspaceStore.shared.currentDirectory) == path
+        }
+        ProjectStore.shared.forget(path)
+        guard !targets.isEmpty else { return }
+        if let selected = selectedConversation,
+           targets.contains(where: { $0.id == selected.id }) {
+            selectedConversation = nil
+            messages = []
+        }
+        Task {
+            for conversation in targets {
+                await teardownConnector(conversation.id)
+                try? await swiftDataService.deleteConversation(conversation)
+            }
+            let fetched = try? await swiftDataService.fetchConversations()
+            if let fetched { await MainActor.run { self.conversations = fetched } }
+        }
+    }
+
+    /// Create a permanent git worktree from a project's directory. Returns the
+    /// new worktree path so the caller can start a chat there. Unlike
+    /// `forkToWorktree`, this doesn't copy any conversation — it just spins up a
+    /// fresh parallel checkout the user can adopt as its own project.
+    @MainActor
+    @discardableResult
+    func createPermanentWorktree(from path: String) async -> String? {
+        let name = ProjectStore.shared.displayName(for: path)
+        let worktreePath = await Task.detached { GitWorktree.create(from: path, name: name) }.value
+        if worktreePath == nil {
+            AgentBackendConfig.debugLog("createPermanentWorktree: failed for \(path)")
+        }
+        return worktreePath
+    }
+
     // MARK: - Working directory (per conversation)
 
     /// Effective working directory for a conversation.
