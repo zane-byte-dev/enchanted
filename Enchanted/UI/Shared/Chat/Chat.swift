@@ -92,6 +92,14 @@ struct Chat: View, Sendable {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
 #endif
     }
+
+    /// Start a new conversation scoped to a specific project directory. Points
+    /// the workspace at that project so the new chat inherits it, then clears
+    /// the current selection to reveal the empty new-conversation state.
+    @MainActor func newConversationInProject(_ path: String) {
+        WorkspaceStore.shared.setDirectory(path)
+        newConversation()
+    }
     
     func copyChat(_ json: Bool) {
         Task {
@@ -149,7 +157,8 @@ struct Chat: View, Sendable {
                     copyChat: copyChat,
                     stats: conversationStore.currentStats,
                     onSteer: { _ = conversationStore.steerIfRunning($0) },
-                    onRefresh: { Task { try? await conversationStore.loadConversations() } }
+                    onRefresh: { Task { try? await conversationStore.loadConversations() } },
+                    onNewConversationInProject: newConversationInProject
                 )
             }
 #elseif os(visionOS)

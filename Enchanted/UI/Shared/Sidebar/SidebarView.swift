@@ -15,6 +15,7 @@ struct SidebarView: View {
     var onDeleteDailyConversations: (_ date: Date) -> ()
     var onNewConversation: () -> () = {}
     var onRefresh: () -> () = {}
+    var onNewConversationInProject: (_ path: String) -> () = { _ in }
     @State private var isRefreshing = false
     @State var showSettings = false   // iOS sheet / ⌘, focus binding
     @State private var searchText = ""
@@ -93,7 +94,8 @@ struct SidebarView: View {
                     conversations: filteredConversations,
                     onTap: onConversationTap,
                     onDelete: onConversationDelete,
-                    onDeleteDailyConversations: onDeleteDailyConversations
+                    onDeleteDailyConversations: onDeleteDailyConversations,
+                    onNewConversationInProject: onNewConversationInProject
                 )
             }
             .scrollIndicators(.never)

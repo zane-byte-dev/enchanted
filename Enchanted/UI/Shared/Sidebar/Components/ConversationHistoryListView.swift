@@ -61,6 +61,7 @@ struct ConversationHistoryList: View {
     var onTap: (_ conversation: ConversationSD) -> ()
     var onDelete: (_ conversation: ConversationSD) -> ()
     var onDeleteDailyConversations: (_ date: Date) -> ()
+    var onNewConversationInProject: (_ path: String) -> () = { _ in }
     
     @State private var collapsed: Set<String> = []
 
@@ -76,6 +77,8 @@ struct ConversationHistoryList: View {
     var projectGroups: [ProjectGroup] {
         groupConversationsByProject(conversations)
     }
+
+    @State private var hoveredProject: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -105,6 +108,17 @@ struct ConversationHistoryList: View {
                             .foregroundColor(.primary)
                             .lineLimit(1)
                         Spacer()
+                        if hoveredProject == group.path {
+                            Button(action: { onNewConversationInProject(group.path) }) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(Color(.systemGray))
+                                    .frame(width: 18, height: 18)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .help("New chat in this project")
+                        }
                         Image(systemName: isCollapsed ? "chevron.forward" : "chevron.down")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(Color(.systemGray))
@@ -112,6 +126,18 @@ struct ConversationHistoryList: View {
                 }
                 .buttonStyle(SidebarRowStyle())
                 .help(group.path)
+                .onHover { hovering in
+                    if hovering {
+                        hoveredProject = group.path
+                    } else if hoveredProject == group.path {
+                        hoveredProject = nil
+                    }
+                }
+                .contextMenu {
+                    Button(action: { onNewConversationInProject(group.path) }) {
+                        Label("New Chat", systemImage: "square.and.pencil")
+                    }
+                }
 
                 // Conversations under this project
                 if !isCollapsed {

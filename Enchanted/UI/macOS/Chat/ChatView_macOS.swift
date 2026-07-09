@@ -31,6 +31,7 @@ struct ChatView: View {
     var stats: PiSessionStats? = nil
     var onSteer: @MainActor (_ message: String) -> Void = { _ in }
     var onRefresh: () -> () = {}
+    var onNewConversationInProject: (_ path: String) -> () = { _ in }
     
     @State private var message = ""
     @State private var editMessage: MessageSD?
@@ -65,7 +66,8 @@ struct ChatView: View {
                 onConversationDelete: onConversationDelete,
                 onDeleteDailyConversations: onDeleteDailyConversations,
                 onNewConversation: onNewConversationTap,
-                onRefresh: onRefresh
+                onRefresh: onRefresh,
+                onNewConversationInProject: onNewConversationInProject
             )
             .toolbar {
 #if os(visionOS)
