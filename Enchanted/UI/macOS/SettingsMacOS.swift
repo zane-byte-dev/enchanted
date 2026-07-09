@@ -385,33 +385,136 @@ private struct VoiceSettingsPane: View {
 
 // MARK: - Shortcuts
 
+/// One customizable command binding. `keys` are the individual keycap symbols
+/// (e.g. ["⌥", "⌘", "S"]); an empty array renders as “未指定”.
+private struct ShortcutItem: Identifiable {
+    let id: String
+    let title: String        // Chinese command name
+    let subtitle: String     // English description
+    var keys: [String]
+}
+
 private struct ShortcutsSettingsPane: View {
-    private let shortcuts = [
-        KeyboardShortcut(id: 1, keys: ["⌃", "⌘", "K"], description: "Open Panel Window"),
-        KeyboardShortcut(id: 2, keys: ["⌘", "N"],       description: "New Conversation"),
-        KeyboardShortcut(id: 3, keys: ["⌘", "⌥", "S"], description: "Hide/Show Sidebar"),
-        KeyboardShortcut(id: 4, keys: ["⌘", "V"],       description: "Paste text or image from clipboard"),
+    @State private var query: String = ""
+
+    // Mirrors the real menu commands wired in Menus.swift / ToolsCommands.swift.
+    private let shortcuts: [ShortcutItem] = [
+        ShortcutItem(id: "settings",   title: "打开设置",   subtitle: "Open app settings",           keys: ["⌘", ","]),
+        ShortcutItem(id: "review",     title: "代码评审",   subtitle: "Open code review",            keys: ["⌃", "⇧", "G"]),
+        ShortcutItem(id: "browser",    title: "浏览器",     subtitle: "Open the in-app browser",     keys: ["⌘", "T"]),
+        ShortcutItem(id: "sideChat",   title: "侧边聊天",   subtitle: "Open the side chat",          keys: ["⌥", "⌘", "S"]),
+        ShortcutItem(id: "terminal",   title: "终端",       subtitle: "Toggle the terminal",         keys: ["⌃", "`"]),
+        ShortcutItem(id: "toolSidebar",title: "切换工具侧栏", subtitle: "Toggle the tools sidebar",     keys: ["⌥", "⌘", "B"]),
     ]
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            paneTitle("快捷键")
-                .padding(28)
-                .padding(.bottom, 0)
+    private var filtered: [ShortcutItem] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return shortcuts }
+        return shortcuts.filter {
+            $0.title.lowercased().contains(q)
+                || $0.subtitle.lowercased().contains(q)
+                || $0.keys.joined().lowercased().contains(q)
+        }
+    }
 
-            Table(shortcuts) {
-                TableColumn("快捷键") { s in
-                    Text(s.keys.joined(separator: " + "))
-                        .font(.system(size: 13, design: .monospaced))
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            paneTitle("键盘快捷键")
+
+            // Search box
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+                TextField("搜索快捷键", text: $query)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 14))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(Color(NSColor.controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2)))
+
+            // Table
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text("命令")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("按键绑定")
+                        .frame(width: 220, alignment: .leading)
                 }
-                .width(min: 130, ideal: 150)
-                TableColumn("说明") { s in
-                    Text(s.description)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+
+                Divider()
+
+                if filtered.isEmpty {
+                    Text("无匹配的快捷键")
                         .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 28)
+                } else {
+                    ForEach(Array(filtered.enumerated()), id: \.element.id) { index, item in
+                        shortcutRow(item)
+                        if index < filtered.count - 1 { Divider() }
+                    }
                 }
             }
-            .padding(.horizontal, 28)
+            .background(Color(NSColor.controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.15)))
+
+            Spacer(minLength: 0)
         }
+        .padding(28)
+        .frame(maxWidth: 820, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func shortcutRow(_ item: ShortcutItem) -> some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.system(size: 14))
+                    .foregroundColor(.primary)
+                Text(item.subtitle)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 6) {
+                if item.keys.isEmpty {
+                    Text("未指定")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(Array(item.keys.enumerated()), id: \.offset) { _, key in
+                        keycap(key)
+                    }
+                }
+            }
+            .frame(width: 220, alignment: .leading)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    /// A single keycap chip.
+    private func keycap(_ symbol: String) -> some View {
+        Text(symbol)
+            .font(.system(size: 13, weight: .medium, design: .rounded))
+            .foregroundColor(.primary)
+            .frame(minWidth: 24, minHeight: 24)
+            .padding(.horizontal, 6)
+            .background(Color.gray.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.gray.opacity(0.22)))
     }
 }
 
