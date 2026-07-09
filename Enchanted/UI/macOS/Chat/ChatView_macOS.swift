@@ -32,6 +32,7 @@ struct ChatView: View {
     var onSteer: @MainActor (_ message: String) -> Void = { _ in }
     var onRefresh: () -> () = {}
     var onNewConversationInProject: (_ path: String) -> () = { _ in }
+    var showSkills: Bool = false
     
     @State private var message = ""
     @State private var editMessage: MessageSD?
@@ -105,6 +106,20 @@ struct ChatView: View {
 
     @ViewBuilder private var detailContent: some View {
 #if os(macOS)
+        if showSkills {
+            SkillsMacOS()
+        } else {
+            chatWithPanels
+        }
+#else
+        VStack(spacing: 0) {
+            chatDetail
+        }
+#endif
+    }
+
+#if os(macOS)
+    @ViewBuilder private var chatWithPanels: some View {
         // Manual width management (fixed frame + custom resize handle) is the
         // only way to make the width per-conversation: native HSplitView /
         // inspector keep a single divider position that ignores each chat's
@@ -121,12 +136,8 @@ struct ChatView: View {
                     .transition(.move(edge: .trailing))
             }
         }
-#else
-        VStack(spacing: 0) {
-            chatDetail
-        }
-#endif
     }
+#endif
 
     @ViewBuilder private var chatDetail: some View {
             VStack(alignment: .center) {

@@ -27,6 +27,13 @@ struct SidebarView: View {
         return conversations.filter { $0.name.localizedCaseInsensitiveContains(q) }
     }
     
+    private func onSkillsTap() {
+        Task { await Haptics.shared.mediumTap() }
+#if os(macOS)
+        AppStore.shared.showSkills.toggle()
+#endif
+    }
+
     private func onSettingsTap() {
         Task { await Haptics.shared.mediumTap() }
 #if os(macOS)
@@ -85,6 +92,11 @@ struct SidebarView: View {
                 .padding(.vertical, 6)
                 .background(Color.gray.opacity(0.1))
                 .cornerRadius(6)
+
+#if os(macOS)
+                SidebarButton(title: String(localized: "Skills"), image: "puzzlepiece.extension", onClick: onSkillsTap)
+                    .padding(.top, 2)
+#endif
             }
             .padding(.bottom, 8)
 

@@ -27,6 +27,8 @@ final class AppStore {
     var appState: AppState = .chat
     /// macOS only: replace main window content with full-page Settings.
     var showSettings: Bool = false
+    /// macOS only: replace main window content with the full-page Skills manager.
+    var showSkills: Bool = false
 
     init() {
         if let storedIntervalString = UserDefaults.standard.string(forKey: "pingInterval") {

@@ -21,6 +21,9 @@
 		B7F280002B24F4900011A4DC /* AgentBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E170002B24F4900011A4DC /* AgentBackend.swift */; };
 		B7F280012B24F4900011A4DC /* OllamaBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E170012B24F4900011A4DC /* OllamaBackend.swift */; };
 		B7F280022B24F4900011A4DC /* PiConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E170022B24F4900011A4DC /* PiConnector.swift */; };
+		AA100201CCCC00000011AA01 /* PiSkill.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100200CCCC00000011AA01 /* PiSkill.swift */; };
+		AA100301CCCC00000011AA01 /* SkillStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100300CCCC00000011AA01 /* SkillStore.swift */; };
+		AA100401CCCC00000011AA01 /* SkillsMacOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100400CCCC00000011AA01 /* SkillsMacOS.swift */; };
 		B7F2899F2B24F4900011A4DC /* AgentBackendConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E1799F2B24F4900011A4DC /* AgentBackendConfig.swift */; };
 		B7F289A02B24F4900011A4DC /* MessageBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E179A02B24F4900011A4DC /* MessageBlock.swift */; };
 		B7F2899E2B24F4900011A4DC /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E1799E2B24F4900011A4DC /* WorkspaceStore.swift */; };
@@ -124,6 +127,9 @@
 		A6E170002B24F4900011A4DC /* AgentBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentBackend.swift; sourceTree = "<group>"; };
 		A6E170012B24F4900011A4DC /* OllamaBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaBackend.swift; sourceTree = "<group>"; };
 		A6E170022B24F4900011A4DC /* PiConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiConnector.swift; sourceTree = "<group>"; };
+		AA100200CCCC00000011AA01 /* PiSkill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiSkill.swift; sourceTree = "<group>"; };
+		AA100300CCCC00000011AA01 /* SkillStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillStore.swift; sourceTree = "<group>"; };
+		AA100400CCCC00000011AA01 /* SkillsMacOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsMacOS.swift; sourceTree = "<group>"; };
 		A6E1799F2B24F4900011A4DC /* AgentBackendConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentBackendConfig.swift; sourceTree = "<group>"; };
 		A6E179A02B24F4900011A4DC /* MessageBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBlock.swift; sourceTree = "<group>"; };
 		A6E1799E2B24F4900011A4DC /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceStore.swift; sourceTree = "<group>"; };
@@ -264,6 +270,7 @@
 				FF1002742B278C170011A4DC /* AppStore.swift */,
 				FF1002432B25BB730011A4DC /* ConversationStore.swift */,
 				FF1002452B25BCE70011A4DC /* LanguageModelStore.swift */,
+				AA100300CCCC00000011AA01 /* SkillStore.swift */,
 			);
 			path = Stores;
 			sourceTree = "<group>";
@@ -369,6 +376,7 @@
 				3396E0752BD877D500213816 /* Menus.swift */,
 				FFA0000000000000000000D1 /* ToolsCommands.swift */,
 				AA100100CCCC00000011AA01 /* SettingsMacOS.swift */,
+				AA100400CCCC00000011AA01 /* SkillsMacOS.swift */,
 				FF9300D52B778F1A000859F4 /* Chat */,
 				FF464B172B810966008E5130 /* Components */,
 				FF38F84D2B7A7B5300546B56 /* MenuBar */,
@@ -527,6 +535,7 @@
 				A6E170002B24F4900011A4DC /* AgentBackend.swift */,
 				A6E170012B24F4900011A4DC /* OllamaBackend.swift */,
 				A6E170022B24F4900011A4DC /* PiConnector.swift */,
+				AA100200CCCC00000011AA01 /* PiSkill.swift */,
 				A6E1799F2B24F4900011A4DC /* AgentBackendConfig.swift */,
 				A6E179A02B24F4900011A4DC /* MessageBlock.swift */,
 				A6E1799E2B24F4900011A4DC /* WorkspaceStore.swift */,
@@ -689,6 +698,9 @@
 				B7F280002B24F4900011A4DC /* AgentBackend.swift in Sources */,
 				B7F280012B24F4900011A4DC /* OllamaBackend.swift in Sources */,
 				B7F280022B24F4900011A4DC /* PiConnector.swift in Sources */,
+				AA100201CCCC00000011AA01 /* PiSkill.swift in Sources */,
+				AA100301CCCC00000011AA01 /* SkillStore.swift in Sources */,
+				AA100401CCCC00000011AA01 /* SkillsMacOS.swift in Sources */,
 				B7F2899F2B24F4900011A4DC /* AgentBackendConfig.swift in Sources */,
 				B7F289A02B24F4900011A4DC /* MessageBlock.swift in Sources */,
 				B7F2899E2B24F4900011A4DC /* WorkspaceStore.swift in Sources */,

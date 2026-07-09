@@ -10,6 +10,7 @@
 | `AgentBackend.swift` | 统一协议：`AgentChatMessage` / `AgentEvent` / `AgentBackend` |
 | `OllamaBackend.swift` | 默认后端，包一层现有 OllamaKit，行为不变 |
 | `PiConnector.swift` | 参考连接器：spawn `pi --mode rpc`，JSONL over stdio → `AgentEvent` |
+| `PiSkill.swift` | 技能描述模型 + 从 pi `get_commands`（`source=="skill"`）解析 |
 
 ## 唯一的接入点
 
@@ -57,6 +58,14 @@ user 消息**，历史由 pi 侧保存。Enchanted 自己的 SwiftData 历史与
 
 启动时通过登录 shell 拉起 pi，以继承用户的 PATH（node）和 API key
 （如 `IDEALAB_API_KEY`）——见 `AgentBackendConfig.swift`。
+
+## 技能管理页（Skills）
+
+仿 Codex「技能」面板的原生页面：
+- `PiConnector.skills()` 发 `get_commands`，过滤 `source == "skill"`，映射成 `PiSkill`（name / description / scope / path）。
+- `Stores/SkillStore.swift` 从控制后端拉取技能列表。
+- `UI/macOS/SkillsMacOS.swift` 全页展示：标题 + 搜索 + scope 标签（全部/个人/项目）+ Installed 卡片网格。
+- 入口：侧边栏「Skills」按钮 → `AppStore.shared.showSkills`，在 `Chat.swift` 里替换主窗口内容（与 Settings 同机制）。
 
 ## 待办（下一步）
 

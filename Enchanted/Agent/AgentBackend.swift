@@ -58,4 +58,12 @@ protocol AgentBackend: Sendable {
 
     /// Whether the backend is reachable / can start.
     func reachable() async -> Bool
+
+    /// List skills available to the backend. Empty for backends without skills.
+    func skills() async -> [PiSkill]
+}
+
+extension AgentBackend {
+    /// Default: no skills (e.g. Ollama).
+    func skills() async -> [PiSkill] { [] }
 }

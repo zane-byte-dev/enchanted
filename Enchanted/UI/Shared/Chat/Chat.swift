@@ -54,6 +54,7 @@ struct Chat: View, Sendable {
     }
     
     func onConversationTap(_ conversation: ConversationSD) {
+        appStore.showSkills = false
         Task {
             try await conversationStore.selectConversation(conversation)
             await languageModelStore.setModel(model: conversation.model)
@@ -77,6 +78,7 @@ struct Chat: View, Sendable {
     }
     
     func newConversation() {
+        appStore.showSkills = false
         DispatchQueue.main.async {
             withAnimation(.easeOut(duration: 0.3)) {
                 self.conversationStore.selectedConversation = nil
@@ -158,7 +160,8 @@ struct Chat: View, Sendable {
                     stats: conversationStore.currentStats,
                     onSteer: { _ = conversationStore.steerIfRunning($0) },
                     onRefresh: { Task { try? await conversationStore.loadConversations() } },
-                    onNewConversationInProject: newConversationInProject
+                    onNewConversationInProject: newConversationInProject,
+                    showSkills: appStore.showSkills
                 )
             }
 #elseif os(visionOS)

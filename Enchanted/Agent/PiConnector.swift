@@ -289,6 +289,33 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         return PiSessionStats(data)
     }
 
+    /// Fetch skills available to the current session (pi `get_commands`,
+    /// filtered to `source == "skill"`).
+    func skills() async -> [PiSkill] {
+        guard (try? ensureProcess()) != nil else { return [] }
+        let id = nextId()
+        let response: [String: Any]? = await withCheckedContinuation { continuation in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { obj in
+                if resumed { return }; resumed = true
+                continuation.resume(returning: obj)
+            }
+            lock.lock()
+            pending[id] = { obj in finish(obj) }
+            lock.unlock()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
+                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                finish(nil)
+            }
+            try? send(["id": id, "type": "get_commands"])
+        }
+        guard
+            let data = response?["data"] as? [String: Any],
+            let commands = data["commands"] as? [[String: Any]]
+        else { return [] }
+        return commands.compactMap(PiSkill.init(command:))
+    }
+
     func reachable() async -> Bool {
         (try? ensureProcess()) != nil
     }
