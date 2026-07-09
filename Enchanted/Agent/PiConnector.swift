@@ -82,6 +82,14 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     /// once `switch_session` has completed. Guards the first prompt so it never
     /// races the (async) session restore.
     private var needsResume = false
+    /// Maps a pi model id → its provider string (e.g. "qwen3.7-max" →
+    /// "opencode-go"). Populated from `get_available_models` so `chat()` can
+    /// issue a `set_model` (which requires both provider and modelId).
+    private var providerByModelId: [String: String] = [:]
+    /// The model id currently applied to the live pi session. Tracked so we only
+    /// send `set_model` when the user actually switches models, and re-send it
+    /// after a respawn (reset to nil in `ensureProcess`).
+    private var appliedModelId: String?
 
     init(config: Config) {
         self.config = config
@@ -108,6 +116,10 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 // prompt hits a half-torn-down session and is silently lost
                 // (the "can't continue after restart" bug).
                 await resumeSessionIfNeeded()
+                // Apply the user-selected model before prompting. pi's RPC
+                // session keeps its own "current model"; switching models in the
+                // UI is a no-op unless we tell pi via `set_model`.
+                await applyModelIfNeeded(model)
                 // Apply the user-selected reasoning level before prompting.
                 if let level = UserDefaults.standard.string(forKey: "piThinkingLevel"), !level.isEmpty {
                     try? send(["id": nextId(), "type": "set_thinking_level", "level": level])
@@ -155,6 +167,59 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         }
     }
 
+    /// Ensure pi's live session is using `modelId`. No-op if already applied.
+    /// Sends `set_model` (which needs the provider too) and awaits its response
+    /// so the following prompt runs on the intended model.
+    private func applyModelIfNeeded(_ modelId: String) async {
+        guard !modelId.isEmpty else { return }
+
+        lock.lock()
+        let already = appliedModelId == modelId
+        var provider = providerByModelId[modelId]
+        lock.unlock()
+
+        if already { return }
+
+        // Cache miss (e.g. models() not called yet): refresh the model list so
+        // we can resolve the provider required by set_model.
+        if provider == nil {
+            _ = try? await models()
+            lock.lock()
+            provider = providerByModelId[modelId]
+            lock.unlock()
+        }
+
+        guard let provider else {
+            AgentBackendConfig.debugLog("PiConnector: set_model skipped, unknown provider for \(modelId)")
+            return
+        }
+
+        let id = nextId()
+        let response: [String: Any]? = await withCheckedContinuation { (continuation: CheckedContinuation<[String: Any]?, Never>) in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { obj in
+                if resumed { return }; resumed = true
+                continuation.resume(returning: obj)
+            }
+            lock.lock()
+            pending[id] = { obj in finish(obj) }
+            lock.unlock()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
+                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                finish(nil)
+            }
+            try? send(["id": id, "type": "set_model", "provider": provider, "modelId": modelId])
+            AgentBackendConfig.debugLog("PiConnector: set_model -> \(provider)/\(modelId)")
+        }
+
+        if let success = response?["success"] as? Bool, success {
+            lock.lock(); appliedModelId = modelId; lock.unlock()
+        } else {
+            let err = (response?["error"] as? String) ?? "no response"
+            AgentBackendConfig.debugLog("PiConnector: set_model failed for \(provider)/\(modelId): \(err)")
+        }
+    }
+
     func models() async throws -> [LanguageModel] {
         try ensureProcess()
         let id = nextId()
@@ -185,6 +250,7 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         return models.compactMap { m in
             guard let mid = m["id"] as? String else { return nil }
             let providerStr = m["provider"] as? String ?? "ollama"
+            lock.lock(); providerByModelId[mid] = providerStr; lock.unlock()
             let provider = ModelProvider(rawValue: providerStr.lowercased()) ?? .unknown
             return LanguageModel(name: mid, provider: provider, imageSupport: false)
         }
@@ -278,6 +344,9 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         if let resume = config.resumeSessionPath, !resume.isEmpty {
             needsResume = true
         }
+        // Fresh process → pi is back on its default model, so force the next
+        // chat() to re-apply the user's selection.
+        appliedModelId = nil
     }
 
     /// Query pi for the current session file path (for persistence).
