@@ -90,6 +90,10 @@ struct ActivityGroupView: View {
 struct ToolCardView: View {
     let tool: ToolCall
     @State private var expanded = false
+    @State private var bodyContentHeight: CGFloat = 0
+
+    /// Max height of the expanded body before it becomes scrollable.
+    private let maxBodyHeight: CGFloat = 320
 
     private var statusColor: Color {
         if tool.isError { return .red }
@@ -148,21 +152,39 @@ struct ToolCardView: View {
             // Body
             if expanded && hasBody {
                 Divider()
-                Group {
-                    if !tool.editHunks.isEmpty {
-                        DiffView(hunks: tool.editHunks)
-                    } else if let content = tool.writeContent {
-                        CodeBlock(text: content, added: true)
-                    } else if let result = tool.resultText, !result.isEmpty {
-                        LabeledSection(title: tool.isError ? "error" : "result", text: result)
+                ScrollView(.vertical, showsIndicators: true) {
+                    Group {
+                        if !tool.editHunks.isEmpty {
+                            DiffView(hunks: tool.editHunks)
+                        } else if let content = tool.writeContent {
+                            CodeBlock(text: content, added: true)
+                        } else if let result = tool.resultText, !result.isEmpty {
+                            LabeledSection(title: tool.isError ? "error" : "result", text: result)
+                        }
                     }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        GeometryReader { proxy in
+                            Color.clear
+                                .preference(key: BodyHeightPreferenceKey.self, value: proxy.size.height)
+                        }
+                    )
                 }
-                .padding(10)
+                .frame(height: min(bodyContentHeight, maxBodyHeight))
+                .onPreferenceChange(BodyHeightPreferenceKey.self) { bodyContentHeight = $0 }
             }
         }
         .background(Color.gray.opacity(0.08))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct BodyHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
