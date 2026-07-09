@@ -60,8 +60,29 @@ final class ShortcutStore: ObservableObject {
     /// All bindable commands, in display order. Keep the ids in sync with
     /// `Menus.swift` / `ToolsCommands.swift`.
     static let all: [ShortcutCommandMeta] = [
-        .init(id: "settings",    title: "打开设置",     subtitle: "Open app settings",
-              defaultShortcut: Shortcut(key: ",", command: true)),
+        // Chat / conversation
+        .init(id: "newChat",       title: "新对话",       subtitle: "Start a new chat",
+              defaultShortcut: Shortcut(key: "n", command: true)),
+        .init(id: "toggleSidebar", title: "切换边栏",     subtitle: "Show or hide the sidebar",
+              defaultShortcut: Shortcut(key: "b", command: true)),
+        .init(id: "archiveChat",   title: "归档聊天",     subtitle: "Archive the current chat",
+              defaultShortcut: Shortcut(key: "a", command: true, shift: true)),
+        .init(id: "pinChat",       title: "切换置顶状态", subtitle: "Pin or unpin the current chat",
+              defaultShortcut: Shortcut(key: "p", command: true, option: true)),
+        .init(id: "renameChat",    title: "重命名聊天",   subtitle: "Rename the current chat",
+              defaultShortcut: Shortcut(key: "r", command: true, option: true)),
+        .init(id: "forkChat",      title: "分叉聊天",     subtitle: "Fork the current chat",
+              defaultShortcut: nil),
+        .init(id: "openFolder",    title: "打开文件夹",   subtitle: "Add a local project",
+              defaultShortcut: Shortcut(key: "o", command: true)),
+        .init(id: "copyWorkingDir",title: "复制工作目录", subtitle: "Copy the current chat working directory",
+              defaultShortcut: Shortcut(key: "c", command: true, shift: true)),
+        .init(id: "copySessionId", title: "复制 Session ID", subtitle: "Copy the current chat session ID",
+              defaultShortcut: Shortcut(key: "c", command: true, option: true)),
+        .init(id: "copyDeeplink",  title: "复制 Deeplink",  subtitle: "Copy a deeplink to the current chat",
+              defaultShortcut: Shortcut(key: "l", command: true, option: true)),
+
+        // Tools
         .init(id: "review",      title: "代码评审",     subtitle: "Open code review",
               defaultShortcut: Shortcut(key: "g", control: true, shift: true)),
         .init(id: "browser",     title: "浏览器",       subtitle: "Open the in-app browser",
@@ -72,6 +93,10 @@ final class ShortcutStore: ObservableObject {
               defaultShortcut: Shortcut(key: "`", control: true)),
         .init(id: "toolSidebar", title: "切换工具侧栏", subtitle: "Toggle the tools sidebar",
               defaultShortcut: Shortcut(key: "b", command: true, option: true)),
+
+        // App
+        .init(id: "settings",    title: "打开设置",     subtitle: "Open app settings",
+              defaultShortcut: Shortcut(key: ",", command: true)),
     ]
 
     @Published private var custom: [String: Shortcut]

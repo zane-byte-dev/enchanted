@@ -39,6 +39,10 @@ struct ChatView: View {
     @State var isRecording = false
     @FocusState private var isFocusedInput: Bool
 #if os(macOS)
+    @State private var renamingCurrent: ConversationSD?
+    @State private var renameText = ""
+#endif
+#if os(macOS)
     @State private var terminalStore = TerminalStore.shared
     @State private var rightSidebarStore = RightSidebarStore.shared
 #endif
@@ -100,6 +104,31 @@ struct ChatView: View {
         .onChange(of: selectedConversation?.id, initial: true) { _, newID in
             terminalStore.setConversation(newID)
             rightSidebarStore.setConversation(newID)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cmdNewChat)) { _ in
+            onNewConversationTap()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cmdToggleSidebar)) { _ in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                columnVisibility = (columnVisibility == .detailOnly) ? .doubleColumn : .detailOnly
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cmdRenameChat)) { _ in
+            if let c = selectedConversation {
+                renameText = c.name
+                renamingCurrent = c
+            }
+        }
+        .alert("Rename Conversation", isPresented: Binding(
+            get: { renamingCurrent != nil },
+            set: { if !$0 { renamingCurrent = nil } }
+        )) {
+            TextField("Name", text: $renameText)
+            Button("Cancel", role: .cancel) { renamingCurrent = nil }
+            Button("Rename") {
+                if let c = renamingCurrent { ConversationStore.shared.rename(c, to: renameText) }
+                renamingCurrent = nil
+            }
         }
 #endif
     }

@@ -46,6 +46,7 @@ struct EnchantedApp: App {
         .commands {
             Menus()
             ToolsCommands()
+            ChatCommands()
         }
 #endif
 #if os(macOS)
