@@ -89,7 +89,7 @@ struct ChatView: View {
         } detail: {
             detailContent
         }
-        .navigationTitle(selectedConversation?.name ?? "")
+        .navigationTitle("")
         .onChange(of: editMessage, initial: false) { _, newMessage in
             if let newMessage = newMessage {
                 message = newMessage.content
@@ -198,6 +198,24 @@ struct ChatView: View {
                     Text("Enchanted")
                 }
                 #else
+                if #available(macOS 26.0, *) {
+                    ToolbarItem(placement: .navigation) {
+                        Text(showSkills ? String(localized: "技能管理") : (selectedConversation?.name ?? ""))
+                            .font(.system(size: 14, weight: .regular))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: 280, alignment: .leading)
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .navigation) {
+                        Text(showSkills ? String(localized: "技能管理") : (selectedConversation?.name ?? ""))
+                            .font(.system(size: 14, weight: .regular))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: 280, alignment: .leading)
+                    }
+                }
                 #endif
 
                 

@@ -212,6 +212,190 @@ final class ConversationStore: Sendable {
         }
     }
 
+    /// Rename a conversation and persist it, then refresh the list so the
+    /// sidebar reflects the new title immediately.
+    @MainActor
+    func rename(_ conversation: ConversationSD, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != conversation.name else { return }
+        conversation.name = trimmed
+        Task {
+            try? await swiftDataService.updateConversation(conversation)
+            let fetched = try? await swiftDataService.fetchConversations()
+            if let fetched {
+                await MainActor.run { self.conversations = fetched }
+            }
+        }
+    }
+
+    /// Toggle a conversation's pinned state and persist it, refreshing the list
+    /// so pinned items reorder to the top of their project group.
+    @MainActor
+    func togglePin(_ conversation: ConversationSD) {
+        conversation.isPinned.toggle()
+        Task {
+            try? await swiftDataService.updateConversation(conversation)
+            let fetched = try? await swiftDataService.fetchConversations()
+            if let fetched {
+                await MainActor.run { self.conversations = fetched }
+            }
+        }
+    }
+
+    /// Toggle a conversation's archived state and persist it, refreshing the
+    /// list so archived items move in/out of the Archived section.
+    @MainActor
+    func toggleArchive(_ conversation: ConversationSD) {
+        conversation.isArchived.toggle()
+        // Archiving a conversation also unpins it to avoid a pinned-but-hidden item.
+        if conversation.isArchived { conversation.isPinned = false }
+        // Archiving the open conversation clears the detail view (new-chat state).
+        if conversation.isArchived, selectedConversation?.id == conversation.id {
+            selectedConversation = nil
+            messages = []
+        }
+        Task {
+            try? await swiftDataService.updateConversation(conversation)
+            let fetched = try? await swiftDataService.fetchConversations()
+            if let fetched {
+                await MainActor.run { self.conversations = fetched }
+            }
+        }
+    }
+
+    /// Build a concise conversation title from a prompt: first non-empty line,
+    /// whitespace-collapsed, capped to a reasonable length with an ellipsis.
+    static func title(from prompt: String, maxLength: Int = 60) -> String {
+        let firstLine = prompt
+            .components(separatedBy: .newlines)
+            .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? prompt
+        let collapsed = firstLine
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        if collapsed.count <= maxLength { return collapsed.isEmpty ? "New Chat" : collapsed }
+        return String(collapsed.prefix(maxLength)).trimmingCharacters(in: .whitespaces) + "…"
+    }
+
+    /// One-time migration: shorten existing over-long conversation titles that
+    /// predate `title(from:)`. Preserves `updatedAt` (uses renameConversation,
+    /// not updateConversation) so the sidebar order doesn't get reshuffled.
+    func migrateLongTitlesIfNeeded() async {
+        let key = "didMigrateLongTitles_v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        let all = (try? await swiftDataService.fetchConversations()) ?? []
+        var changed = false
+        for c in all {
+            let newTitle = Self.title(from: c.name)
+            if newTitle != c.name {
+                c.name = newTitle
+                try? await swiftDataService.renameConversation(c)
+                changed = true
+            }
+        }
+        UserDefaults.standard.set(true, forKey: key)
+        if changed {
+            let fetched = try? await swiftDataService.fetchConversations()
+            await MainActor.run { if let fetched { self.conversations = fetched } }
+        }
+    }
+
+    // MARK: - Deep links
+
+    /// URL scheme used for `enchanted://conversation/<uuid>` deep links.
+    static let deepLinkScheme = "enchanted"
+
+    /// Deep link that opens a specific conversation.
+    static func deepLink(for conversation: ConversationSD) -> String {
+        "\(deepLinkScheme)://conversation/\(conversation.id.uuidString)"
+    }
+
+    /// Open a conversation by id (e.g. from a deep link), selecting it if found.
+    @MainActor
+    func openConversation(id: UUID) {
+        Task {
+            if let conversation = try? await swiftDataService.getConversation(id) {
+                try? await selectConversation(conversation)
+            }
+        }
+    }
+
+    /// Handle an incoming `enchanted://` URL. Returns true if it was recognized.
+    @MainActor
+    @discardableResult
+    func handleDeepLink(_ url: URL) -> Bool {
+        guard url.scheme == Self.deepLinkScheme, url.host == "conversation",
+              let id = UUID(uuidString: url.lastPathComponent) else {
+            return false
+        }
+        openConversation(id: id)
+        return true
+    }
+
+    // MARK: - Fork
+
+    /// Duplicate a conversation (transcript + pi session context) into a new
+    /// conversation that runs in the same working directory.
+    @MainActor
+    func forkToLocal(_ conversation: ConversationSD) async {
+        await fork(conversation,
+                   workingDirectory: workingDirectory(for: conversation),
+                   nameSuffix: "(fork)")
+    }
+
+    /// Create a new git worktree from the conversation's working directory and
+    /// fork the conversation into it, so an agent can work on a parallel branch
+    /// without disturbing the original checkout. Returns the worktree path.
+    @MainActor
+    @discardableResult
+    func forkToWorktree(_ conversation: ConversationSD) async -> String? {
+        let cwd = workingDirectory(for: conversation)
+        let name = conversation.name
+        // Run git off the main actor so `worktree add` never freezes the UI.
+        let worktreePath = await Task.detached { GitWorktree.create(from: cwd, name: name) }.value
+        guard let worktreePath else {
+            AgentBackendConfig.debugLog("forkToWorktree: failed to create worktree from \(cwd)")
+            return nil
+        }
+        await fork(conversation, workingDirectory: worktreePath, nameSuffix: "(worktree)")
+        return worktreePath
+    }
+
+    /// Shared fork implementation: clones the pi session (when present), copies
+    /// the transcript, then selects the new conversation.
+    @MainActor
+    private func fork(_ source: ConversationSD, workingDirectory: String, nameSuffix: String) async {
+        // Clone the pi session so the fork carries the original context but
+        // writes to its own independent session file.
+        var newSessionPath: String? = nil
+        if let sessionPath = source.piSessionPath, !sessionPath.isEmpty,
+           let temp = AgentBackendConfig.makeChatBackend(
+               workingDirectory: workingDirectory,
+               resumeSessionPath: sessionPath) as? PiConnector {
+            newSessionPath = await temp.cloneSession()
+            temp.terminate()
+        }
+
+        let forked = ConversationSD(name: "\(source.name) \(nameSuffix)")
+        forked.workingDirectory = workingDirectory
+        forked.piSessionPath = newSessionPath
+        forked.model = source.model
+        try? await swiftDataService.createConversation(forked)
+
+        // Copy the visible transcript, preserving order via createdAt.
+        let sourceMessages = (try? await swiftDataService.fetchMessages(source.id)) ?? []
+        for m in sourceMessages {
+            let copy = MessageSD(content: m.content, role: m.role, done: m.done, error: m.error, image: m.image)
+            copy.blocksJSON = m.blocksJSON
+            copy.createdAt = m.createdAt
+            copy.conversation = forked
+            try? await swiftDataService.createMessage(copy)
+        }
+
+        let fetched = try? await swiftDataService.fetchConversations()
+        if let fetched { self.conversations = fetched }
+        try? await selectConversation(forked)
+    }
+
     // MARK: - Working directory (per conversation)
 
     /// Effective working directory for a conversation.
@@ -306,7 +490,7 @@ final class ConversationStore: Sendable {
     func sendPrompt(userPrompt: String, model: LanguageModelSD, image: Image? = nil, systemPrompt: String = "", trimmingMessageId: String? = nil) {
         guard userPrompt.trimmingCharacters(in: .whitespacesAndNewlines).count > 0 else { return }
 
-        let conversation = selectedConversation ?? ConversationSD(name: userPrompt)
+        let conversation = selectedConversation ?? ConversationSD(name: Self.title(from: userPrompt))
         conversation.updatedAt = Date.now
         conversation.model = model
         // New conversation inherits the current default working directory.

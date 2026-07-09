@@ -376,6 +376,38 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         appliedModelId = nil
     }
 
+    /// Restore this connector's context (if resuming) and duplicate the active
+    /// branch into a brand-new pi session file, returning its path. Used to
+    /// "fork" a conversation: the returned session is independent, so the
+    /// original conversation is untouched. Returns nil if the clone was
+    /// cancelled or no new session file could be resolved.
+    func cloneSession() async -> String? {
+        guard (try? ensureProcess()) != nil else { return nil }
+        await resumeSessionIfNeeded()
+        let id = nextId()
+        let response: [String: Any]? = await withCheckedContinuation { continuation in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { obj in
+                if resumed { return }; resumed = true
+                continuation.resume(returning: obj)
+            }
+            lock.lock()
+            pending[id] = { obj in finish(obj) }
+            lock.unlock()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
+                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                finish(nil)
+            }
+            try? send(["id": id, "type": "clone"])
+            AgentBackendConfig.debugLog("PiConnector: clone")
+        }
+        if let data = response?["data"] as? [String: Any], (data["cancelled"] as? Bool) == true {
+            return nil
+        }
+        // After a successful clone the process is switched onto the new session.
+        return await currentSessionPath()
+    }
+
     /// Query pi for the current session file path (for persistence).
     func currentSessionPath() async -> String? {
         try? ensureProcess()

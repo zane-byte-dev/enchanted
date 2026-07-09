@@ -29,6 +29,9 @@ struct EnchantedApp: App {
     var body: some Scene {
         WindowGroup {
             ApplicationEntry()
+                .onOpenURL { url in
+                    ConversationStore.shared.handleDeepLink(url)
+                }
 #if os(macOS)
                 .onKeyboardShortcut(KeyboardShortcuts.Name.togglePanelMode, type: .keyDown) {
                     print("heya")

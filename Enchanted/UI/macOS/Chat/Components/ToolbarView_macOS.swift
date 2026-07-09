@@ -18,35 +18,9 @@ struct ToolbarView: View {
     var copyChat: (_ json: Bool) -> ()
 
     var body: some View {
-        OpenLocationButton()
         TerminalToggleButton()
         MoreOptionsMenuView(copyChat: copyChat)
         SidebarToggleButton()
-    }
-}
-
-/// Top-right "open location" control: opens the current conversation's working
-/// directory in Finder or the default editor.
-struct OpenLocationButton: View {
-    @State private var conversationStore = ConversationStore.shared
-    @State private var workspace = WorkspaceStore.shared
-
-    private var path: String {
-        conversationStore.selectedConversation?.workingDirectory ?? workspace.currentDirectory
-    }
-
-    var body: some View {
-        Menu {
-            Button("在 Finder 中打开") {
-                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
-            }
-            Button("在编辑器中打开") {
-                NSWorkspace.shared.open(URL(fileURLWithPath: path))
-            }
-        } label: {
-            Image(systemName: "folder")
-        }
-        .help(String(localized: "Open location") + ": " + path)
     }
 }
 
@@ -212,16 +186,29 @@ struct WorkingDirectoryButton: View {
     }
 
     var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "folder")
-                .font(.system(size: 11))
-            Text(URL(fileURLWithPath: currentPath).lastPathComponent)
-                .font(.system(size: 12))
-                .lineLimit(1)
-                .truncationMode(.middle)
+        Menu {
+            Button("在 Finder 中打开") {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: currentPath)])
+            }
+            Button("在编辑器中打开") {
+                NSWorkspace.shared.open(URL(fileURLWithPath: currentPath))
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "folder")
+                    .font(.system(size: 11))
+                Text(URL(fileURLWithPath: currentPath).lastPathComponent)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .foregroundStyle(Color.secondary)
+            .padding(.horizontal, 10)
+            .contentShape(Rectangle())
         }
-        .foregroundStyle(Color.secondary)
-        .padding(.horizontal, 10)
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
         .help(currentPath)
     }
 }

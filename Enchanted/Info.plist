@@ -13,5 +13,16 @@
 	</dict>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.enchanted.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>enchanted</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

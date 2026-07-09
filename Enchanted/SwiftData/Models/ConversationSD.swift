@@ -15,6 +15,10 @@ final class ConversationSD: Identifiable {
     var name: String
     var createdAt: Date
     var updatedAt: Date
+    /// Whether the conversation is pinned to the top of its project group.
+    var isPinned: Bool = false
+    /// Whether the conversation is archived (hidden from the main list).
+    var isArchived: Bool = false
     /// Per-conversation working directory the agent operates in.
     /// nil → fall back to the global default.
     var workingDirectory: String?

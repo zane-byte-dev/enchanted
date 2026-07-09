@@ -70,6 +70,8 @@ struct ApplicationEntry: View {
                 do {
                     _ = try await loadModels
                     _ = try await loadConversations
+                    // One-time: shorten pre-existing over-long titles.
+                    await conversationStore.migrateLongTitlesIfNeeded()
                 } catch {
                     print("Unexpected error: \(error).")
                 }
