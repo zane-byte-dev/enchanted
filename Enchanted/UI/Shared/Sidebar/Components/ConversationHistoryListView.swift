@@ -179,13 +179,13 @@ struct ConversationHistoryList: View {
                 }
                 Text(conversation.name)
                     .lineLimit(1)
-                    .font(.system(size: 14, weight: .regular))
+                    .font(.system(size: 13, weight: .regular))
                     .foregroundColor(.primary)
                 Spacer(minLength: 4)
                 ConversationStatusBadge(conversationID: conversation.id)
                 Text(conversation.updatedAt.shortAgoString())
-                    .font(.system(size: 12))
-                    .foregroundColor(Color(hex: "9CA3AF"))
+                    .font(.system(size: 11))
+                    .foregroundColor(CodexTheme.faintText)
             }
             .padding(.leading, 8)
         }
@@ -259,7 +259,7 @@ struct ConversationHistoryList: View {
         VStack(alignment: .leading, spacing: 2) {
             Text("PROJECTS")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color(.systemGray))
+                .foregroundColor(CodexTheme.mutedText)
                 .padding(.horizontal, 8)
                 .padding(.top, 4)
                 .padding(.bottom, 4)
@@ -277,17 +277,17 @@ struct ConversationHistoryList: View {
                         Image(systemName: projectStore.isPinned(group.path) ? "pin.fill" : "folder")
                             .font(.system(size: 13))
                             .frame(width: 16, height: 16)
-                            .foregroundColor(Color(.systemGray))
+                            .foregroundColor(CodexTheme.mutedText)
                             .rotationEffect(.degrees(projectStore.isPinned(group.path) ? 45 : 0))
                         Text(projectStore.displayName(for: group.path))
-                            .font(.system(size: 14, weight: .regular))
+                            .font(.system(size: 13, weight: .regular))
                             .foregroundColor(.primary)
                             .lineLimit(1)
                         Spacer()
                         Button(action: { onNewConversationInProject(group.path) }) {
                             Image(systemName: "plus")
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(Color(.systemGray))
+                                .foregroundColor(CodexTheme.mutedText)
                                 .frame(width: 18, height: 18)
                                 .contentShape(Rectangle())
                         }
@@ -300,7 +300,7 @@ struct ConversationHistoryList: View {
                         } label: {
                             Image(systemName: "ellipsis")
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(Color(.systemGray))
+                                .foregroundColor(CodexTheme.mutedText)
                                 .frame(width: 18, height: 18)
                                 .contentShape(Rectangle())
                         }
@@ -311,7 +311,7 @@ struct ConversationHistoryList: View {
                         .allowsHitTesting(hoveredProject == group.path)
                         Image(systemName: isCollapsed ? "chevron.forward" : "chevron.down")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(Color(.systemGray))
+                            .foregroundColor(CodexTheme.faintText)
                     }
                 }
                 .buttonStyle(SidebarRowStyle())
@@ -337,7 +337,7 @@ struct ConversationHistoryList: View {
                     .padding(.leading, 10)
                     .overlay(alignment: .leading) {
                         Rectangle()
-                            .fill(Color.gray.opacity(0.18))
+                            .fill(CodexTheme.divider)
                             .frame(width: 1)
                             .padding(.vertical, 3)
                     }
@@ -353,18 +353,18 @@ struct ConversationHistoryList: View {
                         Image(systemName: "archivebox")
                             .font(.system(size: 13))
                             .frame(width: 16, height: 16)
-                            .foregroundColor(Color(.systemGray))
+                            .foregroundColor(CodexTheme.mutedText)
                         Text("Archived")
-                            .font(.system(size: 14, weight: .regular))
+                            .font(.system(size: 13, weight: .regular))
                             .foregroundColor(.primary)
                             .lineLimit(1)
                         Text("\(archivedConversations.count)")
                             .font(.system(size: 12))
-                            .foregroundColor(Color(.systemGray))
+                            .foregroundColor(CodexTheme.faintText)
                         Spacer()
                         Image(systemName: archivedCollapsed ? "chevron.forward" : "chevron.down")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(Color(.systemGray))
+                            .foregroundColor(CodexTheme.faintText)
                     }
                 }
                 .buttonStyle(SidebarRowStyle())
@@ -379,7 +379,7 @@ struct ConversationHistoryList: View {
                     .padding(.leading, 10)
                     .overlay(alignment: .leading) {
                         Rectangle()
-                            .fill(Color.gray.opacity(0.18))
+                            .fill(CodexTheme.divider)
                             .frame(width: 1)
                             .padding(.vertical, 3)
                     }

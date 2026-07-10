@@ -30,24 +30,27 @@ struct ChatView: View {
     var copyChat: (_ json: Bool) -> ()
     var stats: PiSessionStats? = nil
     var onSteer: @MainActor (_ message: String) -> Void = { _ in }
-    var onRefresh: () -> () = {}
     var onNewConversationInProject: (_ path: String) -> () = { _ in }
     var showSkills: Bool = false
     
     @State private var message = ""
     @State private var editMessage: MessageSD?
     @State var isRecording = false
+    @State private var appStore = AppStore.shared
+    @State private var inputFocusTrigger = 0
+    @State private var composerResetGeneration = 0
     @FocusState private var isFocusedInput: Bool
 #if os(macOS)
     @State private var renamingCurrent: ConversationSD?
     @State private var renameText = ""
+    @State private var selectedSkill: PiSkill?
 #endif
 #if os(macOS)
     @State private var terminalStore = TerminalStore.shared
     @State private var rightSidebarStore = RightSidebarStore.shared
 #endif
 
-    @ViewBuilder private var composer: some View {
+    @ViewBuilder private func composer(slashPalettePlacement: SlashPalettePlacement = .above) -> some View {
         InputFieldsView(
             message: $message,
             conversationState: conversationState,
@@ -58,8 +61,33 @@ struct ChatView: View {
             onSendMessageTap: onSendMessageTap,
             stats: stats,
             onSteer: onSteer,
+            focusTrigger: inputFocusTrigger,
+            slashPalettePlacement: slashPalettePlacement,
             editMessage: $editMessage
         )
+        .id(composerIdentity)
+    }
+
+    private var conversationIdentity: String {
+        selectedConversation?.id.uuidString ?? "new"
+    }
+
+    private var composerIdentity: String {
+        "\(conversationIdentity)-\(composerResetGeneration)"
+    }
+
+    private func resetComposerState(focusInput: Bool = false) {
+        message = ""
+        editMessage = nil
+        composerResetGeneration += 1
+        if focusInput {
+            inputFocusTrigger += 1
+        }
+    }
+
+    private func startNewConversation() {
+        resetComposerState(focusInput: true)
+        onNewConversationTap()
     }
 
     var body: some View {
@@ -70,8 +98,7 @@ struct ChatView: View {
                 onConversationTap: onConversationTap,
                 onConversationDelete: onConversationDelete,
                 onDeleteDailyConversations: onDeleteDailyConversations,
-                onNewConversation: onNewConversationTap,
-                onRefresh: onRefresh,
+                onNewConversation: startNewConversation,
                 onNewConversationInProject: onNewConversationInProject
             )
             .toolbar {
@@ -94,6 +121,27 @@ struct ChatView: View {
             detailContent
         }
         .navigationTitle("")
+        .overlay {
+#if os(macOS) || os(visionOS)
+            if appStore.showConversationSearch {
+                conversationSearchOverlay
+            }
+#if os(macOS)
+            if let selectedSkill {
+                SkillDetailOverlay(
+                    skill: selectedSkill,
+                    onClose: {
+                        self.selectedSkill = nil
+                    },
+                    onTryInChat: {
+                        useSkillInChat(selectedSkill)
+                    }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+#endif
+#endif
+        }
         .onChange(of: editMessage, initial: false) { _, newMessage in
             if let newMessage = newMessage {
                 message = newMessage.content
@@ -102,11 +150,12 @@ struct ChatView: View {
         }
 #if os(macOS)
         .onChange(of: selectedConversation?.id, initial: true) { _, newID in
+            resetComposerState()
             terminalStore.setConversation(newID)
             rightSidebarStore.setConversation(newID)
         }
         .onReceive(NotificationCenter.default.publisher(for: .cmdNewChat)) { _ in
-            onNewConversationTap()
+            startNewConversation()
         }
         .onReceive(NotificationCenter.default.publisher(for: .cmdToggleSidebar)) { _ in
             withAnimation(.easeInOut(duration: 0.2)) {
@@ -133,10 +182,64 @@ struct ChatView: View {
 #endif
     }
 
+#if os(macOS) || os(visionOS)
+    private var conversationSearchOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    appStore.showConversationSearch = false
+                }
+
+            ConversationSearchPanel(
+                conversations: conversations,
+                onConversationTap: { conversation in
+                    appStore.showConversationSearch = false
+                    onConversationTap(conversation)
+                },
+                onNewConversation: {
+                    appStore.showConversationSearch = false
+                    startNewConversation()
+                },
+                onDismiss: {
+                    appStore.showConversationSearch = false
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(CodexTheme.border.opacity(0.8), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.22), radius: 28, x: 0, y: 18)
+            .onTapGesture {}
+        }
+        .transition(.opacity)
+        .animation(.easeOut(duration: 0.14), value: appStore.showConversationSearch)
+    }
+#endif
+
+#if os(macOS)
+    private func useSkillInChat(_ skill: PiSkill) {
+        selectedSkill = nil
+        appStore.showSkills = false
+        let invocation = "/skill:\(skill.name)"
+        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedMessage.isEmpty {
+            message = "\(invocation) "
+        } else if !trimmedMessage.hasPrefix(invocation) {
+            message = "\(invocation) \(message)"
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            inputFocusTrigger += 1
+        }
+    }
+#endif
+
     @ViewBuilder private var detailContent: some View {
 #if os(macOS)
         if showSkills {
-            SkillsMacOS()
+            SkillsMacOS(selectedSkill: $selectedSkill)
         } else {
             chatWithPanels
         }
@@ -171,7 +274,7 @@ struct ChatView: View {
 #endif
 
     @ViewBuilder private var chatDetail: some View {
-            VStack(alignment: .center) {
+            VStack(alignment: .center, spacing: 0) {
                 if selectedConversation != nil {
                     MessageListView(
                         messages: messages,
@@ -185,32 +288,34 @@ struct ChatView: View {
                     }
 
                     VStack(spacing: 2) {
-                        composer
+                        composer()
                     }
-                    .padding()
-                    .frame(maxWidth: 800)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+                    .padding(.bottom, 16)
+                    .frame(maxWidth: 820)
                 } else {
-                    // Codex-style new-conversation empty state
                     Spacer()
                     Text("What should we do?")
-                        .font(.system(size: 32, weight: .semibold))
-                        .foregroundStyle(.primary.opacity(0.85))
-                        .padding(.bottom, 28)
+                        .font(.system(size: 31, weight: .semibold))
+                        .foregroundStyle(.primary.opacity(0.9))
+                        .padding(.bottom, 26)
 
                     if !reachable {
                         UnreachableAPIView()
                     }
 
                     VStack(spacing: 2) {
-                        composer
+                        composer(slashPalettePlacement: .below)
                     }
-                    .frame(maxWidth: 720)
-                    .padding(.horizontal)
+                    .frame(maxWidth: 760)
+                    .padding(.horizontal, 24)
 
-                    Spacer()
                     Spacer()
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(NSColor.textBackgroundColor))
             .toolbar {
                 #if os(visionOS)
                 ToolbarItemGroup(placement: .topBarLeading) {
@@ -229,35 +334,74 @@ struct ChatView: View {
                 #else
                 if #available(macOS 26.0, *) {
                     ToolbarItem(placement: .navigation) {
-                        Text(showSkills ? String(localized: "技能管理") : (selectedConversation?.name ?? ""))
-                            .font(.system(size: 14, weight: .regular))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(maxWidth: 280, alignment: .leading)
+                        navigationTitleView
                     }
                     .sharedBackgroundVisibility(.hidden)
                 } else {
                     ToolbarItem(placement: .navigation) {
-                        Text(showSkills ? String(localized: "技能管理") : (selectedConversation?.name ?? ""))
-                            .font(.system(size: 14, weight: .regular))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .frame(maxWidth: 280, alignment: .leading)
+                        navigationTitleView
                     }
                 }
                 #endif
 
-                
-                ToolbarItemGroup(placement: .automatic) {
-                    ToolbarView(
-                        modelsList: modelsList,
-                        selectedModel: selectedModel,
-                        onSelectModel: onSelectModel,
-                        copyChat: copyChat
-                    )
+                if #available(macOS 26.0, *) {
+                    ToolbarItemGroup(placement: .automatic) {
+                        ToolbarView(
+                            modelsList: modelsList,
+                            selectedModel: selectedModel,
+                            onSelectModel: onSelectModel,
+                            copyChat: copyChat
+                        )
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItemGroup(placement: .automatic) {
+                        ToolbarView(
+                            modelsList: modelsList,
+                            selectedModel: selectedModel,
+                            onSelectModel: onSelectModel,
+                            copyChat: copyChat
+                        )
+                    }
                 }
             }
     }
+
+#if os(macOS)
+    private var navigationTitleText: String {
+        showSkills ? String(localized: "技能管理") : (selectedConversation?.name ?? "")
+    }
+
+    private var navigationTitleIcon: String {
+        showSkills ? "puzzlepiece.extension" : "bubble.left"
+    }
+
+    private var shouldShowTitleMenu: Bool {
+        !showSkills && selectedConversation != nil
+    }
+
+    private var navigationTitleView: some View {
+        HStack(spacing: 8) {
+            Image(systemName: navigationTitleIcon)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(CodexTheme.mutedText)
+                .frame(width: 18, height: 18)
+
+            Text(navigationTitleText)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(.primary.opacity(0.88))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: 320, alignment: .leading)
+
+            if shouldShowTitleMenu {
+                MoreOptionsMenuView(copyChat: copyChat)
+            }
+        }
+        .padding(.leading, 10)
+        .frame(maxWidth: 390, alignment: .leading)
+    }
+#endif
 }
 
 #Preview {

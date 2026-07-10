@@ -18,6 +18,8 @@ struct InputFieldsView: View {
     var onSendMessageTap: @MainActor (_ prompt: String, _ model: LanguageModelSD, _ image: Image?, _ trimmingMessageId: String?) -> ()
     var stats: PiSessionStats? = nil
     var onSteer: @MainActor (_ message: String) -> Void = { _ in }
+    var focusTrigger: Int = 0
+    var slashPalettePlacement: SlashPalettePlacement = .above
     @Binding var editMessage: MessageSD?
     @State var isRecording = false
     
@@ -28,7 +30,141 @@ struct InputFieldsView: View {
     @State private var inputHeight: CGFloat = 32
     @State private var isInputFocused: Bool = false
     @State private var previewAttachment: TextAttachment?
+#if os(macOS)
+    @State private var skillStore = SkillStore.shared
+    @State private var appStore = AppStore.shared
+    @State private var slashSelection = 0
+    @State private var slashDismissedText: String?
+    @State private var inputFocusGeneration = 0
+#endif
     @FocusState private var isFocusedInput: Bool
+
+#if os(macOS)
+    private var slashQuery: String? {
+        guard message.hasPrefix("/") else { return nil }
+        guard slashDismissedText != message else { return nil }
+        let query = String(message.dropFirst())
+        guard !query.unicodeScalars.contains(where: { CharacterSet.whitespacesAndNewlines.contains($0) }) else { return nil }
+        return query
+    }
+
+    private var slashCommands: [ComposerSlashCommandItem] {
+        guard let slashQuery else { return [] }
+        let query = slashQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var items: [ComposerSlashCommandItem] = [
+            .init(
+                id: "show-skills",
+                title: "技能",
+                detail: "浏览和管理可用 Skills",
+                icon: "sparkles",
+                keywords: ["skill", "skills"],
+                kind: .showSkills
+            ),
+            .init(
+                id: "mcp",
+                title: "MCP",
+                detail: "发送 MCP 状态查询命令",
+                icon: "paperclip",
+                keywords: ["mcp"],
+                kind: .insertText("/mcp ")
+            )
+        ]
+
+        items += skillStore.skills.map { skill in
+            ComposerSlashCommandItem(
+                id: "skill-\(skill.name)",
+                title: skill.title,
+                detail: skill.description.isEmpty ? "插入 /skill:\(skill.name)" : skill.description,
+                icon: "wand.and.stars",
+                keywords: ["skill", skill.name, skill.scope.localizedLabel],
+                kind: .skill(skill)
+            )
+        }
+
+        if query.isEmpty {
+            return Array(items.prefix(14))
+        }
+        return Array(items.filter { $0.matches(query) }.prefix(14))
+    }
+
+    private var slashMenuIsVisible: Bool {
+        slashQuery != nil
+    }
+
+    @MainActor
+    private func focusComposerInput() {
+        isFocusedInput = true
+        isInputFocused = true
+        inputFocusGeneration += 1
+        DispatchQueue.main.async {
+            isFocusedInput = true
+            isInputFocused = true
+            inputFocusGeneration += 1
+        }
+    }
+
+    @MainActor
+    private func ensureSkillsLoadedForSlashMenu() {
+        guard slashMenuIsVisible, skillStore.skills.isEmpty, !skillStore.isLoading else { return }
+        Task { await skillStore.load() }
+    }
+
+    @MainActor
+    private func clampSlashSelection() {
+        if !slashMenuIsVisible {
+            slashSelection = 0
+            return
+        }
+        slashSelection = min(max(slashSelection, 0), max(slashCommands.count - 1, 0))
+    }
+
+    @MainActor
+    private func performSlashCommand(_ item: ComposerSlashCommandItem) {
+        slashDismissedText = nil
+        switch item.kind {
+        case .insertText(let text):
+            message = text
+        case .skill(let skill):
+            message = "/skill:\(skill.name) "
+        case .showSkills:
+            appStore.showSettings = false
+            appStore.showSkills = true
+            message = ""
+        }
+        focusComposerInput()
+    }
+
+    @MainActor
+    private func dismissSlashMenu() {
+        guard slashMenuIsVisible else { return }
+        slashDismissedText = message
+    }
+
+    @MainActor
+    private func handleComposerCommandKey(_ key: ComposerCommandKey) -> Bool {
+        guard slashMenuIsVisible else { return false }
+        let commands = slashCommands
+
+        switch key {
+        case .up:
+            guard !commands.isEmpty else { return true }
+            slashSelection = (slashSelection + commands.count - 1) % commands.count
+            return true
+        case .down:
+            guard !commands.isEmpty else { return true }
+            slashSelection = (slashSelection + 1) % commands.count
+            return true
+        case .accept:
+            guard commands.indices.contains(slashSelection) else { return true }
+            performSlashCommand(commands[slashSelection])
+            return true
+        case .cancel:
+            dismissSlashMenu()
+            return true
+        }
+    }
+#endif
 
     /// Combines any large-text attachments with the short instruction typed in
     /// the field into a single prompt, separated by blank lines.
@@ -110,7 +246,7 @@ struct InputFieldsView: View {
         }
     }
 
-    var body: some View {
+    private func inputCard(framed: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             if let image = selectedImage {
                 RemovableImage(
@@ -159,6 +295,10 @@ struct InputFieldsView: View {
                 },
                 onImagePaste: { nsImage in
                     updateSelectedImage(Image(nsImage: nsImage))
+                },
+                focusGeneration: inputFocusGeneration,
+                onCommandKey: { key in
+                    handleComposerCommandKey(key)
                 }
             )
             .frame(height: inputHeight)
@@ -228,21 +368,39 @@ struct InputFieldsView: View {
         }
         .transition(.slide)
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 9)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .textBackgroundColor))
-                .shadow(color: Color.black.opacity(0.06), radius: 8, x: 0, y: 2)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(framed ? CodexTheme.surface : Color.clear)
+                .shadow(color: Color.black.opacity(framed ? 0.04 : 0), radius: 7, x: 0, y: 2)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.gray2Custom.opacity(0.6), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(CodexTheme.border.opacity(framed ? 1 : 0), lineWidth: 1)
         )
         .overlay {
             if fileDropActive {
-                DragAndDrop(cornerRadius: 10)
+                DragAndDrop(cornerRadius: 8)
             }
         }
+#if os(macOS)
+        .overlay(alignment: .topLeading) {
+            if slashMenuIsVisible, slashPalettePlacement == .above {
+                SlashCommandPalette(
+                    items: slashCommands,
+                    selectedIndex: slashSelection,
+                    isLoading: skillStore.isLoading,
+                    onHover: { slashSelection = $0 },
+                    onSelect: { performSlashCommand($0) }
+                )
+                .padding(.horizontal, 10)
+                .offset(y: -(SlashCommandPalette.height(for: slashCommands, isLoading: skillStore.isLoading) + 10))
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .zIndex(10)
+            }
+        }
+#endif
         .animation(.default, value: fileDropActive)
         .onDrop(of: [.image], isTargeted: $fileDropActive.animation(), perform: { providers in
             guard let provider = providers.first else { return false }
@@ -255,19 +413,93 @@ struct InputFieldsView: View {
             return true
         })
         .contentShape(Rectangle())
-        .onTapGesture {
-            // allow focusing text area on greater tap area
-            isFocusedInput = true
+        .onChange(of: focusTrigger) { _, _ in
 #if os(macOS)
-            isInputFocused = true
+            focusComposerInput()
+#else
+            isFocusedInput = true
 #endif
         }
+        .onTapGesture {
+            // allow focusing text area on greater tap area
+#if os(macOS)
+            focusComposerInput()
+#else
+            isFocusedInput = true
+#endif
+        }
+#if os(macOS)
+        .onChange(of: message) { _, newValue in
+            if slashDismissedText != newValue {
+                slashDismissedText = nil
+            }
+            ensureSkillsLoadedForSlashMenu()
+            clampSlashSelection()
+        }
+        .onChange(of: slashCommands.map(\.id)) { _, _ in
+            clampSlashSelection()
+        }
+#endif
 #if os(macOS)
         .sheet(item: $previewAttachment) { item in
             AttachmentPreviewView(
                 attachment: item,
                 onClose: { previewAttachment = nil }
             )
+        }
+#endif
+    }
+
+#if os(macOS)
+    private var belowSlashPalette: some View {
+        SlashCommandPalette(
+            items: slashCommands,
+            selectedIndex: slashSelection,
+            isLoading: skillStore.isLoading,
+            framed: false,
+            allowsHoverSelection: false,
+            onHover: { slashSelection = $0 },
+            onSelect: { performSlashCommand($0) }
+        )
+        .padding(.horizontal, 8)
+        .padding(.top, 5)
+        .padding(.bottom, 7)
+        .transition(.opacity.combined(with: .move(edge: .top)))
+        .zIndex(10)
+    }
+#endif
+
+    var body: some View {
+        Group {
+#if os(macOS)
+            if slashPalettePlacement == .below {
+                VStack(alignment: .leading, spacing: 0) {
+                    inputCard(framed: !slashMenuIsVisible)
+                    if slashMenuIsVisible {
+                        belowSlashPalette
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(slashMenuIsVisible ? CodexTheme.surface : Color.clear)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(CodexTheme.border.opacity(slashMenuIsVisible ? 1 : 0), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(slashMenuIsVisible ? 0.08 : 0), radius: 18, x: 0, y: 8)
+            } else {
+                inputCard()
+            }
+#else
+            inputCard()
+#endif
+        }
+#if os(macOS)
+        .background {
+            SlashOutsideClickMonitor(isActive: slashMenuIsVisible) {
+                dismissSlashMenu()
+            }
         }
 #endif
     }
@@ -370,6 +602,229 @@ struct ThinkingLevelMenu: View {
     }
 }
 
+enum SlashPalettePlacement: Equatable {
+    case above
+    case below
+}
+
+#if os(macOS)
+enum ComposerCommandKey {
+    case up
+    case down
+    case accept
+    case cancel
+}
+
+struct ComposerSlashCommandItem: Identifiable {
+    let id: String
+    let title: String
+    let detail: String
+    let icon: String
+    let keywords: [String]
+    let kind: Kind
+
+    enum Kind {
+        case insertText(String)
+        case skill(PiSkill)
+        case showSkills
+    }
+
+    func matches(_ query: String) -> Bool {
+        let normalized = query.lowercased()
+        guard !normalized.isEmpty else { return true }
+        let haystacks = [title, detail] + keywords
+        return haystacks.contains { $0.lowercased().contains(normalized) }
+    }
+}
+
+private struct SlashCommandPalette: View {
+    static let rowHeight: CGFloat = 30
+    static let emptyHeight: CGFloat = 42
+    static let verticalPadding: CGFloat = 10
+    static let maxHeight: CGFloat = 320
+
+    static func height(for items: [ComposerSlashCommandItem], isLoading: Bool) -> CGFloat {
+        guard !items.isEmpty else { return emptyHeight }
+        let rowTotal = CGFloat(items.count) * rowHeight
+        return min(rowTotal + verticalPadding, maxHeight)
+    }
+
+    let items: [ComposerSlashCommandItem]
+    let selectedIndex: Int
+    let isLoading: Bool
+    var framed: Bool = true
+    var allowsHoverSelection: Bool = true
+    let onHover: (Int) -> Void
+    let onSelect: (ComposerSlashCommandItem) -> Void
+
+    @State private var hoveredIndex: Int?
+
+    var body: some View {
+        Group {
+            if items.isEmpty {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                        .opacity(isLoading ? 1 : 0)
+                    Text(isLoading ? "正在加载命令…" : "没有匹配的命令")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(CodexTheme.mutedText)
+                    Spacer()
+                }
+                .frame(height: 28)
+                .padding(.horizontal, 8)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: true) {
+                        LazyVStack(alignment: .leading, spacing: 2) {
+                            ForEach(items.indices, id: \.self) { index in
+                                SlashCommandRow(
+                                    item: items[index],
+                                    isSelected: index == selectedIndex,
+                                    isHovered: index == hoveredIndex,
+                                    onSelect: { onSelect(items[index]) }
+                                )
+                                .id(index)
+                                .onHover { hovering in
+                                    hoveredIndex = hovering ? index : nil
+                                    if hovering, allowsHoverSelection { onHover(index) }
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxHeight: .infinity)
+                    .onChange(of: selectedIndex) { _, newValue in
+                        withAnimation(.easeOut(duration: 0.12)) {
+                            proxy.scrollTo(newValue, anchor: .center)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(5)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: Self.height(for: items, isLoading: isLoading),
+            maxHeight: Self.height(for: items, isLoading: isLoading),
+            alignment: .topLeading
+        )
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(framed ? CodexTheme.surface : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(CodexTheme.border.opacity(framed ? 1 : 0), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(framed ? 0.12 : 0), radius: 18, x: 0, y: 10)
+    }
+}
+
+private struct SlashCommandRow: View {
+    let item: ComposerSlashCommandItem
+    let isSelected: Bool
+    let isHovered: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 8) {
+                Image(systemName: item.icon)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(CodexTheme.mutedText)
+                    .frame(width: 16, height: 16)
+
+                Text(item.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text(item.detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(CodexTheme.faintText)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+            }
+            .padding(.horizontal, 7)
+            .frame(height: SlashCommandPalette.rowHeight)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(rowBackground)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+    }
+
+    private var rowBackground: Color {
+        if isSelected { return CodexTheme.rowSelected }
+        if isHovered { return CodexTheme.rowSelected.opacity(0.55) }
+        return .clear
+    }
+}
+
+private struct SlashOutsideClickMonitor: NSViewRepresentable {
+    let isActive: Bool
+    let onOutsideClick: @MainActor () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        context.coordinator.hostView = view
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.hostView = nsView
+        context.coordinator.onOutsideClick = onOutsideClick
+        context.coordinator.setActive(isActive)
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.setActive(false)
+    }
+
+    final class Coordinator {
+        weak var hostView: NSView?
+        var onOutsideClick: (@MainActor () -> Void)?
+        private var eventMonitor: Any?
+
+        func setActive(_ active: Bool) {
+            if active, eventMonitor == nil {
+                eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp, .rightMouseUp]) { [weak self] event in
+                    guard let self,
+                          let hostView,
+                          let window = hostView.window,
+                          event.window === window else { return event }
+
+                    let point = hostView.convert(event.locationInWindow, from: nil)
+                    guard !hostView.bounds.contains(point) else { return event }
+
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onOutsideClick?()
+                    }
+                    return event
+                }
+            } else if !active, let eventMonitor {
+                NSEvent.removeMonitor(eventMonitor)
+                self.eventMonitor = nil
+            }
+        }
+
+        deinit {
+            if let eventMonitor {
+                NSEvent.removeMonitor(eventMonitor)
+            }
+        }
+    }
+}
+#endif
+
 // MARK: - Large-text paste → attachment
 
 /// Threshold used to decide whether pasted text should collapse into an
@@ -424,7 +879,7 @@ struct AttachmentChipView: View {
                     .frame(width: 30, height: 30)
                     .background(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color.gray.opacity(0.15))
+                            .fill(CodexTheme.surfaceSubtle)
                     )
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -443,11 +898,11 @@ struct AttachmentChipView: View {
             .frame(width: 180, height: 46, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(nsColor: .textBackgroundColor))
+                    .fill(CodexTheme.surface)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(Color.gray.opacity(0.35), lineWidth: 1)
+                    .strokeBorder(CodexTheme.border, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -560,6 +1015,8 @@ struct CustomPasteTextView: NSViewRepresentable {
     var onSubmit: () -> Void
     var onLargePaste: (String) -> Void
     var onImagePaste: (NSImage) -> Void
+    var focusGeneration: Int = 0
+    var onCommandKey: (ComposerCommandKey) -> Bool = { _ in false }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -594,6 +1051,7 @@ struct CustomPasteTextView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+        context.coordinator.parent = self
         guard let textView = nsView.documentView as? PasteInterceptingTextView else { return }
 
         // Never overwrite the buffer while an IME composition is in progress,
@@ -603,14 +1061,24 @@ struct CustomPasteTextView: NSViewRepresentable {
             context.coordinator.recalculateHeight()
         }
 
-        if isFocused, textView.window != nil, textView.window?.firstResponder !== textView {
-            textView.window?.makeFirstResponder(textView)
+        let shouldForceFocus = context.coordinator.appliedFocusGeneration != focusGeneration
+        if shouldForceFocus {
+            context.coordinator.appliedFocusGeneration = focusGeneration
+        }
+
+        if (isFocused || shouldForceFocus), textView.window != nil, textView.window?.firstResponder !== textView {
+            DispatchQueue.main.async {
+                if textView.window?.firstResponder !== textView {
+                    textView.window?.makeFirstResponder(textView)
+                }
+            }
         }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: CustomPasteTextView
         weak var textView: PasteInterceptingTextView?
+        var appliedFocusGeneration = 0
 
         init(_ parent: CustomPasteTextView) {
             self.parent = parent
@@ -657,7 +1125,22 @@ struct CustomPasteTextView: NSViewRepresentable {
         }
 
         func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.moveUp(_:)) {
+                return parent.onCommandKey(.up)
+            }
+            if commandSelector == #selector(NSResponder.moveDown(_:)) {
+                return parent.onCommandKey(.down)
+            }
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                return parent.onCommandKey(.cancel)
+            }
+            if commandSelector == #selector(NSResponder.insertTab(_:)) {
+                return parent.onCommandKey(.accept)
+            }
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                if parent.onCommandKey(.accept) {
+                    return true
+                }
                 let shiftPressed = NSApp.currentEvent?.modifierFlags.contains(.shift) ?? false
                 if shiftPressed {
                     textView.insertNewlineIgnoringFieldEditor(nil)

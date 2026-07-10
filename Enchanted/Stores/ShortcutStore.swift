@@ -63,6 +63,8 @@ final class ShortcutStore: ObservableObject {
         // Chat / conversation
         .init(id: "newChat",       title: "新对话",       subtitle: "Start a new chat",
               defaultShortcut: Shortcut(key: "n", command: true)),
+        .init(id: "searchChats",   title: "搜索聊天",     subtitle: "Search chats and projects",
+              defaultShortcut: Shortcut(key: "f", command: true)),
         .init(id: "toggleSidebar", title: "切换边栏",     subtitle: "Show or hide the sidebar",
               defaultShortcut: Shortcut(key: "b", command: true)),
         .init(id: "archiveChat",   title: "归档聊天",     subtitle: "Archive the current chat",

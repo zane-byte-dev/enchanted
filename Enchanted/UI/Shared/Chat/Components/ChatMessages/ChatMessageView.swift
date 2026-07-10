@@ -222,8 +222,16 @@ struct ChatMessageView: View {
                     }
                 }
                 .if(message.role == "user", transform: { v in
-                    v.padding()
-                        .background(RoundedRectangle(cornerRadius: 25).fill(.regularMaterial))
+                    v.padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(CodexTheme.surfaceSubtle)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(CodexTheme.border.opacity(0.7), lineWidth: 1)
+                        )
                 })
                 
                 if message.role != "user" {
@@ -238,7 +246,7 @@ struct ChatMessageView: View {
                         .padding(8)
                 }
                 .buttonStyle(GrowingButton())
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
                 
                 /// Play button
                 Button(action: {
@@ -255,7 +263,7 @@ struct ChatMessageView: View {
                         .padding(8)
                 }
                 .buttonStyle(GrowingButton())
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
                 .showIf(!isSpeaking)
                 
                 /// Stop button
@@ -270,7 +278,7 @@ struct ChatMessageView: View {
                         .padding(8)
                 }
                 .buttonStyle(GrowingButton())
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
                 .showIf(isSpeaking)
                 
                 /// Edit button
@@ -279,7 +287,7 @@ struct ChatMessageView: View {
                         .padding(8)
                 }
                 .buttonStyle(GrowingButton())
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
                 .showIf(message.role == "user")
             }
             .opacity(mouseHover ? 1 : 0.0001)

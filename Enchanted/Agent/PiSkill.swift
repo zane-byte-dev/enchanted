@@ -42,9 +42,9 @@ struct PiSkill: Identifiable, Hashable, Sendable {
 
         var localizedLabel: String {
             switch self {
-            case .user: return String(localized: "Personal")
-            case .project: return String(localized: "Project")
-            case .temporary, .unknown: return String(localized: "Other")
+            case .user: return "个人"
+            case .project: return "项目"
+            case .temporary, .unknown: return "其他"
             }
         }
     }

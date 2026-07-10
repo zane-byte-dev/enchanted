@@ -14,18 +14,12 @@ struct SidebarView: View {
     var onConversationDelete: (_ conversation: ConversationSD) -> ()
     var onDeleteDailyConversations: (_ date: Date) -> ()
     var onNewConversation: () -> () = {}
-    var onRefresh: () -> () = {}
     var onNewConversationInProject: (_ path: String) -> () = { _ in }
-    @State private var isRefreshing = false
     @State var showSettings = false   // iOS sheet / ⌘, focus binding
-    @State private var searchText = ""
+#if !os(macOS) && !os(visionOS)
+    @State private var showSearch = false
+#endif
     @AppStorage("appUserInitials") private var appUserInitials: String = ""
-
-    private var filteredConversations: [ConversationSD] {
-        let q = searchText.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return conversations }
-        return conversations.filter { $0.name.localizedCaseInsensitiveContains(q) }
-    }
     
     private func onSkillsTap() {
         Task { await Haptics.shared.mediumTap() }
@@ -52,49 +46,18 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             // Top actions
             VStack(spacing: 2) {
-                HStack(spacing: 2) {
-                    SidebarButton(title: String(localized: "New Chat"), image: "square.and.pencil", onClick: onNewConversation)
-                    Button(action: {
-                        isRefreshing = true
-                        onRefresh()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { isRefreshing = false }
-                    }) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(Color(.systemGray))
-                            .rotationEffect(.degrees(isRefreshing ? 360 : 0))
-                            .animation(isRefreshing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRefreshing)
-                            .frame(width: 30, height: 30)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .help("Sync pi sessions")
-                }
+                SidebarButton(title: String(localized: "New Chat"), image: "square.and.pencil", shortcutCommandID: "newChat", onClick: onNewConversation)
 
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 14))
-                        .frame(width: 16, height: 16)
-                        .foregroundColor(Color(.systemGray))
-                    TextField("Search", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 14))
-                    if !searchText.isEmpty {
-                        Button(action: { searchText = "" }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 12))
-                                .foregroundColor(Color(.systemGray))
-                        }
-                        .buttonStyle(.plain)
-                    }
+                SidebarButton(title: String(localized: "Search"), image: "magnifyingglass", shortcutCommandID: "searchChats") {
+#if os(macOS) || os(visionOS)
+                    AppStore.shared.showConversationSearch = true
+#else
+                    showSearch = true
+#endif
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(6)
 
 #if os(macOS)
-                SidebarButton(title: String(localized: "Skills"), image: "puzzlepiece.extension", onClick: onSkillsTap)
+                SidebarButton(title: "技能", image: "puzzlepiece.extension", onClick: onSkillsTap)
                     .padding(.top, 2)
 #endif
             }
@@ -103,7 +66,7 @@ struct SidebarView: View {
             ScrollView() {
                 ConversationHistoryList(
                     selectedConversation: selectedConversation,
-                    conversations: filteredConversations,
+                    conversations: conversations,
                     onTap: onConversationTap,
                     onDelete: onConversationDelete,
                     onDeleteDailyConversations: onDeleteDailyConversations,
@@ -112,7 +75,9 @@ struct SidebarView: View {
             }
             .scrollIndicators(.never)
             
-            Divider()
+            Rectangle()
+                .fill(CodexTheme.divider)
+                .frame(height: 1)
             
             // Bottom: avatar button → open settings
             Button {
@@ -121,7 +86,7 @@ struct SidebarView: View {
                 HStack(spacing: 10) {
                     ZStack {
                         Circle()
-                            .fill(Color.accentColor.opacity(0.15))
+                            .fill(Color.accentColor.opacity(0.12))
                             .frame(width: 28, height: 28)
                         Text(initialsLabel)
                             .font(.system(size: 11, weight: .semibold))
@@ -129,7 +94,7 @@ struct SidebarView: View {
                     }
                     Text("Enchanted")
                         .font(.system(size: 13))
-                        .foregroundColor(.primary)
+                        .foregroundColor(.primary.opacity(0.86))
                     Spacer()
                 }
                 .padding(.horizontal, 8)
@@ -139,7 +104,26 @@ struct SidebarView: View {
             .buttonStyle(.plain)
             
         }
-        .padding()
+        .padding(12)
+        .background(CodexTheme.sidebarBackground)
+#if !os(macOS) && !os(visionOS)
+        .sheet(isPresented: $showSearch) {
+            ConversationSearchPanel(
+                conversations: conversations,
+                onConversationTap: { conversation in
+                    showSearch = false
+                    onConversationTap(conversation)
+                },
+                onNewConversation: {
+                    showSearch = false
+                    onNewConversation()
+                },
+                onDismiss: {
+                    showSearch = false
+                }
+            )
+        }
+#endif
         .focusedSceneValue(\.showSettings, $showSettings)
         .onChange(of: showSettings) { _, newVal in
 #if os(macOS)
@@ -159,4 +143,251 @@ struct SidebarView: View {
 
 #Preview {
     SidebarView(selectedConversation: ConversationSD.sample[0], conversations: ConversationSD.sample, onConversationTap: {_ in}, onConversationDelete: {_ in}, onDeleteDailyConversations: {_ in})
+}
+
+struct ConversationSearchPanel: View {
+    let conversations: [ConversationSD]
+    let onConversationTap: (_ conversation: ConversationSD) -> ()
+    let onNewConversation: () -> ()
+    let onDismiss: () -> ()
+
+    @State private var searchText = ""
+    @State private var projectStore = ProjectStore.shared
+    @State private var selectedIndex = 0
+    @FocusState private var isSearchFocused: Bool
+
+    private let panelWidth: CGFloat = 520
+    private let panelHeight: CGFloat = 500
+    private let resultsHeight: CGFloat = 388
+
+    private var trimmedSearchText: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var results: [ConversationSD] {
+        let sorted = conversations.sorted { lhs, rhs in
+            if lhs.isPinned != rhs.isPinned { return lhs.isPinned }
+            return lhs.updatedAt > rhs.updatedAt
+        }
+
+        guard !trimmedSearchText.isEmpty else {
+            return Array(sorted.prefix(10))
+        }
+
+        return sorted.filter { conversation in
+            let projectPath = conversation.workingDirectory ?? WorkspaceStore.shared.currentDirectory
+            let projectName = projectStore.displayName(for: projectPath)
+            return conversation.name.localizedCaseInsensitiveContains(trimmedSearchText)
+                || projectName.localizedCaseInsensitiveContains(trimmedSearchText)
+                || projectPath.localizedCaseInsensitiveContains(trimmedSearchText)
+        }
+    }
+
+    private var selectedResultID: UUID? {
+        guard results.indices.contains(selectedIndex) else { return nil }
+        return results[selectedIndex].id
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            searchHeader
+
+            Rectangle()
+                .fill(CodexTheme.divider)
+                .frame(height: 1)
+                .padding(.horizontal, 14)
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if results.isEmpty {
+                            emptyState
+                        } else {
+                            ForEach(Array(results.enumerated()), id: \.element.id) { index, conversation in
+                                resultRow(conversation, isSelected: index == selectedIndex)
+                                    .id(conversation.id)
+                                    .onHover { hovering in
+                                        if hovering { selectedIndex = index }
+                                    }
+                            }
+                        }
+                    }
+                    .padding(10)
+                }
+                .frame(height: resultsHeight)
+                .onChange(of: selectedResultID) { _, newID in
+                    if let newID {
+                        withAnimation(.easeOut(duration: 0.12)) {
+                            proxy.scrollTo(newID, anchor: .center)
+                        }
+                    }
+                }
+            }
+
+            Rectangle()
+                .fill(CodexTheme.divider)
+                .frame(height: 1)
+                .padding(.horizontal, 14)
+
+            Button(action: onNewConversation) {
+                HStack(spacing: 10) {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 14))
+                        .frame(width: 18, height: 18)
+                    Text("New Chat")
+                        .font(.system(size: 14))
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(width: panelWidth, height: panelHeight)
+        .background(CodexTheme.surface)
+        .onAppear {
+            DispatchQueue.main.async {
+                isSearchFocused = true
+            }
+        }
+        .onChange(of: searchText) { _, _ in
+            selectedIndex = 0
+        }
+        .onChange(of: results.map(\.id)) { _, _ in
+            clampSelectedIndex()
+        }
+        .onSubmit {
+            selectCurrentResult()
+        }
+        .onKeyPress(.downArrow) {
+            moveSelection(delta: 1)
+            return .handled
+        }
+        .onKeyPress(.upArrow) {
+            moveSelection(delta: -1)
+            return .handled
+        }
+        .onKeyPress(.return) {
+            selectCurrentResult()
+            return .handled
+        }
+        .onKeyPress(.escape) {
+            onDismiss()
+            return .handled
+        }
+    }
+
+    private var searchHeader: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15))
+                .foregroundColor(CodexTheme.mutedText)
+                .frame(width: 18, height: 18)
+            TextField("Search chats or projects", text: $searchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 16))
+                .focused($isSearchFocused)
+            if !searchText.isEmpty {
+                Button(action: { searchText = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(CodexTheme.mutedText)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 6) {
+            Text("No chats found")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.primary)
+            Text("Try another chat title or project name.")
+                .font(.system(size: 12))
+                .foregroundColor(CodexTheme.mutedText)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: resultsHeight - 20)
+    }
+
+    private func resultRow(_ conversation: ConversationSD, isSelected: Bool) -> some View {
+        let projectPath = conversation.workingDirectory ?? WorkspaceStore.shared.currentDirectory
+        let projectName = projectStore.displayName(for: projectPath)
+
+        return Button(action: { onConversationTap(conversation) }) {
+            HStack(spacing: 10) {
+                Image(systemName: conversation.isArchived ? "archivebox" : "bubble.left")
+                    .font(.system(size: 14))
+                    .foregroundColor(CodexTheme.mutedText)
+                    .frame(width: 18, height: 18)
+                Text(conversation.name)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                Spacer(minLength: 12)
+                Text(projectName)
+                    .font(.system(size: 13))
+                    .foregroundColor(CodexTheme.faintText)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 150, alignment: .trailing)
+                Text(conversation.updatedAt.shortAgoString())
+                    .font(.system(size: 12))
+                    .foregroundColor(CodexTheme.faintText)
+                    .frame(width: 34, alignment: .trailing)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(SearchResultRowStyle(isSelected: isSelected))
+        .help(projectPath)
+    }
+
+    private func clampSelectedIndex() {
+        if results.isEmpty {
+            selectedIndex = 0
+        } else if selectedIndex >= results.count {
+            selectedIndex = results.count - 1
+        }
+    }
+
+    private func moveSelection(delta: Int) {
+        guard !results.isEmpty else { return }
+        selectedIndex = (selectedIndex + delta + results.count) % results.count
+    }
+
+    private func selectCurrentResult() {
+        guard results.indices.contains(selectedIndex) else { return }
+        onConversationTap(results[selectedIndex])
+    }
+}
+
+private struct SearchResultRowStyle: ButtonStyle {
+    var isSelected: Bool
+    @State private var hover = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(fillColor(configuration))
+            )
+            .onHover { hover = $0 }
+            .animation(.easeOut(duration: 0.1), value: hover || isSelected)
+    }
+
+    private func fillColor(_ configuration: Configuration) -> Color {
+        if isSelected {
+            return CodexTheme.rowSelected
+        }
+        if hover || configuration.isPressed {
+            return CodexTheme.rowHover
+        }
+        return .clear
+    }
 }

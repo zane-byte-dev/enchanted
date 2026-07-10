@@ -44,9 +44,10 @@ struct Chat: View, Sendable {
     
     @MainActor
     func sendMessage(prompt: String, model: LanguageModelSD, image: Image?, trimmingMessageId: String?) {
+        let currentModel = languageModelStore.selectedModel ?? model
         conversationStore.sendPrompt(
             userPrompt: prompt,
-            model: model,
+            model: currentModel,
             image: image,
             systemPrompt: systemPrompt,
             trimmingMessageId: trimmingMessageId
@@ -159,7 +160,6 @@ struct Chat: View, Sendable {
                     copyChat: copyChat,
                     stats: conversationStore.currentStats,
                     onSteer: { _ = conversationStore.steerIfRunning($0) },
-                    onRefresh: { Task { try? await conversationStore.loadConversations() } },
                     onNewConversationInProject: newConversationInProject,
                     showSkills: appStore.showSkills
                 )
@@ -185,8 +185,7 @@ struct Chat: View, Sendable {
                 userInitials: userInitials,
                 copyChat: copyChat,
                 stats: conversationStore.currentStats,
-                onSteer: { _ = conversationStore.steerIfRunning($0) },
-                onRefresh: { Task { try? await conversationStore.loadConversations() } }
+                onSteer: { _ = conversationStore.steerIfRunning($0) }
             )
 #else
             SideBarStack(sidebarWidth: 300,showSidebar: $showMenu, sidebar: {

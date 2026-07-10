@@ -19,6 +19,14 @@ struct MessageListView: View {
     @Binding var editMessage: MessageSD?
     @State private var messageSelected: MessageSD?
     @StateObject private var speechSynthesizer = SpeechSynthesizer.shared
+
+    private var contentBackground: Color {
+#if os(macOS)
+        Color(NSColor.textBackgroundColor)
+#else
+        CodexTheme.appBackground
+#endif
+    }
     
     func onEditMessageTap() -> (MessageSD) -> Void {
         return { message in
@@ -115,7 +123,7 @@ struct MessageListView: View {
                             )
                             .listRowInsets(EdgeInsets())
                             .listRowSeparator(.hidden)
-                            .padding(.vertical, 10)
+                            .padding(.vertical, 12)
                             .padding(.horizontal, 10)
                             .contentShape(Rectangle())
                             .contextMenu(contextMenu)
@@ -123,9 +131,10 @@ struct MessageListView: View {
                             .id(message.id)
                         }
                         }
-                        .frame(maxWidth: 720)
+                        .frame(maxWidth: 760)
                         .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 18)
                         }
                         // Pin content to the top when it doesn't fill the
                         // viewport (short conversations), so it starts under the
@@ -184,6 +193,7 @@ struct MessageListView: View {
                     removal: AnyTransition.opacity.combined(with: .scale(scale: 0.7, anchor: .top)))
                 )
         }
+        .background(contentBackground)
     }
 }
 

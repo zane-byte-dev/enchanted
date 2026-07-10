@@ -54,6 +54,7 @@ struct ApplicationEntry: View {
             // Reclaim idle pi processes to free memory (context restored on
             // next use via switch_session).
             conversationStore.startIdleReaper()
+            NotificationService.shared.prepare()
 
             // One-time migration: strip whole-file `read`/`grep` results from
             // existing message blocks so old conversations don't carry the
@@ -80,4 +81,3 @@ struct ApplicationEntry: View {
         .preferredColorScheme(colorScheme.toiOSFormat)
     }
 }
-

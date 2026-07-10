@@ -17,7 +17,11 @@ struct SkillsMacOS: View {
 
     @State private var searchText = ""
     @State private var selectedScope: ScopeFilter = .all
-    @State private var selectedSkill: PiSkill?
+    @Binding var selectedSkill: PiSkill?
+
+    init(selectedSkill: Binding<PiSkill?>) {
+        self._selectedSkill = selectedSkill
+    }
 
     private enum ScopeFilter: Hashable, CaseIterable {
         case all
@@ -26,9 +30,9 @@ struct SkillsMacOS: View {
 
         var title: String {
             switch self {
-            case .all:      return String(localized: "All")
-            case .personal: return String(localized: "Personal")
-            case .project:  return String(localized: "Project")
+            case .all:      return "全部"
+            case .personal: return "个人"
+            case .project:  return "项目"
             }
         }
 
@@ -53,13 +57,12 @@ struct SkillsMacOS: View {
     }
 
     private let columns = [
-        GridItem(.flexible(), spacing: 16),
-        GridItem(.flexible(), spacing: 16),
+        GridItem(.adaptive(minimum: 250, maximum: 340), spacing: 12),
     ]
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 16) {
                 header
                 searchField
                 scopeTabs
@@ -72,20 +75,13 @@ struct SkillsMacOS: View {
                     installedSection
                 }
             }
-            .padding(28)
-            .frame(maxWidth: 900, alignment: .leading)
+            .padding(24)
+            .frame(maxWidth: 1120, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(NSColor.textBackgroundColor))
         .task { await store.load() }
-        .overlay {
-            if let skill = selectedSkill {
-                SkillDetailOverlay(skill: skill) { selectedSkill = nil }
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
-            }
-        }
-        .animation(.easeOut(duration: 0.15), value: selectedSkill)
     }
 
     // MARK: Header
@@ -108,7 +104,7 @@ struct SkillsMacOS: View {
                     .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
-            .help("Reload skills")
+            .help("重新加载技能")
         }
     }
 
@@ -164,9 +160,9 @@ struct SkillsMacOS: View {
     // MARK: Installed grid
 
     private var installedSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Installed")
+                Text("已安装")
                     .font(.system(size: 16, weight: .semibold))
                 Text("\(filteredSkills.count)")
                     .font(.system(size: 13))
@@ -174,7 +170,7 @@ struct SkillsMacOS: View {
             }
             Divider()
 
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
                 ForEach(filteredSkills) { skill in
                     SkillCard(skill: skill) { selectedSkill = skill }
                 }
@@ -194,7 +190,7 @@ struct SkillsMacOS: View {
             Image(systemName: "puzzlepiece.extension")
                 .font(.system(size: 34))
                 .foregroundColor(.secondary.opacity(0.5))
-            Text(store.lastError ?? String(localized: "No matching skills."))
+            Text(store.lastError ?? "未找到匹配的技能。")
                 .font(.system(size: 14))
                 .foregroundColor(.secondary)
         }
@@ -212,38 +208,38 @@ private struct SkillCard: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(alignment: .top, spacing: 12) {
-                SkillIcon(size: 40, corner: 10)
+            HStack(alignment: .top, spacing: 10) {
+                SkillIcon(size: 32, corner: 8)
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(skill.title)
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                             .lineLimit(1)
                         ScopeBadge(scope: skill.scope)
                     }
                     Text(skill.description)
-                        .font(.system(size: 13))
+                        .font(.system(size: 12))
                         .foregroundColor(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(1)
                         .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer(minLength: 4)
 
                 Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.secondary)
             }
-            .padding(14)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 10)
                     .fill(hover ? Color.gray.opacity(0.08) : Color.gray.opacity(0.02))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 10)
                     .stroke(Color.gray.opacity(hover ? 0.2 : 0.1), lineWidth: 1)
             )
             .contentShape(Rectangle())
@@ -284,9 +280,10 @@ private struct ScopeBadge: View {
 
 // MARK: - Detail overlay
 
-private struct SkillDetailOverlay: View {
+struct SkillDetailOverlay: View {
     let skill: PiSkill
     var onClose: () -> Void
+    var onTryInChat: () -> Void
 
     @State private var bodyText: String = ""
     @State private var loadError: String?
@@ -311,12 +308,33 @@ private struct SkillDetailOverlay: View {
             .padding(40)
         }
         .task { load() }
+        .onKeyPress(.escape) {
+            onClose()
+            return .handled
+        }
     }
 
     private var topBar: some View {
-        HStack(alignment: .top) {
-            SkillIcon(size: 44, corner: 12)
+        HStack(alignment: .top, spacing: 12) {
+            SkillIcon(size: 36, corner: 10)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text(skill.title)
+                        .font(.system(size: 20, weight: .semibold))
+                        .lineLimit(1)
+                    ScopeBadge(scope: skill.scope)
+                }
+
+                Text(skill.description)
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Spacer()
+
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(size: 13, weight: .semibold))
@@ -325,34 +343,20 @@ private struct SkillDetailOverlay: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 20)
-        .padding(.bottom, 8)
+        .padding(.horizontal, 22)
+        .padding(.top, 16)
+        .padding(.bottom, 14)
     }
 
     private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    Text(skill.title)
-                        .font(.system(size: 24, weight: .bold))
-                    Text("Skill")
-                        .font(.system(size: 18, weight: .regular))
-                        .foregroundColor(.secondary)
-                    ScopeBadge(scope: skill.scope)
-                }
-                Text(skill.description)
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
                 if let loadError {
                     Text(loadError)
                         .font(.system(size: 13))
                         .foregroundColor(.orange)
                         .padding(.top, 8)
                 } else {
-                    Divider().padding(.vertical, 4)
                     Markdown(bodyText)
                         .markdownTheme(MarkdownColours.enchantedTheme)
                         .textSelection(.enabled)
@@ -377,11 +381,11 @@ private struct SkillDetailOverlay: View {
             Spacer()
 
             Button {
-                Clipboard.shared.setString("/skill:\(skill.name) ")
+                onTryInChat()
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "doc.on.doc")
-                    Text("复制 /skill 命令")
+                    Image(systemName: "bubble.left.and.text.bubble.right")
+                    Text("在对话中试用")
                 }
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(.white)
@@ -397,11 +401,11 @@ private struct SkillDetailOverlay: View {
 
     private func load() {
         guard !skill.path.isEmpty else {
-            loadError = String(localized: "Skill file path unavailable.")
+            loadError = "技能文件路径不可用。"
             return
         }
         guard let raw = try? String(contentsOfFile: skill.path, encoding: .utf8) else {
-            loadError = String(localized: "Could not read skill file.")
+            loadError = "无法读取技能文件。"
             return
         }
         bodyText = Self.stripFrontmatter(raw)

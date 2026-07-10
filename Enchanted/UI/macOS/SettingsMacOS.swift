@@ -112,8 +112,10 @@ struct SettingsMacOS: View {
         } detail: {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(Color(NSColor.textBackgroundColor))
         }
         .frame(minWidth: 740, minHeight: 520)
+        .background(Color(NSColor.textBackgroundColor))
         .preferredColorScheme(colorScheme.toiOSFormat)
         .onChange(of: defaultOllamaModel) { _, name in languageModelStore.setModel(modelName: name) }
         .onAppear {
@@ -138,7 +140,6 @@ struct SettingsMacOS: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Back button
             Button {
                 handleDismiss()
             } label: {
@@ -148,19 +149,37 @@ struct SettingsMacOS: View {
                     Text("返回应用")
                         .font(.system(size: 13))
                 }
-                .foregroundColor(.secondary)
+                .foregroundColor(CodexTheme.mutedText)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 7)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.horizontal, 10)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
 
-            List(SettingsCategory.allCases, selection: $selectedCategory) { cat in
-                Label(cat.title, systemImage: cat.icon)
-                    .tag(cat)
+            VStack(spacing: 2) {
+                ForEach(SettingsCategory.allCases) { cat in
+                    Button {
+                        selectedCategory = cat
+                    } label: {
+                        Label(cat.title, systemImage: cat.icon)
+                            .font(.system(size: 13))
+                            .labelStyle(.titleAndIcon)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(SettingsSidebarRowStyle(isSelected: selectedCategory == cat))
+                }
             }
-            .listStyle(.sidebar)
+            .padding(.horizontal, 10)
+
+            Spacer()
         }
+        .background(CodexTheme.sidebarBackground)
     }
 
     // MARK: Detail
@@ -232,15 +251,16 @@ private struct GeneralSettingsPane: View {
                                 .disableAutocorrection(true)
                             statusDot
                             Button("检查", action: checkServer)
+                                .buttonStyle(.bordered)
                         }
                     }
-                    Divider()
+                    settingsDivider
                     row("Bearer Token") {
                         TextField("可选", text: $ollamaBearerToken)
                             .textFieldStyle(.roundedBorder)
                             .disableAutocorrection(true)
                     }
-                    Divider()
+                    settingsDivider
                     row("Ping 间隔（秒）") {
                         TextField("5", text: $pingInterval)
                             .textFieldStyle(.roundedBorder)
@@ -259,15 +279,21 @@ private struct GeneralSettingsPane: View {
                         .labelsHidden()
                         .frame(maxWidth: 240)
                     }
-                    Divider()
+                    settingsDivider
                     VStack(alignment: .leading, spacing: 6) {
                         Text("系统提示词")
                             .font(.system(size: 12))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(CodexTheme.mutedText)
                         TextEditor(text: $systemPrompt)
                             .font(.system(size: 13))
                             .frame(minHeight: 90, maxHeight: 160)
-                            .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.gray.opacity(0.25)))
+                            .scrollContentBackground(.hidden)
+                            .background(settingsCardBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .stroke(CodexTheme.border, lineWidth: 1)
+                            )
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
@@ -422,16 +448,17 @@ private struct ShortcutsSettingsPane: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 13))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(CodexTheme.mutedText)
                 TextField("搜索快捷键", text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 14))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
-            .background(Color(NSColor.controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2)))
+            .background(CodexTheme.surfaceSubtle)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(settingsLightBorder))
+            .environment(\.colorScheme, .light)
 
             if let conflictMessage {
                 Text(conflictMessage)
@@ -448,28 +475,29 @@ private struct ShortcutsSettingsPane: View {
                         .frame(width: 260, alignment: .leading)
                 }
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.secondary)
+                .foregroundColor(CodexTheme.mutedText)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
 
-                Divider()
+                settingsDivider
 
                 if filtered.isEmpty {
                     Text("无匹配的快捷键")
                         .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(CodexTheme.mutedText)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 28)
                 } else {
                     ForEach(Array(filtered.enumerated()), id: \.element.id) { index, item in
                         shortcutRow(item)
-                        if index < filtered.count - 1 { Divider() }
+                        if index < filtered.count - 1 { settingsDivider }
                     }
                 }
             }
-            .background(Color(NSColor.controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.15)))
+            .background(settingsCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(settingsLightBorder))
+            .environment(\.colorScheme, .light)
 
         }
         .padding(28)
@@ -491,7 +519,7 @@ private struct ShortcutsSettingsPane: View {
                     .foregroundColor(.primary)
                 Text(item.subtitle)
                     .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(CodexTheme.mutedText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -507,7 +535,7 @@ private struct ShortcutsSettingsPane: View {
                 } else {
                     Text("未指定")
                         .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(CodexTheme.mutedText)
                 }
 
                 Spacer(minLength: 8)
@@ -517,7 +545,7 @@ private struct ShortcutsSettingsPane: View {
                 } label: {
                     Image(systemName: isRecording ? "xmark.circle" : "pencil")
                         .font(.system(size: 12))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(CodexTheme.mutedText)
                 }
                 .buttonStyle(.plain)
                 .help(isRecording ? "取消录制" : "修改快捷键")
@@ -528,7 +556,7 @@ private struct ShortcutsSettingsPane: View {
                 } label: {
                     Image(systemName: "trash")
                         .font(.system(size: 12))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(CodexTheme.mutedText)
                 }
                 .buttonStyle(.plain)
                 .disabled(binding == nil)
@@ -541,7 +569,7 @@ private struct ShortcutsSettingsPane: View {
                     } label: {
                         Image(systemName: "arrow.counterclockwise")
                             .font(.system(size: 12))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(CodexTheme.mutedText)
                     }
                     .buttonStyle(.plain)
                     .help("恢复默认")
@@ -560,9 +588,9 @@ private struct ShortcutsSettingsPane: View {
             .foregroundColor(.primary)
             .frame(minWidth: 24, minHeight: 24)
             .padding(.horizontal, 6)
-            .background(Color.gray.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.gray.opacity(0.22)))
+            .background(settingsKeycapBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(settingsLightBorder))
     }
 
     // MARK: Key recording
@@ -644,14 +672,15 @@ private struct AdvancedSettingsPane: View {
 
 private func paneTitle(_ title: String) -> some View {
     Text(title)
-        .font(.system(size: 26, weight: .bold))
+        .font(.system(size: 25, weight: .semibold))
+        .foregroundColor(.primary.opacity(0.92))
 }
 
 private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
     VStack(alignment: .leading, spacing: 0) {
         Text(title)
             .font(.system(size: 11, weight: .semibold))
-            .foregroundColor(.secondary)
+            .foregroundColor(CodexTheme.mutedText)
             .textCase(.uppercase)
             .padding(.horizontal, 4)
             .padding(.bottom, 6)
@@ -659,23 +688,65 @@ private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content:
         VStack(alignment: .leading, spacing: 0) {
             content()
         }
-        .background(Color(NSColor.controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.15)))
+        .background(settingsCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(settingsLightBorder))
+        .environment(\.colorScheme, .light)
     }
     .frame(maxWidth: 764, alignment: .leading)
+}
+
+private var settingsCardBackground: Color {
+    Color.white
+}
+
+private var settingsKeycapBackground: Color {
+    Color(hex: "F7F6F3")
+}
+
+private var settingsLightBorder: Color {
+    Color(hex: "DEDAD1")
+}
+
+private var settingsDivider: some View {
+    Rectangle()
+        .fill(Color(hex: "E8E4DB"))
+        .frame(height: 1)
 }
 
 private func row<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
     HStack {
         Text(label)
             .font(.system(size: 13))
+            .foregroundColor(.primary.opacity(0.86))
             .frame(width: 130, alignment: .leading)
         Spacer()
         content()
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 12)
+}
+
+private struct SettingsSidebarRowStyle: ButtonStyle {
+    let isSelected: Bool
+    @State private var hover = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundColor(isSelected ? .primary : .primary.opacity(0.82))
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(fillColor(configuration))
+            )
+            .onHover { hover = $0 }
+            .animation(.easeOut(duration: 0.1), value: hover)
+    }
+
+    private func fillColor(_ configuration: Configuration) -> Color {
+        if isSelected { return CodexTheme.rowSelected }
+        if hover || configuration.isPressed { return CodexTheme.rowHover }
+        return .clear
+    }
 }
 
 #endif

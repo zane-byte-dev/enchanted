@@ -54,7 +54,14 @@ final class LanguageModelStore {
         
         DispatchQueue.main.async {
             let remoteModelNames = remoteModels.map { $0.name }
-            self.models = storedModels.filter{remoteModelNames.contains($0.name)}
+            let availableModels = storedModels.filter { remoteModelNames.contains($0.name) }
+            let selectedName = self.selectedModel?.name
+
+            self.models = availableModels
+            if let selectedName,
+               let refreshedSelection = availableModels.first(where: { $0.name == selectedName }) {
+                self.selectedModel = refreshedSelection
+            }
         }
     }
     

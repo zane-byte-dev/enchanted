@@ -32,6 +32,11 @@ struct ChatCommands: Commands {
             }
             .shortcut(store.effective("newChat"))
 
+            Button("Search Chats…") {
+                AppStore.shared.showConversationSearch = true
+            }
+            .shortcut(store.effective("searchChats"))
+
             Button("Open Folder…") { openFolder() }
                 .shortcut(store.effective("openFolder"))
         }

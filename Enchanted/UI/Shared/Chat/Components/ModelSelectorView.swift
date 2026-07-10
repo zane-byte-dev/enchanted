@@ -38,9 +38,10 @@ struct ModelSelectorView: View {
                         HStack(spacing: 4) {
                             Image(systemName: selectedModel.modelProvider?.iconName ?? "cpu")
                                 .font(.system(size: 11))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(CodexTheme.mutedText)
                             Text(selectedModel.name)
-                                .font(.body)
+                                .font(.system(size: 12))
+                                .lineLimit(1)
                         }
                         #elseif os(iOS)
                         Text(selectedModel.prettyName )
@@ -58,7 +59,7 @@ struct ModelSelectorView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 10)
-                    .foregroundColor(Color(.label))
+                    .foregroundColor(CodexTheme.faintText)
                     .showIf(showChevron)
             }
         }

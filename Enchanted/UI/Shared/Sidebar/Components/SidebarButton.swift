@@ -10,7 +10,16 @@ import SwiftUI
 struct SidebarButton: View {
     var title: String
     var image: String
+    var shortcutCommandID: String?
     var onClick: () -> ()
+
+    @ObservedObject private var shortcutStore = ShortcutStore.shared
+    @State private var hovering = false
+
+    private var shortcutHint: String {
+        guard let shortcutCommandID else { return "" }
+        return shortcutStore.effective(shortcutCommandID)?.displayKeys.joined() ?? ""
+    }
     
     var body: some View {
         Button(action: onClick) {
@@ -22,13 +31,28 @@ struct SidebarButton: View {
                 
                 Text(title)
                     .lineLimit(1)
-                    .font(.system(size: 14))
+                    .font(.system(size: 13))
                     .fontWeight(.regular)
                 
                 Spacer()
+
+                if hovering && !shortcutHint.isEmpty {
+                    Text(shortcutHint)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.primary.opacity(0.78))
+                        .padding(.horizontal, 8)
+                        .frame(height: 20)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.primary.opacity(0.08))
+                        )
+                        .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .trailing)))
+                }
             }
         }
         .buttonStyle(SidebarRowStyle())
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
 
@@ -41,9 +65,10 @@ struct SidebarRowStyle: ButtonStyle {
             .foregroundColor(.primary)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
+            .frame(height: 32)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(fillColor(configuration))
             )
             .contentShape(Rectangle())
@@ -53,12 +78,12 @@ struct SidebarRowStyle: ButtonStyle {
 
     private func fillColor(_ configuration: Configuration) -> Color {
         if isSelected || hover || configuration.isPressed {
-            return Color.gray.opacity(0.05)
+            return isSelected ? CodexTheme.rowSelected : CodexTheme.rowHover
         }
         return .clear
     }
 }
 
 #Preview {
-    SidebarButton(title: "Settings", image: "gearshape.fill", onClick: {})
+    SidebarButton(title: "Settings", image: "gearshape.fill", shortcutCommandID: "settings", onClick: {})
 }

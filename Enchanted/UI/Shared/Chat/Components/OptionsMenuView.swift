@@ -19,11 +19,16 @@ struct MoreOptionsMenuView: View {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 20, height: 20)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(CodexTheme.mutedText)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
         }
+#if os(macOS)
+        .menuStyle(.borderlessButton)
+#endif
+        .menuIndicator(.hidden)
+        .fixedSize()
     }
 }
 

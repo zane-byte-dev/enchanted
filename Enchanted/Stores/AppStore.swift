@@ -29,6 +29,8 @@ final class AppStore {
     var showSettings: Bool = false
     /// macOS only: replace main window content with the full-page Skills manager.
     var showSkills: Bool = false
+    /// macOS only: show the centered conversation search panel.
+    var showConversationSearch: Bool = false
 
     init() {
         if let storedIntervalString = UserDefaults.standard.string(forKey: "pingInterval") {

@@ -31,15 +31,15 @@ struct SettingsView: View {
     @State private var languageRestartDialog = false
     
     var body: some View {
-        VStack {
+        VStack(spacing: 0) {
             ZStack {
                 HStack {
                     Button {
                         presentationMode.wrappedValue.dismiss()
                     } label: {
                         Text("Cancel")
-                            .font(.system(size: 16))
-                            .foregroundStyle(Color(.label))
+                            .font(.system(size: 14))
+                            .foregroundStyle(CodexTheme.mutedText)
                     }
                     
                     
@@ -47,21 +47,21 @@ struct SettingsView: View {
                     
                     Button(action: save) {
                         Text("Save")
-                            .font(.system(size: 16))
-                            .foregroundStyle(Color(.label))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.primary)
                     }
                 }
                 
                 HStack {
                     Spacer()
                     Text("Settings")
-                        .font(.system(size: 16))
-                        .fontWeight(.medium)
-                        .foregroundStyle(Color(.label))
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.primary.opacity(0.9))
                     Spacer()
                 }
             }
             .padding()
+            .background(CodexTheme.sidebarBackground)
             
             Form {
                 Section(header: Text("Ollama").font(.headline)) {
@@ -202,7 +202,9 @@ struct SettingsView: View {
                 }
             }
             .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
         }
+        .background(Color.white)
         .preferredColorScheme(colorScheme.toiOSFormat)
         .confirmationDialog("Delete All Conversations?", isPresented: $deleteConversationsDialog) {
             Button("Delete", role: .destructive) { deleteAll() }
@@ -242,4 +244,3 @@ struct SettingsView: View {
         voices: []
     )
 }
-

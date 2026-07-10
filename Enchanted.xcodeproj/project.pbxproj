@@ -18,6 +18,7 @@
 		FF1002322B2483A20011A4DC /* Colours+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002312B2483A20011A4DC /* Colours+Extension.swift */; };
 		FF1002392B24BBF20011A4DC /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002382B24BBF20011A4DC /* Chat.swift */; };
 		FF10023E2B24F4900011A4DC /* OllamaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF10023D2B24F4900011A4DC /* OllamaService.swift */; };
+		FF10023A2E1F00000011A4DC /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF10023B2E1F00000011A4DC /* NotificationService.swift */; };
 		B7F280002B24F4900011A4DC /* AgentBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E170002B24F4900011A4DC /* AgentBackend.swift */; };
 		B7F280012B24F4900011A4DC /* OllamaBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E170012B24F4900011A4DC /* OllamaBackend.swift */; };
 		B7F280022B24F4900011A4DC /* PiConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E170022B24F4900011A4DC /* PiConnector.swift */; };
@@ -128,6 +129,7 @@
 		FF1002312B2483A20011A4DC /* Colours+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Colours+Extension.swift"; sourceTree = "<group>"; };
 		FF1002382B24BBF20011A4DC /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
 		FF10023D2B24F4900011A4DC /* OllamaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaService.swift; sourceTree = "<group>"; };
+		FF10023B2E1F00000011A4DC /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		A6E170002B24F4900011A4DC /* AgentBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentBackend.swift; sourceTree = "<group>"; };
 		A6E170012B24F4900011A4DC /* OllamaBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaBackend.swift; sourceTree = "<group>"; };
 		A6E170022B24F4900011A4DC /* PiConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiConnector.swift; sourceTree = "<group>"; };
@@ -561,6 +563,7 @@
 				FFA1DE00000000000000F001 /* GitWorktree.swift */,
 				FF0146CC2B3DADCA00A2A9F6 /* HapticsService.swift */,
 				FF2F03482B796A6500349855 /* HotkeyService.swift */,
+				FF10023B2E1F00000011A4DC /* NotificationService.swift */,
 				FF10023D2B24F4900011A4DC /* OllamaService.swift */,
 				FF10024F2B25C79F0011A4DC /* SwiftDataService.swift */,
 				FF6B7B122B3EE7AC00E8FEA3 /* Throttler.swift */,
@@ -708,6 +711,7 @@
 				FF1002602B26499B0011A4DC /* ConversationStatusView.swift in Sources */,
 				FF10024C2B25BEA00011A4DC /* MessageSD.swift in Sources */,
 				FFCF00F12C03209A00590E79 /* SpeechService.swift in Sources */,
+				FF10023A2E1F00000011A4DC /* NotificationService.swift in Sources */,
 				FF10023E2B24F4900011A4DC /* OllamaService.swift in Sources */,
 				B7F280002B24F4900011A4DC /* AgentBackend.swift in Sources */,
 				B7F280012B24F4900011A4DC /* OllamaBackend.swift in Sources */,

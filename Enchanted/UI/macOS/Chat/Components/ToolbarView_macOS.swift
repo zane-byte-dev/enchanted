@@ -19,7 +19,6 @@ struct ToolbarView: View {
 
     var body: some View {
         TerminalToggleButton()
-        MoreOptionsMenuView(copyChat: copyChat)
         SidebarToggleButton()
     }
 }
@@ -33,9 +32,13 @@ struct SidebarToggleButton: View {
         Button(action: { store.toggle() }) {
             Image(systemName: "sidebar.right")
                 .symbolVariant(store.isVisible ? .fill : .none)
+                .font(.system(size: 14, weight: .medium))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .help("Toggle tool sidebar (\u{2325}\u{2318}B)")
-        .foregroundStyle(store.isVisible ? Color.accentColor : Color.primary)
+        .foregroundStyle(store.isVisible ? Color.accentColor : CodexTheme.mutedText)
     }
 }
 
@@ -49,9 +52,13 @@ struct TerminalToggleButton: View {
         }) {
             Image(systemName: "terminal")
                 .symbolVariant(store.isVisible ? .fill : .none)
+                .font(.system(size: 14, weight: .medium))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .help("Toggle terminal")
-        .foregroundStyle(store.isVisible ? Color.accentColor : Color.primary)
+        .foregroundStyle(store.isVisible ? Color.accentColor : CodexTheme.mutedText)
     }
 }
 

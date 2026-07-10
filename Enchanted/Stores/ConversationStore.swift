@@ -547,7 +547,7 @@ final class ConversationStore: Sendable {
         // Tell pi to actually stop generating, then drop the local subscription.
         (connectors[id] as? PiConnector)?.abort()
         runs[id]?.cancellable?.cancel()
-        finishRun(id)
+        finishRun(id, notify: false)
     }
 
     @MainActor
@@ -670,6 +670,9 @@ final class ConversationStore: Sendable {
         }
         runs[convID] = nil
         withAnimation { states[convID] = .error(message: errorMessage) }
+        let title = conversationTitle(for: convID)
+        AppStore.shared.uiLog(message: "\(title) failed: \(errorMessage)", status: .error)
+        NotificationService.shared.notifyConversationFinished(conversationID: convID, title: title, failed: true)
     }
 
     @MainActor
@@ -678,7 +681,7 @@ final class ConversationStore: Sendable {
     }
 
     @MainActor
-    private func finishRun(_ convID: UUID) {
+    private func finishRun(_ convID: UUID, notify: Bool = true) {
         if let run = runs[convID] {
             run.flush()
             let message = run.assistantMessage
@@ -691,6 +694,23 @@ final class ConversationStore: Sendable {
         withAnimation { states[convID] = .completed }
         persistSessionPath(convID)
         refreshStats(for: convID)
+
+        if notify {
+            let title = conversationTitle(for: convID)
+            AppStore.shared.uiLog(message: "\(title) completed", status: .info)
+            NotificationService.shared.notifyConversationFinished(conversationID: convID, title: title, failed: false)
+        }
+    }
+
+    @MainActor
+    private func conversationTitle(for convID: UUID) -> String {
+        if let conversation = conversations.first(where: { $0.id == convID }) {
+            return conversation.name
+        }
+        if selectedConversation?.id == convID, let name = selectedConversation?.name {
+            return name
+        }
+        return String(localized: "Conversation")
     }
 
     /// After a turn, capture pi's session file path so the conversation can be
