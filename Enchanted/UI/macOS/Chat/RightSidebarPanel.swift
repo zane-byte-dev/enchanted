@@ -289,7 +289,7 @@ private struct RightSidebarToolRow: View {
                 Image(systemName: tool.icon)
                     .font(.system(size: 13))
                     .frame(width: 18)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(CodexTheme.primaryText)
                 Text(tool.label)
                     .font(.system(size: 13))
                 Spacer(minLength: 8)

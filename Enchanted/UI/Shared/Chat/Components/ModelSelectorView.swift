@@ -37,24 +37,17 @@ struct ModelSelectorView: View {
         } label: {
             HStack(alignment: .center) {
                 if let selectedModel = selectedModel {
-                    HStack(alignment: .bottom, spacing: 5) {
+                    HStack(alignment: .center, spacing: 5) {
                         
                         #if os(macOS) || os(visionOS)
                         HStack(spacing: 4) {
                             Image(systemName: selectedModel.modelProvider?.iconName ?? "cpu")
                                 .font(.system(size: 11))
                                 .foregroundColor(CodexTheme.mutedText)
-                            HStack(spacing: 4) {
-                                Text(selectedModel.providerDisplayName)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundColor(CodexTheme.mutedText)
-                                Text("/")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(CodexTheme.faintText)
-                                Text(selectedModel.name)
-                                    .font(.system(size: 12))
-                                    .lineLimit(1)
-                            }
+                            Text(selectedModel.name)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(CodexTheme.primaryText)
+                                .lineLimit(1)
                         }
                         #elseif os(iOS)
                         Text(selectedModel.prettyName )
@@ -82,6 +75,7 @@ struct ModelSelectorView: View {
         }
 #if os(macOS)
         .menuStyle(.borderlessButton)
+        .tint(CodexTheme.primaryText)
 #endif
         .menuIndicator(.hidden)
         .fixedSize()

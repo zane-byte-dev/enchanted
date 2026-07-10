@@ -268,7 +268,7 @@ struct ChatView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.textBackgroundColor).ignoresSafeArea())
+        .background(CodexTheme.appBackground.ignoresSafeArea())
     }
 #endif
 
@@ -298,7 +298,7 @@ struct ChatView: View {
                     Spacer()
                     Text("What should we do?")
                         .font(.system(size: 31, weight: .semibold))
-                        .foregroundStyle(.primary.opacity(0.9))
+                        .foregroundStyle(CodexTheme.primaryText.opacity(0.9))
                         .padding(.bottom, 26)
 
                     if !reachable {
@@ -315,7 +315,7 @@ struct ChatView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(NSColor.textBackgroundColor))
+            .background(CodexTheme.appBackground)
             .toolbar {
                 #if os(visionOS)
                 ToolbarItemGroup(placement: .topBarLeading) {
@@ -389,7 +389,7 @@ struct ChatView: View {
 
             Text(navigationTitleText)
                 .font(.system(size: 14, weight: .regular))
-                .foregroundStyle(.primary.opacity(0.88))
+                .foregroundStyle(CodexTheme.primaryText.opacity(0.88))
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(maxWidth: 320, alignment: .leading)

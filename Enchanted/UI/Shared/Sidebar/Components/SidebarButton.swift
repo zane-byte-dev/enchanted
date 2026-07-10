@@ -39,7 +39,7 @@ struct SidebarButton: View {
                 if hovering && !shortcutHint.isEmpty {
                     Text(shortcutHint)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.primary.opacity(0.78))
+                        .foregroundColor(CodexTheme.primaryText.opacity(0.78))
                         .padding(.horizontal, 8)
                         .frame(height: 20)
                         .background(
@@ -62,7 +62,7 @@ struct SidebarRowStyle: ButtonStyle {
     @State private var hover = false
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundColor(.primary)
+            .foregroundColor(CodexTheme.primaryText)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .frame(height: 32)

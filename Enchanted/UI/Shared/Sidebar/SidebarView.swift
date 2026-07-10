@@ -94,7 +94,7 @@ struct SidebarView: View {
                     }
                     Text("Enchanted")
                         .font(.system(size: 13))
-                        .foregroundColor(.primary.opacity(0.86))
+                        .foregroundColor(CodexTheme.primaryText.opacity(0.86))
                     Spacer()
                 }
                 .padding(.horizontal, 8)
@@ -305,7 +305,7 @@ struct ConversationSearchPanel: View {
         VStack(spacing: 6) {
             Text("No chats found")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.primary)
+                .foregroundColor(CodexTheme.primaryText)
             Text("Try another chat title or project name.")
                 .font(.system(size: 12))
                 .foregroundColor(CodexTheme.mutedText)
@@ -326,7 +326,7 @@ struct ConversationSearchPanel: View {
                     .frame(width: 18, height: 18)
                 Text(conversation.name)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
+                    .foregroundColor(CodexTheme.primaryText)
                     .lineLimit(1)
                 Spacer(minLength: 12)
                 Text(projectName)

@@ -42,9 +42,10 @@ struct MarkdownColours {
     /// (no underline), roomier line-height, custom code block, and a
     /// header + zebra table style. Everything else (strong, link, blockquote,
     /// headings 4-6, task list, thematic break) is inherited from `.gitHub`.
-    static let enchantedTheme = Theme.gitHub
+    static var enchantedTheme: Theme { Theme.gitHub
         .text {
-            FontSize(14)
+            ForegroundColor(CodexTheme.primaryText)
+            FontSize(ThemePreferences.bodyFontSize)
         }
         // Headings keep body size (14); differentiated by weight only.
         .heading1 { configuration in
@@ -80,4 +81,5 @@ struct MarkdownColours {
             CodeBlockView(configuration: configuration)
         }
         // `.paragraph`, `.listItem`, `.table`, `.tableCell` inherited from `.gitHub`.
+    }
 }

@@ -14,6 +14,7 @@ import SwiftData
 /// own vibrant material. Unified alternative to per-page `.background(...)`.
 private struct WindowBackgroundSetter: NSViewRepresentable {
     var color: NSColor
+    var revision: Int
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
         DispatchQueue.main.async { view.window?.backgroundColor = color }
@@ -27,6 +28,9 @@ private struct WindowBackgroundSetter: NSViewRepresentable {
 
 struct ApplicationEntry: View {
     @AppStorage("colorScheme") private var colorScheme: AppColorScheme = .system
+#if os(macOS)
+    @AppStorage(ThemePreferences.revisionKey) private var themeRevision = 0
+#endif
     @State private var languageModelStore = LanguageModelStore.shared
     @State private var conversationStore = ConversationStore.shared
     @State private var appStore = AppStore.shared
@@ -41,7 +45,14 @@ struct ApplicationEntry: View {
             }
         }
 #if os(macOS)
-        .background(WindowBackgroundSetter(color: .textBackgroundColor))
+        .background(
+            WindowBackgroundSetter(
+                color: NSColor(CodexTheme.appBackground),
+                revision: themeRevision
+            )
+        )
+        .tint(CodexTheme.accent)
+        .foregroundStyle(CodexTheme.primaryText)
 #endif
         .task {
             

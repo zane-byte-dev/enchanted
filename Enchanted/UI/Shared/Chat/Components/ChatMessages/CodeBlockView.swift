@@ -19,7 +19,7 @@ struct CodeBlockView: View {
         VStack(spacing: 0) {
             HStack {
                 Text(language)
-                    .font(.system(size: 13, design: .monospaced))
+                    .font(.system(size: max(10, ThemePreferences.codeFontSize - 1), design: .monospaced))
                     .fontWeight(.semibold)
                 Spacer()
                 
@@ -43,7 +43,7 @@ struct CodeBlockView: View {
                     .relativeLineSpacing(.em(0.225))
                     .markdownTextStyle {
                         FontFamilyVariant(.monospaced)
-                        FontSize(.em(0.85))
+                        FontSize(ThemePreferences.codeFontSize)
                     }
                     .padding(16)
             }

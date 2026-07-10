@@ -10,6 +10,7 @@ import SwiftUI
 import AVFoundation
 import Combine
 import KeyboardShortcuts
+import UniformTypeIdentifiers
 
 // MARK: - Category enum
 
@@ -250,10 +251,10 @@ struct SettingsMacOS: View {
         } detail: {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .background(Color(NSColor.textBackgroundColor))
+                .background(CodexTheme.appBackground)
         }
         .frame(minWidth: 740, minHeight: 520)
-        .background(Color(NSColor.textBackgroundColor))
+        .background(CodexTheme.appBackground)
         .preferredColorScheme(colorScheme.toiOSFormat)
         .onChange(of: defaultOllamaModel) { _, name in
             if AgentBackendConfig.currentKind == .ollama {
@@ -700,7 +701,7 @@ private struct PiSettingsPane: View {
                 .textCase(.uppercase)
             Text(value)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.primary)
+                .foregroundColor(CodexTheme.primaryText)
         }
     }
 }
@@ -842,26 +843,94 @@ private struct AppearanceSettingsPane: View {
     @Binding var appLanguage: AppLanguage
     @Binding var languageRestartDialog: Bool
 
+    @AppStorage(ThemePreferences.lightAccentKey) private var lightAccent = ThemePreferences.lightAccentDefault
+    @AppStorage(ThemePreferences.lightBackgroundKey) private var lightBackground = ThemePreferences.lightBackgroundDefault
+    @AppStorage(ThemePreferences.lightForegroundKey) private var lightForeground = ThemePreferences.lightForegroundDefault
+    @AppStorage(ThemePreferences.darkAccentKey) private var darkAccent = ThemePreferences.darkAccentDefault
+    @AppStorage(ThemePreferences.darkBackgroundKey) private var darkBackground = ThemePreferences.darkBackgroundDefault
+    @AppStorage(ThemePreferences.darkForegroundKey) private var darkForeground = ThemePreferences.darkForegroundDefault
+    @AppStorage(ThemePreferences.translucentSidebarKey) private var translucentSidebar = true
+    @AppStorage(ThemePreferences.contrastKey) private var contrast = 50.0
+    @AppStorage(ThemePreferences.bodyFontSizeKey) private var bodyFontSize = 14.0
+    @AppStorage(ThemePreferences.codeFontSizeKey) private var codeFontSize = 12.0
+
+    @State private var importError: String?
+
+    private var themeSignature: String {
+        [
+            lightAccent, lightBackground, lightForeground,
+            darkAccent, darkBackground, darkForeground,
+            String(translucentSidebar), String(contrast),
+            String(bodyFontSize), String(codeFontSize),
+        ].joined(separator: "|")
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 24) {
                 paneTitle("外观")
 
-                settingsGroup("主题") {
-                    row("配色方案") {
-                        Picker("", selection: $colorScheme) {
-                            ForEach(AppColorScheme.allCases, id: \.self) { s in
-                                Text(s.toString).tag(s)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("主题")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(CodexTheme.primaryText)
+                        Spacer()
+                        Button("导入", action: importTheme)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                        Button("导出", action: exportTheme)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                        Button("恢复默认", action: resetTheme)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(alignment: .top, spacing: 14) {
+                        ForEach([AppColorScheme.system, .light, .dark], id: \.self) { scheme in
+                            AppearanceThemeButton(
+                                scheme: scheme,
+                                isSelected: colorScheme == scheme
+                            ) {
+                                colorScheme = scheme
                             }
                         }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .frame(maxWidth: 260)
                     }
                 }
+                .frame(maxWidth: 764, alignment: .leading)
 
-                settingsGroup("语言") {
-                    row("界面语言") {
+                themeEditor(
+                    title: "浅色主题",
+                    isDark: false,
+                    accent: $lightAccent,
+                    background: $lightBackground,
+                    foreground: $lightForeground
+                )
+
+                themeEditor(
+                    title: "深色主题",
+                    isDark: true,
+                    accent: $darkAccent,
+                    background: $darkBackground,
+                    foreground: $darkForeground
+                )
+
+                settingsGroup("显示") {
+                    row("半透明侧边栏", detail: "让侧边栏轻微透出窗口背景") {
+                        Toggle("", isOn: $translucentSidebar)
+                            .labelsHidden()
+                    }
+                    settingsDivider
+                    sliderRow("对比度", value: $contrast, range: 0...100, suffix: "")
+                    settingsDivider
+                    sliderRow("正文字号", value: $bodyFontSize, range: 12...18, suffix: " pt")
+                    settingsDivider
+                    sliderRow("代码字号", value: $codeFontSize, range: 10...16, suffix: " pt")
+                }
+
+                settingsGroup("偏好设置") {
+                    row("界面语言", detail: "更改菜单、按钮和设置中使用的语言") {
                         Picker("", selection: $appLanguage) {
                             ForEach(AppLanguage.allCases) { lang in
                                 Text(lang.toString).tag(lang)
@@ -877,6 +946,525 @@ private struct AppearanceSettingsPane: View {
                 }
             }
             .padding(28)
+            .frame(maxWidth: 820, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .onChange(of: themeSignature) { _, _ in
+            ThemePreferences.bumpRevision()
+        }
+        .alert("主题操作失败", isPresented: Binding(
+            get: { importError != nil },
+            set: { if !$0 { importError = nil } }
+        )) {
+            Button("好") { importError = nil }
+        } message: {
+            Text(importError ?? "主题文件无效")
+        }
+    }
+
+    private func themeEditor(
+        title: String,
+        isDark: Bool,
+        accent: Binding<String>,
+        background: Binding<String>,
+        foreground: Binding<String>
+    ) -> some View {
+        settingsGroup(title) {
+            HStack {
+                Text("颜色")
+                    .font(.system(size: 13, weight: .medium))
+                Spacer()
+                Menu("预设") {
+                    Section("内置") {
+                        presetButton(.codex, isDark: isDark)
+                        presetButton(.warm, isDark: isDark)
+                        presetButton(.highContrast, isDark: isDark)
+                    }
+                    Section("开源主题") {
+                        presetButton(.github, isDark: isDark)
+                        presetButton(.catppuccin, isDark: isDark)
+                        presetButton(.rosePine, isDark: isDark)
+                        presetButton(.dracula, isDark: isDark)
+                        presetButton(.nord, isDark: isDark)
+                        presetButton(.solarized, isDark: isDark)
+                        presetButton(.gruvbox, isDark: isDark)
+                    }
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+
+            settingsDivider
+
+            themeColorRow("强调色", hex: accent)
+            settingsDivider
+            themeColorRow("背景", hex: background)
+            settingsDivider
+            themeColorRow("前景", hex: foreground)
+        }
+    }
+
+    private func themeColorRow(_ title: String, hex: Binding<String>) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 13))
+                .foregroundStyle(CodexTheme.primaryText)
+            Spacer()
+            ThemeColorControl(hex: hex)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 9)
+    }
+
+    private func presetButton(_ preset: ThemePreset, isDark: Bool) -> some View {
+        Button {
+            applyPreset(preset, isDark: isDark)
+        } label: {
+            Text(preset.title)
+        }
+    }
+
+    private func sliderRow(
+        _ title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        suffix: String
+    ) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 13))
+            Spacer()
+            Slider(value: value, in: range, step: 1)
+                .frame(width: 210)
+            Text("\(Int(value.wrappedValue))\(suffix)")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 46, alignment: .trailing)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+    }
+
+    private func resetTheme() {
+        lightAccent = ThemePreferences.lightAccentDefault
+        lightBackground = ThemePreferences.lightBackgroundDefault
+        lightForeground = ThemePreferences.lightForegroundDefault
+        darkAccent = ThemePreferences.darkAccentDefault
+        darkBackground = ThemePreferences.darkBackgroundDefault
+        darkForeground = ThemePreferences.darkForegroundDefault
+        translucentSidebar = true
+        contrast = 50
+        bodyFontSize = 14
+        codeFontSize = 12
+    }
+
+    private func applyPreset(_ preset: ThemePreset, isDark: Bool) {
+        let colors = preset.colors(isDark: isDark)
+        if isDark {
+            darkAccent = colors.accent
+            darkBackground = colors.background
+            darkForeground = colors.foreground
+        } else {
+            lightAccent = colors.accent
+            lightBackground = colors.background
+            lightForeground = colors.foreground
+        }
+    }
+
+    private func exportTheme() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "Enchanted Theme.json"
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let document = ThemeDocument(
+                light: .init(accent: lightAccent, background: lightBackground, foreground: lightForeground),
+                dark: .init(accent: darkAccent, background: darkBackground, foreground: darkForeground),
+                translucentSidebar: translucentSidebar,
+                contrast: contrast,
+                bodyFontSize: bodyFontSize,
+                codeFontSize: codeFontSize
+            )
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try encoder.encode(document).write(to: url, options: .atomic)
+        } catch {
+            importError = error.localizedDescription
+        }
+    }
+
+    private func importTheme() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let document = try JSONDecoder().decode(ThemeDocument.self, from: Data(contentsOf: url))
+            guard document.version == 1,
+                  document.allHexColors.allSatisfy(ThemeDocument.isValidHex) else {
+                throw ThemeDocumentError.invalidFormat
+            }
+            lightAccent = document.light.accent
+            lightBackground = document.light.background
+            lightForeground = document.light.foreground
+            darkAccent = document.dark.accent
+            darkBackground = document.dark.background
+            darkForeground = document.dark.foreground
+            translucentSidebar = document.translucentSidebar
+            contrast = min(max(document.contrast, 0), 100)
+            bodyFontSize = min(max(document.bodyFontSize, 12), 18)
+            codeFontSize = min(max(document.codeFontSize, 10), 16)
+        } catch {
+            importError = error.localizedDescription
+        }
+    }
+}
+
+private struct ThemeColorControl: View {
+    @Binding var hex: String
+    @State private var showsPicker = false
+    @State private var red = 0
+    @State private var green = 0
+    @State private var blue = 0
+
+    private static let swatches = [
+        "FFFFFF", "F5F5F3", "E8E5DE", "B9B5AC", "6F6C66", "1A1C1F",
+        "000000", "EA4335", "F2994A", "F2C94C", "27AE60", "2D9CDB",
+        "339CFF", "2563EB", "5856D6", "9B51E0", "D946EF", "EB5757",
+    ]
+
+    private var normalizedHex: String {
+        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted).uppercased()
+        return ThemeDocument.isValidHex(cleaned) ? cleaned : "000000"
+    }
+
+    private var fillColor: Color { Color(hex: normalizedHex) }
+
+    private var labelColor: Color {
+        let color = NSColor(fillColor).usingColorSpace(.sRGB) ?? .black
+        let luminance = 0.2126 * color.redComponent
+            + 0.7152 * color.greenComponent
+            + 0.0722 * color.blueComponent
+        return luminance > 0.58 ? Color.black.opacity(0.82) : Color.white
+    }
+
+    var body: some View {
+        Button {
+            syncRGBFromHex()
+            showsPicker.toggle()
+        } label: {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(fillColor)
+                    .frame(width: 13, height: 13)
+                    .overlay(Circle().stroke(labelColor.opacity(0.3), lineWidth: 1))
+                Text("#\(normalizedHex)")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(labelColor)
+            .padding(.horizontal, 11)
+            .frame(width: 146)
+            .frame(height: 32)
+            .background(fillColor)
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(Color.primary.opacity(0.14), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showsPicker, arrowEdge: .trailing) {
+            pickerPopover
+        }
+        .accessibilityLabel("颜色 #\(normalizedHex)")
+    }
+
+    private var pickerPopover: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("选择颜色")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Text("#\(normalizedHex)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(fillColor)
+                .frame(height: 42)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                )
+
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(28), spacing: 8), count: 6), spacing: 8) {
+                ForEach(Self.swatches, id: \.self) { swatch in
+                    Button {
+                        hex = swatch
+                        syncRGBFromHex()
+                    } label: {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color(hex: swatch))
+                            .frame(width: 28, height: 28)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .stroke(normalizedHex == swatch ? CodexTheme.accent : Color.primary.opacity(0.13),
+                                            lineWidth: normalizedHex == swatch ? 2 : 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Divider()
+
+            HStack(spacing: 8) {
+                Text("#")
+                    .foregroundStyle(.secondary)
+                TextField("000000", text: $hex)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12, design: .monospaced))
+                    .onChange(of: hex) { _, value in
+                        let cleaned = value.trimmingCharacters(in: CharacterSet.alphanumerics.inverted).uppercased()
+                        if ThemeDocument.isValidHex(cleaned), cleaned != value {
+                            hex = cleaned
+                        }
+                        if ThemeDocument.isValidHex(cleaned) { syncRGBFromHex() }
+                    }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .background(CodexTheme.surfaceSubtle)
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(CodexTheme.border))
+
+            RGBSlider(label: "R", value: $red, tint: .red, onChange: updateHexFromRGB)
+            RGBSlider(label: "G", value: $green, tint: .green, onChange: updateHexFromRGB)
+            RGBSlider(label: "B", value: $blue, tint: .blue, onChange: updateHexFromRGB)
+        }
+        .padding(16)
+        .frame(width: 250)
+        .background(CodexTheme.surface)
+        .onAppear(perform: syncRGBFromHex)
+    }
+
+    private func syncRGBFromHex() {
+        guard let value = UInt64(normalizedHex, radix: 16) else { return }
+        red = Int((value >> 16) & 0xFF)
+        green = Int((value >> 8) & 0xFF)
+        blue = Int(value & 0xFF)
+    }
+
+    private func updateHexFromRGB() {
+        hex = String(format: "%02X%02X%02X", red, green, blue)
+    }
+}
+
+private struct RGBSlider: View {
+    let label: String
+    @Binding var value: Int
+    let tint: Color
+    let onChange: () -> Void
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 12)
+            Slider(
+                value: Binding(
+                    get: { Double(value) },
+                    set: {
+                        value = Int($0.rounded())
+                        onChange()
+                    }
+                ),
+                in: 0...255,
+                step: 1
+            )
+            .tint(tint)
+            Text("\(value)")
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, alignment: .trailing)
+        }
+    }
+}
+
+private enum ThemePreset {
+    case codex
+    case warm
+    case highContrast
+    case github
+    case catppuccin
+    case rosePine
+    case dracula
+    case nord
+    case solarized
+    case gruvbox
+
+    var title: String {
+        switch self {
+        case .codex: return "Codex"
+        case .warm: return "暖灰"
+        case .highContrast: return "高对比"
+        case .github: return "GitHub"
+        case .catppuccin: return "Catppuccin"
+        case .rosePine: return "Rosé Pine"
+        case .dracula: return "Dracula"
+        case .nord: return "Nord"
+        case .solarized: return "Solarized"
+        case .gruvbox: return "Gruvbox"
+        }
+    }
+
+    func colors(isDark: Bool) -> ThemePaletteDocument {
+        switch (self, isDark) {
+        case (.codex, false): return .init(accent: "339CFF", background: "FBFAF7", foreground: "1A1C1F")
+        case (.codex, true): return .init(accent: "5EA7FF", background: "171717", foreground: "F5F5F5")
+        case (.warm, false): return .init(accent: "C56A3A", background: "F7F2E9", foreground: "29251F")
+        case (.warm, true): return .init(accent: "E39A6D", background: "201C18", foreground: "F2EAE0")
+        case (.highContrast, false): return .init(accent: "0066FF", background: "FFFFFF", foreground: "000000")
+        case (.highContrast, true): return .init(accent: "66B2FF", background: "000000", foreground: "FFFFFF")
+        case (.github, false): return .init(accent: "0969DA", background: "FFFFFF", foreground: "1F2328")
+        case (.github, true): return .init(accent: "2F81F7", background: "0D1117", foreground: "E6EDF3")
+        case (.catppuccin, false): return .init(accent: "1E66F5", background: "EFF1F5", foreground: "4C4F69")
+        case (.catppuccin, true): return .init(accent: "89B4FA", background: "1E1E2E", foreground: "CDD6F4")
+        case (.rosePine, false): return .init(accent: "907AA9", background: "FAF4ED", foreground: "575279")
+        case (.rosePine, true): return .init(accent: "C4A7E7", background: "191724", foreground: "E0DEF4")
+        case (.dracula, false): return .init(accent: "644AC9", background: "FFFBEB", foreground: "1F1F1F")
+        case (.dracula, true): return .init(accent: "BD93F9", background: "282A36", foreground: "F8F8F2")
+        case (.nord, false): return .init(accent: "5E81AC", background: "ECEFF4", foreground: "2E3440")
+        case (.nord, true): return .init(accent: "88C0D0", background: "2E3440", foreground: "D8DEE9")
+        case (.solarized, false): return .init(accent: "268BD2", background: "FDF6E3", foreground: "657B83")
+        case (.solarized, true): return .init(accent: "268BD2", background: "002B36", foreground: "839496")
+        case (.gruvbox, false): return .init(accent: "076678", background: "FBF1C7", foreground: "3C3836")
+        case (.gruvbox, true): return .init(accent: "83A598", background: "282828", foreground: "EBDBB2")
+        }
+    }
+}
+
+private struct ThemePaletteDocument: Codable {
+    let accent: String
+    let background: String
+    let foreground: String
+}
+
+private struct ThemeDocument: Codable {
+    var version = 1
+    let light: ThemePaletteDocument
+    let dark: ThemePaletteDocument
+    let translucentSidebar: Bool
+    let contrast: Double
+    let bodyFontSize: Double
+    let codeFontSize: Double
+
+    var allHexColors: [String] {
+        [light.accent, light.background, light.foreground,
+         dark.accent, dark.background, dark.foreground]
+    }
+
+    static func isValidHex(_ value: String) -> Bool {
+        value.count == 6 && UInt64(value, radix: 16) != nil
+    }
+}
+
+private enum ThemeDocumentError: LocalizedError {
+    case invalidFormat
+
+    var errorDescription: String? { "主题文件格式或颜色值无效。" }
+}
+
+private struct AppearanceThemeButton: View {
+    let scheme: AppColorScheme
+    let isSelected: Bool
+    let action: () -> Void
+
+    private var title: String {
+        switch scheme {
+        case .system: return "系统"
+        case .light: return "浅色"
+        case .dark: return "深色"
+        }
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                ThemePreview(scheme: scheme)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(isSelected ? Color.accentColor : settingsLightBorder,
+                                    lineWidth: isSelected ? 2 : 1)
+                    }
+
+                HStack(spacing: 5) {
+                    Text(title)
+                        .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .foregroundStyle(CodexTheme.primaryText)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title)主题")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private struct ThemePreview: View {
+    let scheme: AppColorScheme
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if scheme == .system {
+                previewHalf(isDark: false)
+                previewHalf(isDark: true)
+            } else {
+                previewHalf(isDark: scheme == .dark)
+            }
+        }
+        .frame(width: 184, height: 108)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func previewHalf(isDark: Bool) -> some View {
+        let palette = ThemePreferences.palette(isDark: isDark)
+        let background = Color(nsColor: palette.background)
+        let sidebar = Color(nsColor: palette.mix(palette.background, palette.foreground, amount: 0.035))
+        let surface = Color(nsColor: palette.mix(palette.background, palette.foreground, amount: 0.025))
+        let line = Color(nsColor: palette.mix(palette.background, palette.foreground, amount: 0.25))
+
+        return HStack(spacing: 0) {
+            sidebar
+                .frame(width: scheme == .system ? 21 : 40)
+            VStack(alignment: .leading, spacing: 7) {
+                Capsule().fill(line).frame(width: 45, height: 5)
+                VStack(alignment: .leading, spacing: 7) {
+                    Capsule().fill(line.opacity(0.75)).frame(width: 35, height: 5)
+                    Capsule().fill(line.opacity(0.55)).frame(maxWidth: .infinity).frame(height: 4)
+                    Capsule().fill(line.opacity(0.55)).frame(width: 54, height: 4)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(surface)
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            }
+            .padding(10)
+            .background(background)
         }
     }
 }
@@ -1084,6 +1672,8 @@ private struct VoiceSettingsPane: View {
                 }
             }
             .padding(28)
+            .frame(maxWidth: 820, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .onAppear { senseVoiceModel.refreshState() }
     }
@@ -1211,7 +1801,7 @@ private struct ShortcutsSettingsPane: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(.system(size: 14))
-                    .foregroundColor(.primary)
+                    .foregroundColor(CodexTheme.primaryText)
                 Text(item.subtitle)
                     .font(.system(size: 12))
                     .foregroundColor(CodexTheme.mutedText)
@@ -1280,7 +1870,7 @@ private struct ShortcutsSettingsPane: View {
     private func keycap(_ symbol: String) -> some View {
         Text(symbol)
             .font(.system(size: 13, weight: .medium, design: .rounded))
-            .foregroundColor(.primary)
+            .foregroundColor(CodexTheme.primaryText)
             .frame(minWidth: 24, minHeight: 24)
             .padding(.horizontal, 6)
             .background(settingsKeycapBackground)
@@ -1368,7 +1958,7 @@ private struct AdvancedSettingsPane: View {
 private func paneTitle(_ title: String) -> some View {
     Text(title)
         .font(.system(size: 25, weight: .semibold))
-        .foregroundColor(.primary.opacity(0.92))
+        .foregroundColor(CodexTheme.primaryText.opacity(0.92))
 }
 
 private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -1386,26 +1976,25 @@ private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content:
         .background(settingsCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(settingsLightBorder))
-        .environment(\.colorScheme, .light)
     }
     .frame(maxWidth: 764, alignment: .leading)
 }
 
 private var settingsCardBackground: Color {
-    Color.white
+    CodexTheme.surface
 }
 
 private var settingsKeycapBackground: Color {
-    Color(hex: "F7F6F3")
+    CodexTheme.surfaceSubtle
 }
 
 private var settingsLightBorder: Color {
-    Color(hex: "DEDAD1")
+    CodexTheme.border
 }
 
 private var settingsDivider: some View {
     Rectangle()
-        .fill(Color(hex: "E8E4DB"))
+        .fill(CodexTheme.divider)
         .frame(height: 1)
 }
 
@@ -1413,8 +2002,29 @@ private func row<Content: View>(_ label: String, @ViewBuilder content: () -> Con
     HStack {
         Text(label)
             .font(.system(size: 13))
-            .foregroundColor(.primary.opacity(0.86))
+            .foregroundColor(CodexTheme.primaryText.opacity(0.86))
             .frame(width: 130, alignment: .leading)
+        Spacer()
+        content()
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 12)
+}
+
+private func row<Content: View>(
+    _ label: String,
+    detail: String,
+    @ViewBuilder content: () -> Content
+) -> some View {
+    HStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(CodexTheme.primaryText)
+            Text(detail)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
         Spacer()
         content()
     }

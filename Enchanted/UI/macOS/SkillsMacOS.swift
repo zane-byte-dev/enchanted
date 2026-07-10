@@ -80,7 +80,7 @@ struct SkillsMacOS: View {
             .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.textBackgroundColor))
+        .background(CodexTheme.appBackground)
         .task { await store.load() }
     }
 

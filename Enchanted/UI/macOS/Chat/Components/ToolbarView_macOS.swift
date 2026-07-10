@@ -116,7 +116,7 @@ struct ChooseProjectRow: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                .foregroundStyle(isDefault ? Color.secondary : Color.primary)
+                .foregroundStyle(isDefault ? CodexTheme.mutedText : CodexTheme.primaryText)
                 .padding(.horizontal, 10)
                 .contentShape(Rectangle())
             } else {
@@ -138,6 +138,7 @@ struct ChooseProjectRow: View {
             }
         }
         .menuStyle(.borderlessButton)
+        .tint(CodexTheme.primaryText)
         .menuIndicator(.hidden)
         .fixedSize()
         .help(workspace.currentDirectory)

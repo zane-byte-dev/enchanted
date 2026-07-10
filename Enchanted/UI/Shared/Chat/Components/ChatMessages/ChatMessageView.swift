@@ -125,9 +125,9 @@ struct ChatMessageView: View {
     private var codeHighlightColorScheme: Splash.Theme {
         switch colorScheme {
         case .dark:
-            return .wwdc17(withFont: .init(size: 16))
+            return .wwdc17(withFont: .init(size: ThemePreferences.codeFontSize))
         default:
-            return .sunset(withFont: .init(size: 16))
+            return .sunset(withFont: .init(size: ThemePreferences.codeFontSize))
         }
     }
     
@@ -167,9 +167,9 @@ struct ChatMessageView: View {
         private var codeHighlightColorScheme: Splash.Theme {
             switch colorScheme {
             case .dark:
-                return .wwdc17(withFont: .init(size: 16))
+                return .wwdc17(withFont: .init(size: ThemePreferences.codeFontSize))
             default:
-                return .sunset(withFont: .init(size: 16))
+                return .sunset(withFont: .init(size: ThemePreferences.codeFontSize))
             }
         }
 

@@ -315,7 +315,11 @@ struct InputFieldsView: View {
             HStack(spacing: 10) {
                 // Attach image
                 SimpleFloatingButton(systemImage: "plus", onClick: { fileSelectingActive.toggle() })
-                    .showIf(selectedModel?.supportsImages ?? false)
+                    .disabled(!(selectedModel?.supportsImages ?? false))
+                    .opacity((selectedModel?.supportsImages ?? false) ? 1 : 0.35)
+                    .help((selectedModel?.supportsImages ?? false)
+                          ? "添加图片"
+                          : "当前模型不支持图片")
                     .fileImporter(isPresented: $fileSelectingActive,
                                   allowedContentTypes: [.png, .jpeg, .tiff],
                                   onCompletion: { result in
@@ -552,16 +556,16 @@ struct ThinkingLevelMenu: View {
     @AppStorage("piThinkingLevel") private var level: String = "medium"
 
     private let levels: [(id: String, label: String)] = [
-        ("off", "Off"),
-        ("minimal", "Minimal"),
-        ("low", "Low"),
-        ("medium", "Medium"),
-        ("high", "High"),
-        ("xhigh", "Max"),
+        ("off", "关闭"),
+        ("minimal", "最少"),
+        ("low", "低"),
+        ("medium", "中"),
+        ("high", "高"),
+        ("xhigh", "最高"),
     ]
 
     private var currentLabel: String {
-        levels.first(where: { $0.id == level })?.label ?? "Medium"
+        levels.first(where: { $0.id == level })?.label ?? "中"
     }
 
     var body: some View {
@@ -589,6 +593,9 @@ struct ThinkingLevelMenu: View {
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
+        // Reasoning level is contextual metadata, not a primary action.
+        // Override the app-wide accent tint that macOS Menu applies to labels.
+        .tint(CodexTheme.mutedText)
         .fixedSize()
     }
 }
@@ -727,7 +734,7 @@ private struct SlashCommandRow: View {
 
                 Text(item.title)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(CodexTheme.primaryText)
                     .lineLimit(1)
 
                 Text(item.detail)
@@ -877,7 +884,7 @@ struct AttachmentChipView: View {
                     Text(attachment.previewTitle)
                         .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(CodexTheme.primaryText)
                     Text("\(attachment.lineCount) lines · \(attachment.charCount) chars")
                         .font(.system(size: 10))
                         .lineLimit(1)

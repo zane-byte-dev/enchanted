@@ -27,11 +27,7 @@ struct MessageListView: View {
     @StateObject private var speechSynthesizer = SpeechSynthesizer.shared
 
     private var contentBackground: Color {
-#if os(macOS)
-        Color(NSColor.textBackgroundColor)
-#else
         CodexTheme.appBackground
-#endif
     }
 
     private var displayedMessages: ArraySlice<MessageSD> {
@@ -345,7 +341,7 @@ private struct TurnPreviewCard: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(summary(turn.userMessage.content, limit: 72))
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(CodexTheme.primaryText)
                 .lineLimit(2)
 
             if let response = turn.response {

@@ -1,5 +1,8 @@
 # Agent 后端抽象层
 
+> 📚 项目级知识库在 [`../../docs/README.md`](../../docs/README.md)（定位/架构/计划/性能/决策）。
+> 本文件只讲 Agent 层的实现细节；跨模块的计划与决策以 `docs/` 为准。
+
 把 Enchanted 从"只会连 Ollama"改造成"一套原生 GUI 驱动多个 agent CLI"
 （pi / neo / wanda）。对齐 pi 的 RPC 协议 / Zed 的 ACP。
 
