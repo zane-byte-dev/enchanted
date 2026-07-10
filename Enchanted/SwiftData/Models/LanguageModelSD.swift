@@ -14,15 +14,18 @@ final class LanguageModelSD: Identifiable {
     var isAvailable: Bool = false
     var imageSupport: Bool = false
     @Attribute var modelProvider: ModelProvider? = ModelProvider.ollama
+    /// Preserves custom/extension provider ids that are not enum cases.
+    @Attribute var providerID: String?
     
     @Relationship(deleteRule: .cascade, inverse: \ConversationSD.model)
     var conversations: [ConversationSD]? = []
     
     
-    init(name: String, imageSupport: Bool = false, modelProvider: ModelProvider) {
+    init(name: String, imageSupport: Bool = false, modelProvider: ModelProvider, providerID: String? = nil) {
         self.name = name
         self.imageSupport = imageSupport
         self.modelProvider = modelProvider
+        self.providerID = providerID ?? modelProvider.rawValue
     }
     
     @Transient var isNotAvailable: Bool {
@@ -32,6 +35,11 @@ final class LanguageModelSD: Identifiable {
 
 // MARK: - Helpers
 extension LanguageModelSD {
+    var providerDisplayName: String {
+        let raw = providerID ?? modelProvider?.rawValue ?? ModelProvider.unknown.rawValue
+        return raw.split(separator: "-").map { $0.capitalized }.joined(separator: " ")
+    }
+
     var prettyName: String {
         guard let modelName = name.components(separatedBy: ":").first else {
             return name
@@ -70,8 +78,5 @@ extension LanguageModelSD {
     ]
 }
 
-
-// MARK: - @unchecked Sendable
-extension LanguageModelSD: @unchecked Sendable {
-    /// We hide compiler warnings for concurency. We have to make sure to modify the data only via SwiftDataManager to ensure concurrent operations.
-}
+// See MessageSD's Sendable note.
+extension LanguageModelSD: @unchecked Sendable {}

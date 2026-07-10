@@ -16,8 +16,7 @@ final class WorkspaceStore {
     var currentDirectory: String
 
     init() {
-        currentDirectory = UserDefaults.standard.string(forKey: Self.defaultsKey)
-            ?? AgentBackendConfig.defaultWorkingDirectory
+        currentDirectory = AgentBackendConfig.piWorkingDirectory
     }
 
     /// Display name (last path component) for the toolbar.
@@ -26,10 +25,12 @@ final class WorkspaceStore {
     }
 
     @MainActor
-    func setDirectory(_ path: String) {
+    func setDirectory(_ path: String, reconfigureBackend: Bool = true) {
         guard path != currentDirectory else { return }
         currentDirectory = path
         UserDefaults.standard.set(path, forKey: Self.defaultsKey)
-        AgentBackendConfig.reconfigure()
+        if reconfigureBackend {
+            AgentBackendConfig.reconfigure()
+        }
     }
 }

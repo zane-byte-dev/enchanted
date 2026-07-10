@@ -14,7 +14,9 @@ struct Chat: View, Sendable {
     @AppStorage("systemPrompt") private var systemPrompt: String = ""
     @AppStorage("appUserInitials") private var userInitials: String = ""
     @AppStorage("defaultOllamaModel") private var defaultOllamaModel: String = ""
+    @AppStorage("piDefaultModel") private var piDefaultModel: String = ""
     @State var showMenu = false
+    @State private var conversationSelectionTask: Task<Void, Never>?
     
     init(languageModelStore: LanguageModelStore, conversationStore: ConversationStore, appStore: AppStore) {
         _languageModelStore = State(initialValue: languageModelStore)
@@ -34,8 +36,11 @@ struct Chat: View, Sendable {
     @MainActor
     func updateSelectedModel() {
         if languageModelStore.selectedModel == nil {
-            if defaultOllamaModel != "" {
-                languageModelStore.setModel(modelName: defaultOllamaModel)
+            let configuredDefault = AgentBackendConfig.currentKind == .pi
+                ? piDefaultModel
+                : defaultOllamaModel
+            if !configuredDefault.isEmpty {
+                languageModelStore.setModel(modelName: configuredDefault)
             } else {
                 languageModelStore.setModel(model: languageModelStore.models.first)
             }
@@ -56,8 +61,15 @@ struct Chat: View, Sendable {
     
     func onConversationTap(_ conversation: ConversationSD) {
         appStore.showSkills = false
-        Task {
-            try await conversationStore.selectConversation(conversation)
+        conversationSelectionTask?.cancel()
+        conversationSelectionTask = Task {
+            do {
+                try await conversationStore.selectConversation(conversation)
+            } catch is CancellationError {
+                return
+            } catch {
+                return
+            }
             await languageModelStore.setModel(model: conversation.model)
             Haptics.shared.mediumTap()
         }
@@ -106,7 +118,7 @@ struct Chat: View, Sendable {
     
     func copyChat(_ json: Bool) {
         Task {
-            let messages = await ConversationStore.shared.messages
+            let messages = await ConversationStore.shared.allMessagesForSelectedConversation()
             
             if messages.count == 0 {
                 return

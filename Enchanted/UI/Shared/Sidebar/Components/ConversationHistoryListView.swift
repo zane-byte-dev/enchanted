@@ -73,6 +73,13 @@ struct ConversationHistoryList: View {
     @State private var renamingProject: String?
     @State private var projectRenameText: String = ""
     @State private var removingProject: String?
+    /// Immediate visual selection owned by the sidebar. This bridges the gap
+    /// between mouse-up and the async conversation load updating the store.
+    @State private var optimisticSelectedConversationID: UUID?
+
+    private var effectiveSelectedConversationID: UUID? {
+        optimisticSelectedConversationID ?? selectedConversation?.id
+    }
 
     /// Reveal a conversation's working directory in Finder (macOS only).
     private func revealInFinder(_ conversation: ConversationSD) {
@@ -169,7 +176,12 @@ struct ConversationHistoryList: View {
     /// project groups and the Archived section.
     @ViewBuilder
     private func conversationRow(_ conversation: ConversationSD) -> some View {
-        Button(action: { onTap(conversation) }) {
+        Button(action: {
+            // Highlight synchronously; transcript loading and Markdown layout
+            // must never gate the sidebar's click feedback.
+            optimisticSelectedConversationID = conversation.id
+            onTap(conversation)
+        }) {
             HStack(spacing: 6) {
                 if conversation.isPinned {
                     Image(systemName: "pin.fill")
@@ -189,7 +201,9 @@ struct ConversationHistoryList: View {
             }
             .padding(.leading, 8)
         }
-        .buttonStyle(SidebarRowStyle(isSelected: selectedConversation == conversation))
+        .buttonStyle(SidebarRowStyle(
+            isSelected: effectiveSelectedConversationID == conversation.id
+        ))
         .contextMenu(menuItems: {
             if !conversation.isArchived {
                 Button(action: { ConversationStore.shared.togglePin(conversation) }) {
@@ -330,7 +344,7 @@ struct ConversationHistoryList: View {
                 // Conversations under this project
                 if !isCollapsed {
                     VStack(alignment: .leading, spacing: 2) {
-                        ForEach(group.conversations, id:\.self) { conversation in
+                        ForEach(group.conversations) { conversation in
                             conversationRow(conversation)
                         }
                     }
@@ -372,7 +386,7 @@ struct ConversationHistoryList: View {
 
                 if !archivedCollapsed {
                     VStack(alignment: .leading, spacing: 2) {
-                        ForEach(archivedConversations, id:\.self) { conversation in
+                        ForEach(archivedConversations) { conversation in
                             conversationRow(conversation)
                         }
                     }
@@ -384,6 +398,14 @@ struct ConversationHistoryList: View {
                             .padding(.vertical, 3)
                     }
                 }
+            }
+        }
+        .onChange(of: selectedConversation?.id) { _, selectedID in
+            // Hand ownership back to the store once it acknowledges the same
+            // selection. If an older cancelled request reports first, retain
+            // the latest optimistic row instead of flashing backwards.
+            if selectedID == optimisticSelectedConversationID {
+                optimisticSelectedConversationID = nil
             }
         }
         .alert("Rename Conversation", isPresented: Binding(

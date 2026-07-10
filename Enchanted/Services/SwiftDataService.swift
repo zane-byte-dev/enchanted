@@ -6,7 +6,12 @@
 //
 
 import Foundation
-import SwiftData
+@preconcurrency import SwiftData
+
+struct MessagePage: Sendable {
+    let messages: [MessageSD]
+    let hasMore: Bool
+}
 
 final actor SwiftDataService: ModelActor {
     let modelContainer: ModelContainer
@@ -120,6 +125,26 @@ extension SwiftDataService {
         let sortDescriptor = SortDescriptor(\MessageSD.createdAt)
         let fetchDescriptor = FetchDescriptor<MessageSD>(predicate: predicate, sortBy: [sortDescriptor])
         return try modelContext.fetch(fetchDescriptor)
+    }
+
+    /// Fetch one transcript page, newest-first in the store but returned in
+    /// chronological order for display. The extra record tells the caller
+    /// whether an older page exists without requiring a separate count query.
+    func fetchMessagePage(
+        _ conversationId: UUID,
+        offset: Int = 0,
+        limit: Int
+    ) throws -> MessagePage {
+        let predicate = #Predicate<MessageSD>{ $0.conversation?.id == conversationId }
+        let sortDescriptor = SortDescriptor(\MessageSD.createdAt, order: .reverse)
+        var fetchDescriptor = FetchDescriptor<MessageSD>(predicate: predicate, sortBy: [sortDescriptor])
+        fetchDescriptor.fetchOffset = offset
+        fetchDescriptor.fetchLimit = limit + 1
+
+        let fetched = try modelContext.fetch(fetchDescriptor)
+        let hasMore = fetched.count > limit
+        let page = fetched.prefix(limit).reversed()
+        return MessagePage(messages: Array(page), hasMore: hasMore)
     }
     
     func updateMessage(_ message: MessageSD) throws {

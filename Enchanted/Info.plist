@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>You can speak with enchanted with your voice.</string>
+	<string>Enchanted converts your speech to text while you use voice input.</string>
 	<key>NSAccessibilityUsageDescription</key>
-	<string>Enchanted can perform operations on selected text such as fixing grammar, extending text, and custom commands.</string>
+	<string>Enchanted uses accessibility access to paste transcribed text into the app you are using.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

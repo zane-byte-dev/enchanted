@@ -21,8 +21,6 @@ struct InputFieldsView: View {
     var focusTrigger: Int = 0
     var slashPalettePlacement: SlashPalettePlacement = .above
     @Binding var editMessage: MessageSD?
-    @State var isRecording = false
-    
     @State private var selectedImage: Image?
     @State private var fileDropActive: Bool = false
     @State private var fileSelectingActive: Bool = false
@@ -201,7 +199,6 @@ struct InputFieldsView: View {
             editMessage?.id.uuidString
         )
         withAnimation {
-            isRecording = false
             isFocusedInput = false
             isInputFocused = false
             editMessage = nil
@@ -356,12 +353,6 @@ struct InputFieldsView: View {
                 }
 
                 Spacer()
-
-                RecordingView(isRecording: $isRecording.animation()) { transcription in
-                    withAnimation(.easeIn(duration: 0.3)) {
-                        self.message = transcription
-                    }
-                }
 
                 sendButton
             }
@@ -1171,7 +1162,7 @@ struct CustomPasteTextView: NSViewRepresentable {
 #endif
 
 #Preview {
-    @State var message = ""
+    @Previewable @State var message = ""
     return InputFieldsView(
         message: $message,
         conversationState: .completed,

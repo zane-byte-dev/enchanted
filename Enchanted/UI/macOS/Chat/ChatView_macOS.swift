@@ -35,7 +35,6 @@ struct ChatView: View {
     
     @State private var message = ""
     @State private var editMessage: MessageSD?
-    @State var isRecording = false
     @State private var appStore = AppStore.shared
     @State private var inputFocusTrigger = 0
     @State private var composerResetGeneration = 0
@@ -277,6 +276,7 @@ struct ChatView: View {
             VStack(alignment: .center, spacing: 0) {
                 if selectedConversation != nil {
                     MessageListView(
+                        conversationID: selectedConversation?.id,
                         messages: messages,
                         conversationState: conversationState,
                         userInitials: userInitials,

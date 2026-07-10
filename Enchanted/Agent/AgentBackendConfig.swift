@@ -10,6 +10,18 @@
 import Foundation
 
 enum AgentBackendConfig {
+    static let piExecutableDefaultsKey = "piExecutable"
+    static let piDefaultProviderDefaultsKey = "piDefaultProvider"
+
+    static var piAgentDirectory: String {
+        ProcessInfo.processInfo.environment["PI_CODING_AGENT_DIR"]
+            ?? NSHomeDirectory() + "/.pi/agent"
+    }
+
+    static var piModelsConfigURL: URL {
+        URL(fileURLWithPath: piAgentDirectory).appendingPathComponent("models.json")
+    }
+
     enum Kind: String {
         case ollama
         case pi
@@ -18,9 +30,38 @@ enum AgentBackendConfig {
     /// Default backend for this spike. Override with env `AGENT_BACKEND=ollama|pi`.
     static let defaultKind: Kind = .pi
 
-    /// pi launch settings (this machine). Override via env if needed.
-    static let piExecutable = ProcessInfo.processInfo.environment["PI_EXECUTABLE"]
-        ?? "/Users/mj/.local/bin/pi"
+    /// pi launch settings. Environment overrides win so command-line launches
+    /// remain reproducible; the Settings value is used for normal GUI launches.
+    static var piExecutable: String {
+        if let override = ProcessInfo.processInfo.environment["PI_EXECUTABLE"], !override.isEmpty {
+            return override
+        }
+        if let stored = UserDefaults.standard.string(forKey: piExecutableDefaultsKey), !stored.isEmpty {
+            return stored
+        }
+        return detectedPiExecutable() ?? NSHomeDirectory() + "/.local/bin/pi"
+    }
+
+    static var piExecutableIsEnvironmentOverridden: Bool {
+        !(ProcessInfo.processInfo.environment["PI_EXECUTABLE"] ?? "").isEmpty
+    }
+
+    static var piWorkingDirectoryIsEnvironmentOverridden: Bool {
+        !(ProcessInfo.processInfo.environment["PI_CWD"] ?? "").isEmpty
+    }
+
+    /// Find pi in the common locations available to a macOS GUI app, whose
+    /// process PATH is usually much smaller than an interactive shell's PATH.
+    static func detectedPiExecutable() -> String? {
+        let home = NSHomeDirectory()
+        let candidates = [
+            home + "/.local/bin/pi",
+            "/opt/homebrew/bin/pi",
+            "/usr/local/bin/pi",
+            "/usr/bin/pi",
+        ]
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
     /// Fallback scratch root when the user hasn't picked a project dir yet.
     static var defaultWorkingDirectory: String {
         if let override = ProcessInfo.processInfo.environment["PI_CWD"] { return override }
@@ -32,7 +73,10 @@ enum AgentBackendConfig {
     /// Project root pi operates in. Sourced from the user-picked working dir
     /// (persisted in UserDefaults) so it can change at runtime.
     static var piWorkingDirectory: String {
-        UserDefaults.standard.string(forKey: "piWorkingDirectory") ?? defaultWorkingDirectory
+        if let override = ProcessInfo.processInfo.environment["PI_CWD"], !override.isEmpty {
+            return override
+        }
+        return UserDefaults.standard.string(forKey: "piWorkingDirectory") ?? defaultWorkingDirectory
     }
 
     static var currentKind: Kind {
@@ -54,16 +98,35 @@ enum AgentBackendConfig {
             // Launch through a login shell so pi inherits the user's PATH (node)
             // and API keys (e.g. IDEALAB_API_KEY) from ~/.zshrc. GUI apps started
             // via `open` otherwise get a bare environment.
-            return PiConnector(config: .init(
-                executable: "/bin/zsh",
-                arguments: ["-l", "-c", "exec '\(piExecutable)' --mode rpc"],
+            return makePiConnector(
+                executable: piExecutable,
                 workingDirectory: workingDirectory,
                 resumeSessionPath: resumeSessionPath
-            ))
+            )
         }
     }
 
+    /// Build a temporary or conversation-scoped connector from explicit
+    /// settings. Used by the Settings connection test without persisting drafts.
+    static func makePiConnector(
+        executable: String,
+        workingDirectory: String,
+        resumeSessionPath: String? = nil
+    ) -> PiConnector {
+        PiConnector(config: .init(
+            executable: "/bin/zsh",
+            arguments: ["-l", "-c", "exec \(shellQuote(executable)) --mode rpc"],
+            workingDirectory: workingDirectory,
+            resumeSessionPath: resumeSessionPath
+        ))
+    }
+
+    private static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
     /// Call once at app startup.
+    @MainActor
     static func configure() {
         let backend = makeBackend()
         ConversationStore.shared.backend = backend
@@ -72,9 +135,23 @@ enum AgentBackendConfig {
 
     /// Rebuild the backend after the working directory changes: kill the old pi
     /// process (if any) so the next turn respawns in the new cwd.
+    @MainActor
     static func reconfigure() {
         (ConversationStore.shared.backend as? PiConnector)?.terminate()
+        ConversationStore.shared.invalidateAgentBackends()
         configure()
+    }
+
+    /// Persist validated Settings drafts and apply them to future agent work.
+    /// Active turns are allowed to finish; their connector is replaced before
+    /// the next prompt by ConversationStore's configuration generation check.
+    @MainActor
+    static func applyPiSettings(executable: String, workingDirectory: String) {
+        let trimmedExecutable = executable.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDirectory = workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+        UserDefaults.standard.set(trimmedExecutable, forKey: piExecutableDefaultsKey)
+        WorkspaceStore.shared.setDirectory(trimmedDirectory, reconfigureBackend: false)
+        reconfigure()
     }
 
     static func debugLog(_ message: String) {

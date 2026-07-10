@@ -49,7 +49,7 @@ extension ConversationSD {
     ]
 }
 
-// MARK: - @unchecked Sendable
-extension ConversationSD: @unchecked Sendable {
-    /// We hide compiler warnings for concurency. We have to make sure to modify the data only via SwiftDataManager to ensure concurrent operations.
-}
+// See MessageSD's Sendable note. Model instances are serialized through the
+// shared ModelActor even though the SDK macro doesn't expose that fact cleanly
+// to strict-concurrency diagnostics yet.
+extension ConversationSD: @unchecked Sendable {}

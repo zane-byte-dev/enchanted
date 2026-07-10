@@ -9,6 +9,15 @@ import Foundation
 import SwiftData
 import Combine
 import SwiftUI
+import os
+
+enum ConversationPerformance {
+    static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "Enchanted",
+        category: "ConversationPerformance"
+    )
+    static let signposter = OSSignposter(logger: logger)
+}
 
 /// State for one in-flight generation. Each conversation can have its own,
 /// so multiple agents can run in parallel.
@@ -78,8 +87,16 @@ final class AgentRun: @unchecked Sendable {
 }
 
 @Observable
-final class ConversationStore: Sendable {
+final class ConversationStore: @unchecked Sendable {
     static let shared = ConversationStore(swiftDataService: SwiftDataService.shared)
+    nonisolated private static let messagePageSize = 60
+    nonisolated private static let cacheRefreshTTL: TimeInterval = 15
+
+    private struct CachedTranscript {
+        var messages: [MessageSD]
+        var hasEarlierMessages: Bool
+        var refreshedAt: Date
+    }
 
     /// Default / control backend used for model listing + reachability.
     /// Per-conversation chat uses the dedicated connectors below.
@@ -89,6 +106,11 @@ final class ConversationStore: Sendable {
 
     /// One backend (e.g. a pi RPC process) per conversation, keyed by id.
     @MainActor private var connectors: [UUID: AgentBackend] = [:]
+    /// Connector instances are tagged with the backend configuration that
+    /// created them. A Settings change bumps the generation; active runs finish
+    /// on their old connector and the next prompt transparently rebuilds it.
+    @MainActor private var connectorGenerations: [UUID: Int] = [:]
+    @MainActor private var backendConfigurationGeneration = 0
     /// Last time each connector was used — drives idle reclamation.
     @MainActor private var lastActivity: [UUID: Date] = [:]
     /// Idle pi processes are terminated after this long to free memory; context
@@ -102,9 +124,26 @@ final class ConversationStore: Sendable {
     /// Per-conversation token/cost/context stats.
     @MainActor private var stats: [UUID: PiSessionStats] = [:]
 
+    /// Recently opened transcripts. Switching back to one of these can paint
+    /// immediately while SwiftData refreshes it in the background.
+    @MainActor private var messageCache: [UUID: CachedTranscript] = [:]
+    @MainActor private var messageCacheRecency: [UUID] = []
+    @MainActor private let messageCacheLimit = 8
+    @MainActor private var prefetchingConversationIDs: Set<UUID> = []
+    @MainActor private var refreshingConversationIDs: Set<UUID> = []
+    /// Identifies the newest selection request so a slow, older fetch can
+    /// never overwrite a conversation selected afterwards.
+    @MainActor private var activeSelectionRequestID: UUID?
+    @MainActor private var activeSwitchInterval: (
+        conversationID: UUID,
+        state: OSSignpostIntervalState
+    )?
+
     @MainActor var conversations: [ConversationSD] = []
     @MainActor var selectedConversation: ConversationSD?
     @MainActor var messages: [MessageSD] = []
+    @MainActor var hasEarlierMessages = false
+    @MainActor var isLoadingEarlierMessages = false
 
     /// State of the currently selected conversation (for existing UI bindings).
     @MainActor var conversationState: ConversationState {
@@ -118,6 +157,16 @@ final class ConversationStore: Sendable {
     }
 
     @MainActor var isRunning: Bool { !runs.isEmpty }
+
+    /// Full transcript for explicit whole-conversation actions such as Copy.
+    /// Normal display stays paged; this intentionally pays the full fetch cost
+    /// only when the user requests all content.
+    func allMessagesForSelectedConversation() async -> [MessageSD] {
+        guard let conversationID = await MainActor.run(body: {
+            self.selectedConversation?.id
+        }) else { return [] }
+        return (try? await swiftDataService.fetchMessages(conversationID)) ?? []
+    }
 
     /// Stats for the currently selected conversation (for the composer stats bar).
     @MainActor var currentStats: PiSessionStats? {
@@ -153,8 +202,50 @@ final class ConversationStore: Sendable {
 
     func loadConversations() async throws {
         let fetchedConversations = try await swiftDataService.fetchConversations()
-        DispatchQueue.main.async {
+        await MainActor.run {
             self.conversations = fetchedConversations
+        }
+        Task(priority: .utility) { [weak self] in
+            await self?.prefetchRecentConversations(from: fetchedConversations)
+        }
+    }
+
+    /// Warm the last page of the two most recent active conversations. This is
+    /// deliberately bounded and low-priority so startup work remains small.
+    private func prefetchRecentConversations(from conversations: [ConversationSD]) async {
+        let candidates = Array(conversations.lazy.filter { !$0.isArchived }.prefix(2))
+        for conversation in candidates {
+            let conversationID = conversation.id
+            let shouldPrefetch = await MainActor.run {
+                guard self.messageCache[conversationID] == nil,
+                      !self.prefetchingConversationIDs.contains(conversationID) else {
+                    return false
+                }
+                self.prefetchingConversationIDs.insert(conversationID)
+                return true
+            }
+            guard shouldPrefetch else { continue }
+
+            let interval = ConversationPerformance.signposter
+                .beginInterval("PrefetchConversation")
+            let page = try? await swiftDataService.fetchMessagePage(
+                conversationID,
+                limit: Self.messagePageSize
+            )
+            ConversationPerformance.signposter.endInterval(
+                "PrefetchConversation",
+                interval
+            )
+
+            await MainActor.run {
+                self.prefetchingConversationIDs.remove(conversationID)
+                guard let page, self.messageCache[conversationID] == nil else { return }
+                self.cacheMessages(
+                    page.messages,
+                    for: conversationID,
+                    hasEarlierMessages: page.hasMore
+                )
+            }
         }
     }
 
@@ -185,21 +276,274 @@ final class ConversationStore: Sendable {
         try await swiftDataService.createConversation(conversation)
     }
 
-    func reloadConversation(_ conversation: ConversationSD) async throws {
-        let (messages, selectedConversation) = try await (
-            swiftDataService.fetchMessages(conversation.id),
-            swiftDataService.getConversation(conversation.id)
+    @MainActor
+    private func cacheMessages(
+        _ messages: [MessageSD],
+        for conversationID: UUID,
+        hasEarlierMessages: Bool? = nil,
+        refreshedAt: Date = .now
+    ) {
+        let hasEarlier = hasEarlierMessages
+            ?? messageCache[conversationID]?.hasEarlierMessages
+            ?? false
+        messageCache[conversationID] = CachedTranscript(
+            messages: messages,
+            hasEarlierMessages: hasEarlier,
+            refreshedAt: refreshedAt
         )
+        messageCacheRecency.removeAll { $0 == conversationID }
+        messageCacheRecency.append(conversationID)
 
-        DispatchQueue.main.async {
-            self.messages = messages
-            self.selectedConversation = selectedConversation
+        while messageCacheRecency.count > messageCacheLimit {
+            let evictedID = messageCacheRecency.removeFirst()
+            messageCache[evictedID] = nil
         }
     }
 
+    /// Refresh a transcript without changing the current selection. This is
+    /// also used after persisting a newly-sent turn.
+    func reloadConversation(_ conversation: ConversationSD) async throws {
+        let displayLimit = await MainActor.run {
+            max(Self.messagePageSize, self.messageCache[conversation.id]?.messages.count ?? 0)
+        }
+        let page = try await swiftDataService.fetchMessagePage(
+            conversation.id,
+            limit: displayLimit
+        )
+        await MainActor.run {
+            self.cacheMessages(
+                page.messages,
+                for: conversation.id,
+                hasEarlierMessages: page.hasMore
+            )
+            guard self.selectedConversation?.id == conversation.id else { return }
+            self.messages = page.messages
+            self.hasEarlierMessages = page.hasMore
+        }
+    }
+
+    @MainActor
     func selectConversation(_ conversation: ConversationSD) async throws {
-        try await reloadConversation(conversation)
-        await MainActor.run { self.refreshStats(for: conversation.id) }
+        let conversationID = conversation.id
+        guard selectedConversation?.id != conversationID else {
+            refreshStats(for: conversationID)
+            return
+        }
+
+        let requestID = UUID()
+        activeSelectionRequestID = requestID
+
+        if let previous = activeSwitchInterval {
+            ConversationPerformance.signposter.endInterval(
+                "ConversationSwitch",
+                previous.state
+            )
+        }
+        let switchState = ConversationPerformance.signposter
+            .beginInterval("ConversationSwitch")
+        activeSwitchInterval = (conversationID, switchState)
+
+        // Paint the selection immediately. A cached transcript avoids both an
+        // empty flash and repeated Markdown layout when switching back.
+        selectedConversation = conversation
+        isLoadingEarlierMessages = false
+        if let cachedTranscript = messageCache[conversationID] {
+            ConversationPerformance.signposter.emitEvent("ConversationCacheHit")
+            messages = cachedTranscript.messages
+            hasEarlierMessages = cachedTranscript.hasEarlierMessages
+            messageCacheRecency.removeAll { $0 == conversationID }
+            messageCacheRecency.append(conversationID)
+            refreshStats(for: conversationID)
+            scheduleCachedRefreshIfNeeded(
+                conversationID,
+                cachedTranscript: cachedTranscript
+            )
+            if cachedTranscript.messages.isEmpty {
+                markConversationRendered(conversationID)
+            }
+            // Critical fast path: let the selection task return so SwiftUI can
+            // commit the cached transcript before any database refresh.
+            return
+        } else {
+            ConversationPerformance.signposter.emitEvent("ConversationCacheMiss")
+            messages = []
+            hasEarlierMessages = false
+        }
+
+        let refreshLimit = max(Self.messagePageSize, messages.count)
+        let fetchState = ConversationPerformance.signposter
+            .beginInterval("FetchMessagePage")
+        let page: MessagePage
+        do {
+            page = try await swiftDataService.fetchMessagePage(
+                conversationID,
+                limit: refreshLimit
+            )
+            ConversationPerformance.signposter.endInterval(
+                "FetchMessagePage",
+                fetchState
+            )
+        } catch {
+            ConversationPerformance.signposter.endInterval(
+                "FetchMessagePage",
+                fetchState
+            )
+            markConversationRendered(conversationID)
+            throw error
+        }
+        try Task.checkCancellation()
+        guard activeSelectionRequestID == requestID,
+              selectedConversation?.id == conversationID else { return }
+
+        cacheMessages(
+            page.messages,
+            for: conversationID,
+            hasEarlierMessages: page.hasMore
+        )
+        messages = page.messages
+        hasEarlierMessages = page.hasMore
+        refreshStats(for: conversationID)
+        if page.messages.isEmpty {
+            markConversationRendered(conversationID)
+        }
+    }
+
+    /// Refresh a stale cached page without delaying selection. Rapid switching
+    /// coalesces to at most one refresh per conversation.
+    @MainActor
+    private func scheduleCachedRefreshIfNeeded(
+        _ conversationID: UUID,
+        cachedTranscript: CachedTranscript
+    ) {
+        guard Date.now.timeIntervalSince(cachedTranscript.refreshedAt) >= Self.cacheRefreshTTL,
+              !refreshingConversationIDs.contains(conversationID),
+              !prefetchingConversationIDs.contains(conversationID),
+              runs[conversationID] == nil else { return }
+
+        refreshingConversationIDs.insert(conversationID)
+        let displayLimit = max(Self.messagePageSize, cachedTranscript.messages.count)
+        Task(priority: .utility) { [weak self] in
+            await self?.refreshCachedConversation(
+                conversationID,
+                displayLimit: displayLimit
+            )
+        }
+    }
+
+    private func refreshCachedConversation(
+        _ conversationID: UUID,
+        displayLimit: Int
+    ) async {
+        let fetchState = ConversationPerformance.signposter
+            .beginInterval("FetchMessagePage")
+        let page = try? await swiftDataService.fetchMessagePage(
+            conversationID,
+            limit: displayLimit
+        )
+        ConversationPerformance.signposter.endInterval(
+            "FetchMessagePage",
+            fetchState
+        )
+
+        await MainActor.run {
+            self.refreshingConversationIDs.remove(conversationID)
+            guard let page,
+                  let cachedTranscript = self.messageCache[conversationID] else { return }
+
+            let changed = !self.transcriptsMatch(
+                cachedTranscript.messages,
+                page.messages
+            )
+            if changed {
+                self.cacheMessages(
+                    page.messages,
+                    for: conversationID,
+                    hasEarlierMessages: page.hasMore
+                )
+                if self.selectedConversation?.id == conversationID {
+                    self.messages = page.messages
+                    self.hasEarlierMessages = page.hasMore
+                }
+            } else {
+                var refreshed = cachedTranscript
+                refreshed.hasEarlierMessages = page.hasMore
+                refreshed.refreshedAt = .now
+                self.messageCache[conversationID] = refreshed
+                if self.selectedConversation?.id == conversationID {
+                    self.hasEarlierMessages = page.hasMore
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func transcriptsMatch(_ lhs: [MessageSD], _ rhs: [MessageSD]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        return zip(lhs, rhs).allSatisfy { old, new in
+            old.id == new.id
+                && old.role == new.role
+                && old.content == new.content
+                && old.blocksJSON == new.blocksJSON
+                && old.done == new.done
+                && old.error == new.error
+        }
+    }
+
+    /// Called by the message list after its first bottom positioning pass. The
+    /// interval measures tap-to-first-render rather than only database latency.
+    @MainActor
+    func markConversationRendered(_ conversationID: UUID) {
+        guard let active = activeSwitchInterval,
+              active.conversationID == conversationID else { return }
+        ConversationPerformance.signposter.endInterval(
+            "ConversationSwitch",
+            active.state
+        )
+        activeSwitchInterval = nil
+    }
+
+    /// Prepend one older page while leaving the newest message unchanged. The
+    /// message list uses that stable tail identity to preserve scroll position.
+    @MainActor
+    func loadEarlierMessages() async {
+        guard let conversationID = selectedConversation?.id,
+              hasEarlierMessages,
+              !isLoadingEarlierMessages else { return }
+
+        isLoadingEarlierMessages = true
+        let offset = messages.count
+        let fetchState = ConversationPerformance.signposter
+            .beginInterval("FetchEarlierMessages")
+        do {
+            let page = try await swiftDataService.fetchMessagePage(
+                conversationID,
+                offset: offset,
+                limit: Self.messagePageSize
+            )
+            ConversationPerformance.signposter.endInterval(
+                "FetchEarlierMessages",
+                fetchState
+            )
+            guard selectedConversation?.id == conversationID else { return }
+
+            let existingIDs = Set(messages.map(\.id))
+            let olderMessages = page.messages.filter { !existingIDs.contains($0.id) }
+            messages = olderMessages + messages
+            hasEarlierMessages = page.hasMore
+            isLoadingEarlierMessages = false
+            cacheMessages(
+                messages,
+                for: conversationID,
+                hasEarlierMessages: page.hasMore
+            )
+        } catch {
+            ConversationPerformance.signposter.endInterval(
+                "FetchEarlierMessages",
+                fetchState
+            )
+            guard selectedConversation?.id == conversationID else { return }
+            isLoadingEarlierMessages = false
+        }
     }
 
     func delete(_ conversation: ConversationSD) async throws {
@@ -207,6 +551,8 @@ final class ConversationStore: Sendable {
         try await swiftDataService.deleteConversation(conversation)
         let fetchedConversations = try await swiftDataService.fetchConversations()
         DispatchQueue.main.async {
+            self.messageCache[conversation.id] = nil
+            self.messageCacheRecency.removeAll { $0 == conversation.id }
             self.selectedConversation = nil
             self.conversations = fetchedConversations
         }
@@ -476,18 +822,43 @@ final class ConversationStore: Sendable {
         Task { try? await swiftDataService.updateConversation(conversation) }
         (connectors[conversation.id] as? PiConnector)?.terminate()
         connectors[conversation.id] = nil
+        connectorGenerations[conversation.id] = nil
+    }
+
+    /// Invalidate all per-conversation agent processes after a Settings change.
+    /// Idle connectors are reclaimed immediately. Running turns are deliberately
+    /// left alone and become stale, so `connector(for:)` replaces them safely on
+    /// the next send.
+    @MainActor
+    func invalidateAgentBackends() {
+        backendConfigurationGeneration += 1
+        let idleIDs = connectors.keys.filter { runs[$0] == nil }
+        for id in idleIDs {
+            (connectors[id] as? PiConnector)?.terminate()
+            connectors[id] = nil
+            connectorGenerations[id] = nil
+            stats[id] = nil
+            lastActivity[id] = nil
+        }
     }
 
     @MainActor
     private func connector(for conversation: ConversationSD) -> AgentBackend {
         lastActivity[conversation.id] = .now
-        if let existing = connectors[conversation.id] { return existing }
+        if let existing = connectors[conversation.id],
+           connectorGenerations[conversation.id] == backendConfigurationGeneration {
+            return existing
+        }
+        if let stale = connectors[conversation.id] as? PiConnector {
+            stale.terminate()
+        }
         let cwd = workingDirectory(for: conversation)
         let backend = AgentBackendConfig.makeChatBackend(
             workingDirectory: cwd,
             resumeSessionPath: conversation.piSessionPath
         )
         connectors[conversation.id] = backend
+        connectorGenerations[conversation.id] = backendConfigurationGeneration
         return backend
     }
 
@@ -503,7 +874,7 @@ final class ConversationStore: Sendable {
         Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 60_000_000_000)
-                await self?.reapIdleConnectors()
+                self?.reapIdleConnectors()
             }
         }
     }
@@ -524,6 +895,7 @@ final class ConversationStore: Sendable {
             guard now.timeIntervalSince(last) > idleTimeout else { continue }
             connector.terminate()
             connectors[id] = nil
+            connectorGenerations[id] = nil
             stats[id] = nil
             lastActivity[id] = nil
             AgentBackendConfig.debugLog("reapIdleConnectors: terminated idle pi for conversation \(id)")
@@ -536,6 +908,7 @@ final class ConversationStore: Sendable {
             runs[id] = nil
             (connectors[id] as? PiConnector)?.terminate()
             connectors[id] = nil
+            connectorGenerations[id] = nil
             states[id] = nil
         }
     }
@@ -554,6 +927,7 @@ final class ConversationStore: Sendable {
     func sendPrompt(userPrompt: String, model: LanguageModelSD, image: Image? = nil, systemPrompt: String = "", trimmingMessageId: String? = nil) {
         guard userPrompt.trimmingCharacters(in: .whitespacesAndNewlines).count > 0 else { return }
 
+        let isNewConversation = selectedConversation == nil
         let conversation = selectedConversation ?? ConversationSD(name: Self.title(from: userPrompt))
         conversation.updatedAt = Date.now
         conversation.model = model
@@ -594,6 +968,26 @@ final class ConversationStore: Sendable {
 
         let assistantMessage = MessageSD(content: "", role: "assistant")
         assistantMessage.conversation = conversation
+
+        // Do not wait for persistence + a refetch before showing a newly sent
+        // turn. Keep the currently-loaded page instead of touching the full
+        // relationship, then let the later paged reload reconcile SwiftData.
+        selectedConversation = conversation
+        var visibleMessages = isNewConversation ? [] : messages
+        if let trimmingMessageId {
+            visibleMessages = Array(visibleMessages.prefix {
+                $0.id.uuidString != trimmingMessageId
+            })
+        }
+        visibleMessages.append(userMessage)
+        visibleMessages.append(assistantMessage)
+        messages = visibleMessages
+        if isNewConversation { hasEarlierMessages = false }
+        cacheMessages(
+            messages,
+            for: conversation.id,
+            hasEarlierMessages: isNewConversation ? false : hasEarlierMessages
+        )
 
         let convID = conversation.id
         states[convID] = .loading

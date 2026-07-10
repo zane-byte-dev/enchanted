@@ -49,6 +49,16 @@
 		FF10026D2B2751760011A4DC /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF10026C2B2751760011A4DC /* SettingsView.swift */; };
 		FF1002732B276EC10011A4DC /* AppColorScheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002722B276EC10011A4DC /* AppColorScheme.swift */; };
 		C80100000000000000000004 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C80100000000000000000003 /* AppLanguage.swift */; };
+		C90000000000000000000002 /* AppleSpeechTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000001 /* AppleSpeechTranscriber.swift */; };
+		C90000000000000000000004 /* TextInjectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000003 /* TextInjectionService.swift */; };
+		C90000000000000000000006 /* VoiceInputCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000005 /* VoiceInputCoordinator.swift */; };
+		C90000000000000000000008 /* VoiceOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90000000000000000000007 /* VoiceOverlayController.swift */; };
+		C9000000000000000000000B /* VoiceTextProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9000000000000000000000A /* VoiceTextProcessor.swift */; };
+		C91000000000000000000002 /* SenseVoiceModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91000000000000000000001 /* SenseVoiceModelManager.swift */; };
+		C91000000000000000000004 /* SenseVoiceTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91000000000000000000003 /* SenseVoiceTranscriber.swift */; };
+		C91000000000000000000006 /* SpeechTranscriberRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91000000000000000000005 /* SpeechTranscriberRouter.swift */; };
+		C91000000000000000000008 /* VoiceInputPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91000000000000000000007 /* VoiceInputPreferences.swift */; };
+		C92000000000000000000003 /* SherpaOnnx in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C92000000000000000000002 /* SherpaOnnx */; };
 		FF1002752B278C170011A4DC /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002742B278C170011A4DC /* AppStore.swift */; };
 		FF15EF6A2B826C0300D4A541 /* SimpleFloatingButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF15EF692B826C0300D4A541 /* SimpleFloatingButton.swift */; };
 		FF1BC3C72BA0757700A58043 /* SplashSyntaxHighlighter+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1BC3C62BA0757700A58043 /* SplashSyntaxHighlighter+Extension.swift */; };
@@ -89,13 +99,11 @@
 		FF9300E02B783945000859F4 /* InputFields_macOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9300DF2B783945000859F4 /* InputFields_macOS.swift */; };
 		FF9C920A2BF0B7B1004C8275 /* LanguageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9C92092BF0B7B1004C8275 /* LanguageModel.swift */; };
 		FF9C920C2BF0C088004C8275 /* OptionsMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9C920B2BF0C088004C8275 /* OptionsMenuView.swift */; };
-		FFB0327D2B312F3D0066A9DB /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB0327C2B312F3D0066A9DB /* RecordingView.swift */; };
 		FFB21A872B7BD0BA00D148A4 /* KeyboardReadable+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB21A862B7BD0BA00D148A4 /* KeyboardReadable+Extension.swift */; };
 		FFB56F432C0353CF0020AFFD /* ReadingAloudView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB56F422C0353CF0020AFFD /* ReadingAloudView.swift */; };
 		FFB56F462C0383B80020AFFD /* VoiceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB56F452C0383B80020AFFD /* VoiceView.swift */; };
 		FFBB2C7B2C03D8AD00509204 /* Voice.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFBB2C7A2C03D8AD00509204 /* Voice.swift */; };
 		FFBB2C7D2C047B6C00509204 /* Image+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFBB2C7C2C047B6B00509204 /* Image+Extension.swift */; };
-		FFBBF4842B34881B008D611C /* SpeechRecogniser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFBBF4832B34881B008D611C /* SpeechRecogniser.swift */; };
 		FFBBF4882B34F9C8008D611C /* View+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFBBF4872B34F9C8008D611C /* View+Extension.swift */; };
 		FFBBF48A2B350283008D611C /* SelectedImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFBBF4892B350283008D611C /* SelectedImageView.swift */; };
 		FFBBF48C2B35051D008D611C /* UIImage+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFBBF48B2B35051D008D611C /* UIImage+Extension.swift */; };
@@ -159,6 +167,15 @@
 		FF10026C2B2751760011A4DC /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		FF1002722B276EC10011A4DC /* AppColorScheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColorScheme.swift; sourceTree = "<group>"; };
 		C80100000000000000000003 /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		C90000000000000000000001 /* AppleSpeechTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSpeechTranscriber.swift; sourceTree = "<group>"; };
+		C90000000000000000000003 /* TextInjectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInjectionService.swift; sourceTree = "<group>"; };
+		C90000000000000000000005 /* VoiceInputCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputCoordinator.swift; sourceTree = "<group>"; };
+		C90000000000000000000007 /* VoiceOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOverlayController.swift; sourceTree = "<group>"; };
+		C9000000000000000000000A /* VoiceTextProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceTextProcessor.swift; sourceTree = "<group>"; };
+		C91000000000000000000001 /* SenseVoiceModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SenseVoiceModelManager.swift; sourceTree = "<group>"; };
+		C91000000000000000000003 /* SenseVoiceTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SenseVoiceTranscriber.swift; sourceTree = "<group>"; };
+		C91000000000000000000005 /* SpeechTranscriberRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscriberRouter.swift; sourceTree = "<group>"; };
+		C91000000000000000000007 /* VoiceInputPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputPreferences.swift; sourceTree = "<group>"; };
 		FF1002742B278C170011A4DC /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		FF15EF692B826C0300D4A541 /* SimpleFloatingButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleFloatingButton.swift; sourceTree = "<group>"; };
 		FF1BC3C62BA0757700A58043 /* SplashSyntaxHighlighter+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SplashSyntaxHighlighter+Extension.swift"; sourceTree = "<group>"; };
@@ -196,14 +213,12 @@
 		FF9C92072BF0B464004C8275 /* EnchantedDebug.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = EnchantedDebug.entitlements; sourceTree = "<group>"; };
 		FF9C92092BF0B7B1004C8275 /* LanguageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageModel.swift; sourceTree = "<group>"; };
 		FF9C920B2BF0C088004C8275 /* OptionsMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OptionsMenuView.swift; sourceTree = "<group>"; };
-		FFB0327C2B312F3D0066A9DB /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
 		FFB21A862B7BD0BA00D148A4 /* KeyboardReadable+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KeyboardReadable+Extension.swift"; sourceTree = "<group>"; };
 		FFB56F422C0353CF0020AFFD /* ReadingAloudView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingAloudView.swift; sourceTree = "<group>"; };
 		FFB56F452C0383B80020AFFD /* VoiceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceView.swift; sourceTree = "<group>"; };
 		FFBB2C7A2C03D8AD00509204 /* Voice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice.swift; sourceTree = "<group>"; };
 		FFBB2C7C2C047B6B00509204 /* Image+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Image+Extension.swift"; sourceTree = "<group>"; };
 		FFBBF4822B348345008D611C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		FFBBF4832B34881B008D611C /* SpeechRecogniser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecogniser.swift; sourceTree = "<group>"; };
 		FFBBF4872B34F9C8008D611C /* View+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+Extension.swift"; sourceTree = "<group>"; };
 		FFBBF4892B350283008D611C /* SelectedImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectedImageView.swift; sourceTree = "<group>"; };
 		FFBBF48B2B35051D008D611C /* UIImage+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+Extension.swift"; sourceTree = "<group>"; };
@@ -231,6 +246,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C92000000000000000000003 /* SherpaOnnx in Frameworks */,
 				FFD5FAD52B8130CE0055AB51 /* OllamaKit in Frameworks */,
 				FFD5FAD22B8130490055AB51 /* Vortex in Frameworks */,
 				FF0611F12C04A2FB00443B33 /* Splash in Frameworks */,
@@ -261,9 +277,24 @@
 				FFBBF4892B350283008D611C /* SelectedImageView.swift */,
 				FF9300DD2B782A28000859F4 /* UnreachableAPIView.swift */,
 				FFD57E2E2BF2901A003FEFF1 /* ChatMessages */,
-				FFB0327B2B312F310066A9DB /* Recorder */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		C90000000000000000000009 /* VoiceInput */ = {
+			isa = PBXGroup;
+			children = (
+				C90000000000000000000001 /* AppleSpeechTranscriber.swift */,
+				C91000000000000000000005 /* SpeechTranscriberRouter.swift */,
+				C91000000000000000000001 /* SenseVoiceModelManager.swift */,
+				C91000000000000000000003 /* SenseVoiceTranscriber.swift */,
+				C91000000000000000000007 /* VoiceInputPreferences.swift */,
+				C90000000000000000000003 /* TextInjectionService.swift */,
+				C90000000000000000000005 /* VoiceInputCoordinator.swift */,
+				C90000000000000000000007 /* VoiceOverlayController.swift */,
+				C9000000000000000000000A /* VoiceTextProcessor.swift */,
+			);
+			path = VoiceInput;
 			sourceTree = "<group>";
 		};
 		FF1002412B25BAAE0011A4DC /* SwiftData */ = {
@@ -427,15 +458,6 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
-		FFB0327B2B312F310066A9DB /* Recorder */ = {
-			isa = PBXGroup;
-			children = (
-				FFB0327C2B312F3D0066A9DB /* RecordingView.swift */,
-				FFBBF4832B34881B008D611C /* SpeechRecogniser.swift */,
-			);
-			path = Recorder;
-			sourceTree = "<group>";
-		};
 		FFB56F442C0383A60020AFFD /* Voice */ = {
 			isa = PBXGroup;
 			children = (
@@ -488,6 +510,7 @@
 				FFEC32992B24779B003E5C04 /* Preview Content */,
 				C8039FFF2B24F4900011A4DC /* Agent */,
 				FFEC32A42B247874003E5C04 /* Services */,
+				C90000000000000000000009 /* VoiceInput */,
 				FF1002422B25BAC50011A4DC /* Stores */,
 				FF1002412B25BAAE0011A4DC /* SwiftData */,
 				FFEC32A52B247879003E5C04 /* UI */,
@@ -622,6 +645,7 @@
 			);
 			name = Enchanted;
 			packageProductDependencies = (
+				C92000000000000000000002 /* SherpaOnnx */,
 				FF1002652B2653EE0011A4DC /* ActivityIndicatorView */,
 				FF464B122B8026DA008E5130 /* Vortex */,
 				FFD5FAD42B8130CE0055AB51 /* OllamaKit */,
@@ -663,6 +687,7 @@
 			);
 			mainGroup = FFEC32842B24779A003E5C04;
 			packageReferences = (
+				C92000000000000000000001 /* XCRemoteSwiftPackageReference "sherpa-onnx-spm" */,
 				FF1002642B2653EE0011A4DC /* XCRemoteSwiftPackageReference "ActivityIndicatorView" */,
 				FF464B112B8026DA008E5130 /* XCRemoteSwiftPackageReference "Vortex" */,
 				FFD5FAD32B8130CE0055AB51 /* XCRemoteSwiftPackageReference "OllamaKit" */,
@@ -702,6 +727,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C90000000000000000000002 /* AppleSpeechTranscriber.swift in Sources */,
+				C91000000000000000000006 /* SpeechTranscriberRouter.swift in Sources */,
+				C91000000000000000000002 /* SenseVoiceModelManager.swift in Sources */,
+				C91000000000000000000004 /* SenseVoiceTranscriber.swift in Sources */,
+				C91000000000000000000008 /* VoiceInputPreferences.swift in Sources */,
+				C90000000000000000000004 /* TextInjectionService.swift in Sources */,
+				C90000000000000000000006 /* VoiceInputCoordinator.swift in Sources */,
+				C90000000000000000000008 /* VoiceOverlayController.swift in Sources */,
+				C9000000000000000000000B /* VoiceTextProcessor.swift in Sources */,
 				FF6D82252B9204F3001183A8 /* AsyncQueue.swift in Sources */,
 				FF1002442B25BB730011A4DC /* ConversationStore.swift in Sources */,
 				AA100400DDDD00000011AA01 /* ProjectStore.swift in Sources */,
@@ -758,7 +792,6 @@
 				FFEB9CA82BA04304004B1F3D /* NotificationMessage.swift in Sources */,
 				FF10025C2B2625BE0011A4DC /* SidebarView.swift in Sources */,
 				FF1002392B24BBF20011A4DC /* Chat.swift in Sources */,
-				FFB0327D2B312F3D0066A9DB /* RecordingView.swift in Sources */,
 				FFBB2C7D2C047B6C00509204 /* Image+Extension.swift in Sources */,
 				FF10024A2B25BE740011A4DC /* LanguageModelSD.swift in Sources */,
 				FF6B7B132B3EE7AC00E8FEA3 /* Throttler.swift in Sources */,
@@ -768,7 +801,6 @@
 				FF9300DC2B7823B0000859F4 /* EmptyConversaitonView.swift in Sources */,
 				FFBBF4882B34F9C8008D611C /* View+Extension.swift in Sources */,
 				FFEC9BE32B81358800AFBA63 /* DeallocPrinter.swift in Sources */,
-				FFBBF4842B34881B008D611C /* SpeechRecogniser.swift in Sources */,
 				FFEC32AA2B24797C003E5C04 /* ChatView_iOS.swift in Sources */,
 				FF6D82152B911536001183A8 /* Accessibility.swift in Sources */,
 				FF0146CD2B3DADCA00A2A9F6 /* HapticsService.swift in Sources */,
@@ -941,8 +973,8 @@
 				INFOPLIST_FILE = Enchanted/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Enchanted by Freysa";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio is recorded to transcribe text. Recording is discarded after transcription.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "You can view a text transcription of your meeting in the app.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchanted records audio only while voice input is active and discards it after transcription.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Enchanted converts your speech to text while you use voice input.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -993,8 +1025,8 @@
 				INFOPLIST_FILE = Enchanted/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Enchanted by Freysa";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio is recorded to transcribe text. Recording is discarded after transcription.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "You can view a text transcription of your meeting in the app.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchanted records audio only while voice input is active and discards it after transcription.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Enchanted converts your speech to text while you use voice input.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -1049,6 +1081,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		C92000000000000000000001 /* XCRemoteSwiftPackageReference "sherpa-onnx-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/willwade/sherpa-onnx-spm.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.13.16;
+			};
+		};
 		FF0611E82C04A11800443B33 /* XCRemoteSwiftPackageReference "Magnet" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/AugustDev/Magnet";
@@ -1132,6 +1172,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		C92000000000000000000002 /* SherpaOnnx */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C92000000000000000000001 /* XCRemoteSwiftPackageReference "sherpa-onnx-spm" */;
+			productName = SherpaOnnx;
+		};
 		FF0611E92C04A11800443B33 /* Magnet */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = FF0611E82C04A11800443B33 /* XCRemoteSwiftPackageReference "Magnet" */;

@@ -10,6 +10,9 @@ import Foundation
 struct LanguageModel {
     var name: String
     var provider: ModelProvider
+    /// Raw pi provider id. `ModelProvider` is only the icon/known-provider
+    /// projection and cannot represent extension-defined providers.
+    var providerID: String? = nil
     var imageSupport: Bool
 }
 

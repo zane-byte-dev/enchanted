@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OSLog
 import SwiftData
 
 @Observable
@@ -23,45 +24,59 @@ final class LanguageModelStore {
     
     @MainActor
     func setModel(model: LanguageModelSD?) {
-        if let model = model {
-            // check if model still exists
-            if models.contains(model) {
-                selectedModel = model
-            }
-        } else {
+        guard let model else {
             selectedModel = nil
+            supportsImages = false
+            return
         }
+
+        // A conversation and the refreshed model list can contain different
+        // SwiftData instances for the same persisted model. Match by stable name
+        // instead of object identity so restoring a conversation cannot clear the
+        // composer model label.
+        guard let availableModel = models.first(where: { $0.name == model.name }) else { return }
+        selectedModel = availableModel
+        supportsImages = availableModel.supportsImages
     }
     
     @MainActor
     func setModel(modelName: String) {
-        for model in models {
-            if model.name == modelName {
-                setModel(model: model)
-                return
-            }
-        }
-        if let lastModel = models.last {
-            setModel(model: lastModel)
-        }
+        let model = models.first(where: { $0.name == modelName }) ?? models.first
+        setModel(model: model)
     }
     
     func loadModels() async throws {
+        let previouslySelectedName = await MainActor.run { selectedModel?.name }
         let remoteModels = try await ConversationStore.shared.backend.models()
-        try await swiftDataService.saveModels(models: remoteModels.map{LanguageModelSD(name: $0.name, imageSupport: $0.imageSupport, modelProvider: $0.provider)})
+        try await swiftDataService.saveModels(models: remoteModels.map {
+            LanguageModelSD(
+                name: $0.name,
+                imageSupport: $0.imageSupport,
+                modelProvider: $0.provider,
+                providerID: $0.providerID
+            )
+        })
         
         let storedModels = (try? await swiftDataService.fetchModels()) ?? []
         
-        DispatchQueue.main.async {
+        await MainActor.run {
             let remoteModelNames = remoteModels.map { $0.name }
             let availableModels = storedModels.filter { remoteModelNames.contains($0.name) }
-            let selectedName = self.selectedModel?.name
-
             self.models = availableModels
-            if let selectedName,
-               let refreshedSelection = availableModels.first(where: { $0.name == selectedName }) {
-                self.selectedModel = refreshedSelection
-            }
+
+            let defaultsKey = AgentBackendConfig.currentKind == .pi
+                ? "piDefaultModel"
+                : "defaultOllamaModel"
+            let configuredDefault = UserDefaults.standard.string(forKey: defaultsKey)
+            let preferredName = previouslySelectedName ?? configuredDefault
+            let selection = preferredName.flatMap { preferred in
+                availableModels.first(where: { $0.name == preferred })
+            } ?? availableModels.first
+
+            self.selectedModel = selection
+            self.supportsImages = selection?.supportsImages ?? false
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "subj.Enchanted", category: "ModelSelection")
+                .info("Loaded \(availableModels.count) models; selected \(selection?.name ?? "<none>", privacy: .public)")
         }
     }
     

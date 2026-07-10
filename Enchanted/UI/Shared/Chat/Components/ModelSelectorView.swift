@@ -23,8 +23,13 @@ struct ModelSelectorView: View {
                 }) {
                     HStack {
                         Image(systemName: model.modelProvider?.iconName ?? "cpu")
-                        Text(model.name)
-                            .font(.body)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(model.name)
+                                .font(.body)
+                            Text(model.providerDisplayName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .tag(model.name)
                 }
@@ -39,9 +44,17 @@ struct ModelSelectorView: View {
                             Image(systemName: selectedModel.modelProvider?.iconName ?? "cpu")
                                 .font(.system(size: 11))
                                 .foregroundColor(CodexTheme.mutedText)
-                            Text(selectedModel.name)
-                                .font(.system(size: 12))
-                                .lineLimit(1)
+                            HStack(spacing: 4) {
+                                Text(selectedModel.providerDisplayName)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(CodexTheme.mutedText)
+                                Text("/")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(CodexTheme.faintText)
+                                Text(selectedModel.name)
+                                    .font(.system(size: 12))
+                                    .lineLimit(1)
+                            }
                         }
                         #elseif os(iOS)
                         Text(selectedModel.prettyName )
@@ -53,6 +66,10 @@ struct ModelSelectorView: View {
                             .foregroundColor(Color.gray3Custom)
                         #endif
                     }
+                } else {
+                    Text(modelsList.isEmpty ? "暂无可用模型" : "选择模型")
+                        .font(.system(size: 12))
+                        .foregroundColor(CodexTheme.mutedText)
                 }
                 
                 Image(systemName: "chevron.down")

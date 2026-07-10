@@ -24,10 +24,8 @@ struct ChatView: View {
     
     private var selectedModel: LanguageModelSD?
     @State private var message = ""
-    @State private var isRecording = false
     @State private var editMessage: MessageSD?
     @FocusState private var isFocusedInput: Bool
-    @StateObject var speechRecognizer = SpeechRecognizer()
     
     /// Image selection
     @State private var pickerSelectorActive: PhotosPickerItem?
@@ -146,9 +144,6 @@ struct ChatView: View {
                     .frame(minHeight: 40)
                     .font(.system(size: 14))
                 
-                RecordingView(speechRecognizer: speechRecognizer, isRecording: $isRecording.animation()) { transcription in
-                    self.message = transcription
-                }
             }
             .onChange(of: isFocusedInput, { oldValue, newValue in
                 withAnimation {
@@ -159,8 +154,8 @@ struct ChatView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
                     .strokeBorder(
-                        isRecording ? Color(.systemBlue) : Color(.systemGray2),
-                        style: StrokeStyle(lineWidth: isRecording ? 2 : 0.5)
+                        Color(.systemGray2),
+                        style: StrokeStyle(lineWidth: 0.5)
                     )
             )
             
@@ -187,6 +182,7 @@ struct ChatView: View {
             
             if conversation != nil {
                 MessageListView(
+                    conversationID: conversation?.id,
                     messages: messages,
                     conversationState: conversationState,
                     userInitials: userInitials,

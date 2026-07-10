@@ -40,6 +40,54 @@ struct PiSessionStats: Equatable {
     }
 }
 
+/// Full provider/model metadata returned by pi's `get_available_models` RPC.
+/// Settings uses this directly so custom provider ids and endpoints are not
+/// flattened into the app's small built-in provider enum.
+struct PiModelDescriptor: Identifiable, Equatable, Sendable {
+    var id: String { "\(provider)/\(modelID)" }
+    let modelID: String
+    let name: String
+    let provider: String
+    let api: String
+    let baseURL: String
+    let reasoning: Bool
+    let input: [String]
+    let contextWindow: Int?
+
+    init(
+        modelID: String,
+        name: String,
+        provider: String,
+        api: String = "",
+        baseURL: String = "",
+        reasoning: Bool = false,
+        input: [String] = ["text"],
+        contextWindow: Int? = nil
+    ) {
+        self.modelID = modelID
+        self.name = name
+        self.provider = provider
+        self.api = api
+        self.baseURL = baseURL
+        self.reasoning = reasoning
+        self.input = input
+        self.contextWindow = contextWindow
+    }
+
+    init?(record: [String: Any]) {
+        guard let modelID = record["id"] as? String,
+              let provider = record["provider"] as? String else { return nil }
+        self.modelID = modelID
+        self.name = record["name"] as? String ?? modelID
+        self.provider = provider
+        self.api = record["api"] as? String ?? ""
+        self.baseURL = record["baseUrl"] as? String ?? ""
+        self.reasoning = record["reasoning"] as? Bool ?? false
+        self.input = record["input"] as? [String] ?? ["text"]
+        self.contextWindow = (record["contextWindow"] as? NSNumber)?.intValue
+    }
+}
+
 final class PiConnector: AgentBackend, @unchecked Sendable {
     struct Config {
         /// Absolute path to the `pi` executable (or a launcher that runs it).
@@ -85,7 +133,7 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     /// Maps a pi model id → its provider string (e.g. "qwen3.7-max" →
     /// "opencode-go"). Populated from `get_available_models` so `chat()` can
     /// issue a `set_model` (which requires both provider and modelId).
-    private var providerByModelId: [String: String] = [:]
+    private var providersByModelId: [String: [String]] = [:]
     /// The model id currently applied to the live pi session. Tracked so we only
     /// send `set_model` when the user actually switches models, and re-send it
     /// after a respawn (reset to nil in `ensureProcess`).
@@ -175,8 +223,14 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
 
         lock.lock()
         let already = appliedModelId == modelId
-        var provider = providerByModelId[modelId]
+        var providers = providersByModelId[modelId] ?? []
         lock.unlock()
+
+        let preferredProvider = UserDefaults.standard.string(
+            forKey: AgentBackendConfig.piDefaultProviderDefaultsKey
+        )
+        var provider = preferredProvider.flatMap { providers.contains($0) ? $0 : nil }
+            ?? providers.first
 
         if already { return }
 
@@ -185,8 +239,10 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         if provider == nil {
             _ = try? await models()
             lock.lock()
-            provider = providerByModelId[modelId]
+            providers = providersByModelId[modelId] ?? []
             lock.unlock()
+            provider = preferredProvider.flatMap { providers.contains($0) ? $0 : nil }
+                ?? providers.first
         }
 
         guard let provider else {
@@ -247,13 +303,49 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         else {
             return [LanguageModel(name: "pi", provider: .unknown, imageSupport: false)]
         }
-        return models.compactMap { m in
-            guard let mid = m["id"] as? String else { return nil }
-            let providerStr = m["provider"] as? String ?? "ollama"
-            lock.lock(); providerByModelId[mid] = providerStr; lock.unlock()
-            let provider = ModelProvider(rawValue: providerStr.lowercased()) ?? .unknown
-            return LanguageModel(name: mid, provider: provider, imageSupport: false)
+        return models.compactMap { record in
+            guard let descriptor = PiModelDescriptor(record: record) else { return nil }
+            lock.lock()
+            var providers = providersByModelId[descriptor.modelID] ?? []
+            if !providers.contains(descriptor.provider) { providers.append(descriptor.provider) }
+            providersByModelId[descriptor.modelID] = providers
+            lock.unlock()
+            let provider = ModelProvider(rawValue: descriptor.provider.lowercased()) ?? .unknown
+            return LanguageModel(
+                name: descriptor.modelID,
+                provider: provider,
+                providerID: descriptor.provider,
+                imageSupport: descriptor.input.contains("image")
+            )
         }
+    }
+
+    /// Strict RPC health probe used by Settings. Unlike `models()`, this does
+    /// not return the compatibility fallback when pi starts but never answers.
+    /// A non-nil count proves that JSONL RPC is alive and understood.
+    func diagnosticModels() async -> [PiModelDescriptor]? {
+        guard (try? ensureProcess()) != nil else { return nil }
+        let id = nextId()
+        let response: [String: Any]? = await withCheckedContinuation { continuation in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { obj in
+                if resumed { return }; resumed = true
+                continuation.resume(returning: obj)
+            }
+            lock.lock()
+            pending[id] = { obj in finish(obj) }
+            lock.unlock()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
+                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                finish(nil)
+            }
+            try? send(["id": id, "type": "get_available_models"])
+        }
+        guard
+            let data = response?["data"] as? [String: Any],
+            let models = data["models"] as? [[String: Any]]
+        else { return nil }
+        return models.compactMap(PiModelDescriptor.init(record:))
     }
 
     /// Ask pi to abort the in-flight turn (real stop, not just local unsubscribe).

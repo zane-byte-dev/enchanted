@@ -20,11 +20,11 @@ final class MessageSD: Identifiable {
     /// re-scanned the whole string several times.
     private var thinkParse: ThinkParse {
         let key = id.uuidString as NSString
-        if let cached = MessageSD.thinkParseCache.object(forKey: key), cached.source == content {
+        if let cached = MessageSD.cacheStorage.thinkParses.object(forKey: key), cached.source == content {
             return cached.parse
         }
         let parse = ThinkParse(content)
-        MessageSD.thinkParseCache.setObject(
+        MessageSD.cacheStorage.thinkParses.setObject(
             CachedThinkParse(source: content, parse: parse),
             forKey: key
         )
@@ -72,11 +72,11 @@ final class MessageSD: Identifiable {
     @Transient var renderBlocks: [MessageBlock] {
         guard let json = blocksJSON, let data = json.data(using: .utf8) else { return [] }
         let key = id.uuidString as NSString
-        if let cached = MessageSD.renderBlocksCache.object(forKey: key), cached.json == json {
+        if let cached = MessageSD.cacheStorage.renderBlocks.object(forKey: key), cached.json == json {
             return cached.blocks
         }
         let blocks = (try? JSONDecoder().decode([MessageBlock].self, from: data)) ?? []
-        MessageSD.renderBlocksCache.setObject(
+        MessageSD.cacheStorage.renderBlocks.setObject(
             MessageSD.CachedBlocks(json: json, blocks: blocks),
             forKey: key
         )
@@ -88,14 +88,18 @@ extension MessageSD {
     /// Process-wide cache for `renderBlocks` (see its doc comment). Held by
     /// the type rather than the instance because `@Transient` computed
     /// properties can't carry stored state.
-    private static let renderBlocksCache: NSCache<NSString, CachedBlocks> = {
-        let cache = NSCache<NSString, CachedBlocks>()
-        // Bound by count rather than bytes; entries are small metadata (the
-        // big payloads live in `text` blocks, which are shared with SwiftData
-        // via the same String storage — no extra copy cost here).
-        cache.countLimit = 512
-        return cache
-    }()
+    private final class CacheStorage: @unchecked Sendable {
+        let renderBlocks = NSCache<NSString, CachedBlocks>()
+        let thinkParses = NSCache<NSString, CachedThinkParse>()
+
+        init() {
+            // Bound by count rather than bytes; entries are small metadata.
+            renderBlocks.countLimit = 512
+            thinkParses.countLimit = 512
+        }
+    }
+
+    private static let cacheStorage = CacheStorage()
 
     final class CachedBlocks {
         let json: String
@@ -107,12 +111,6 @@ extension MessageSD {
     }
 
     /// Process-wide cache for the `<think>` parse (see `thinkParse`).
-    fileprivate static let thinkParseCache: NSCache<NSString, CachedThinkParse> = {
-        let cache = NSCache<NSString, CachedThinkParse>()
-        cache.countLimit = 512
-        return cache
-    }()
-
     fileprivate final class CachedThinkParse {
         let source: String
         let parse: ThinkParse
@@ -129,6 +127,11 @@ extension MessageSD {
         .init(content: "Elementary particle is defined as an irreducible representation of the poincase group.", role: "assistant")
     ]
 }
+
+// SwiftData models cross the ModelActor boundary throughout the existing data
+// layer. Keep the explicit audited conformance until that layer is migrated to
+// immutable DTOs under Swift 6 strict concurrency.
+extension MessageSD: @unchecked Sendable {}
 
 /// Result of splitting a message's `content` around `<think>…</think>`.
 /// Computed once per `content` change and cached (see `MessageSD.thinkParse`).
@@ -158,9 +161,4 @@ struct ThinkParse {
             realContent = nil
         }
     }
-}
-
-// MARK: - @unchecked Sendable
-extension MessageSD: @unchecked Sendable {
-    /// We hide compiler warnings for concurency. We have to make sure to modify the data only via SwiftDataManager to ensure concurrent operations.
 }

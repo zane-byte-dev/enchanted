@@ -10,8 +10,10 @@ import SwiftData
 
 #if os(macOS)
 import KeyboardShortcuts
+import OSLog
 extension KeyboardShortcuts.Name {
     static let togglePanelMode = Self("togglePanelMode1", default: .init(.k, modifiers: [.command, .option]))
+    static let voiceInput = Self("voiceInput", default: .init(.space, modifiers: [.option]))
 }
 #endif
 
@@ -24,6 +26,25 @@ struct EnchantedApp: App {
 
     init() {
         AgentBackendConfig.configure()
+#if os(macOS)
+        // Register outside the window hierarchy so voice input still works when
+        // every Enchanted window is closed and the app is running in background.
+        KeyboardShortcuts.onKeyDown(for: .voiceInput) {
+            Task { @MainActor in
+                VoiceInputCoordinator.shared.shortcutKeyDown()
+            }
+        }
+        KeyboardShortcuts.onKeyUp(for: .voiceInput) {
+            Task { @MainActor in
+                VoiceInputCoordinator.shared.shortcutKeyUp()
+            }
+        }
+        Logger(subsystem: Bundle.main.bundleIdentifier ?? "subj.Enchanted", category: "VoiceInput")
+            .info("Global voice shortcut registered")
+        Task { @MainActor in
+            await VoiceInputCoordinator.shared.prewarm()
+        }
+#endif
     }
     
     var body: some Scene {
@@ -71,4 +92,3 @@ struct EnchantedApp: App {
 #endif
     }
 }
-

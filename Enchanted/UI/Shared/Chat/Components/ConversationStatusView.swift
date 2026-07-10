@@ -25,10 +25,10 @@ struct ConversationStatusView: View {
     }
 }
 
-#Preview {
+#Preview(traits: .sizeThatFitsLayout) {
     Group {
         ConversationStatusView(state: .loading)
         ConversationStatusView(state: .completed)
         ConversationStatusView(state: .error(message: "Could not connect"))
-    }.previewLayout(.sizeThatFits)
+    }
 }

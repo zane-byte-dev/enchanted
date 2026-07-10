@@ -10,6 +10,67 @@ import MarkdownUI
 import ActivityIndicatorView
 import Splash
 
+/// Parsed Markdown and completed syntax-highlight output are pure functions of
+/// their source. Keeping them in bounded process caches avoids repeating both
+/// parsers whenever a cached conversation is shown again.
+private enum ChatRenderCache {
+    final class CachedMarkdown {
+        let content: MarkdownContent
+        init(_ content: MarkdownContent) { self.content = content }
+    }
+
+    final class CachedHighlight {
+        let text: Text
+        init(_ text: Text) { self.text = text }
+    }
+
+    /// NSCache is internally synchronized but isn't declared Sendable. Keep it
+    /// behind one explicitly audited wrapper instead of exposing shared cache
+    /// instances as static non-Sendable state.
+    final class Storage: @unchecked Sendable {
+        let markdown: NSCache<NSString, CachedMarkdown>
+        let highlights: NSCache<NSString, CachedHighlight>
+
+        init() {
+            markdown = NSCache<NSString, CachedMarkdown>()
+            markdown.countLimit = 512
+            markdown.totalCostLimit = 16 * 1024 * 1024
+
+            highlights = NSCache<NSString, CachedHighlight>()
+            highlights.countLimit = 256
+            highlights.totalCostLimit = 16 * 1024 * 1024
+        }
+    }
+
+    static let storage = Storage()
+
+    static func markdownContent(for source: String) -> MarkdownContent {
+        let key = source as NSString
+        if let cached = storage.markdown.object(forKey: key) { return cached.content }
+        let parsed = MarkdownContent(source)
+        storage.markdown.setObject(CachedMarkdown(parsed), forKey: key, cost: source.utf8.count)
+        return parsed
+    }
+
+    static func highlightedText(
+        for source: String,
+        language: String?,
+        namespace: String,
+        theme: Splash.Theme
+    ) -> Text {
+        let key = "\(namespace)|\(language ?? "")|\(source)" as NSString
+        if let cached = storage.highlights.object(forKey: key) { return cached.text }
+        let highlighted = SplashCodeSyntaxHighlighter(theme: theme)
+            .highlightCode(source, language: language)
+        storage.highlights.setObject(
+            CachedHighlight(highlighted),
+            forKey: key,
+            cost: source.utf8.count
+        )
+        return highlighted
+    }
+}
+
 /// A code highlighter that switches between cheap plain text (used while the
 /// streaming tail is still growing) and full Splash syntax highlighting (used
 /// once the text is final) *without* changing the SwiftUI view identity.
@@ -21,12 +82,18 @@ import Splash
 private struct StreamAwareCodeHighlighter: CodeSyntaxHighlighter {
     let plain: Bool
     let theme: Splash.Theme
+    let cacheNamespace: String
 
     func highlightCode(_ content: String, language: String?) -> Text {
         if plain {
             return Text(content)
         }
-        return SplashCodeSyntaxHighlighter(theme: theme).highlightCode(content, language: language)
+        return ChatRenderCache.highlightedText(
+            for: content,
+            language: language,
+            namespace: cacheNamespace,
+            theme: theme
+        )
     }
 }
 
@@ -42,7 +109,8 @@ struct ChatMessageView: View {
     @State private var showThink = false
     
     var image: Image? {
-        message.image != nil ? Image(data: message.image!) : nil
+        guard let data = message.image else { return nil }
+        return Image.cached(data: data, key: message.id.uuidString)
     }
 
     /// Only show the standalone "waiting" spinner before any content has
@@ -108,12 +176,16 @@ struct ChatMessageView: View {
         var body: some View {
             switch segment.kind {
             case .text(let text):
-                Markdown(text)
+                Markdown(ChatRenderCache.markdownContent(for: text))
 #if os(macOS)
                     .textSelection(.enabled)
 #endif
                     .markdownCodeSyntaxHighlighter(
-                        StreamAwareCodeHighlighter(plain: isStreamingTail, theme: codeHighlightColorScheme)
+                        StreamAwareCodeHighlighter(
+                            plain: isStreamingTail,
+                            theme: codeHighlightColorScheme,
+                            cacheNamespace: colorScheme == .dark ? "dark" : "light"
+                        )
                     )
                     .markdownTheme(MarkdownColours.enchantedTheme)
             case .activity(let items):
@@ -180,11 +252,17 @@ struct ChatMessageView: View {
                                 .frame(width: 10)
                             if showThink {
                                 if let think = message.think {
-                                    Markdown(think)
+                                    Markdown(ChatRenderCache.markdownContent(for: think))
 #if os(macOS)
                                         .textSelection(.enabled)
 #endif
-                                        .markdownCodeSyntaxHighlighter(.splash(theme: codeHighlightColorScheme))
+                                        .markdownCodeSyntaxHighlighter(
+                                            StreamAwareCodeHighlighter(
+                                                plain: false,
+                                                theme: codeHighlightColorScheme,
+                                                cacheNamespace: colorScheme == .dark ? "dark" : "light"
+                                            )
+                                        )
                                         .markdownTheme(MarkdownColours.enchantedTheme)
                                 }
                             } else {
@@ -201,12 +279,16 @@ struct ChatMessageView: View {
                           }
                     }
                     if let content = message.realContent {
-                        Markdown(content)
+                        Markdown(ChatRenderCache.markdownContent(for: content))
     #if os(macOS)
                             .textSelection(.enabled)
     #endif
                             .markdownCodeSyntaxHighlighter(
-                                StreamAwareCodeHighlighter(plain: !message.done, theme: codeHighlightColorScheme)
+                                StreamAwareCodeHighlighter(
+                                    plain: !message.done,
+                                    theme: codeHighlightColorScheme,
+                                    cacheNamespace: colorScheme == .dark ? "dark" : "light"
+                                )
                             )
                             .markdownTheme(MarkdownColours.enchantedTheme)
                     }
@@ -304,15 +386,12 @@ struct ChatMessageView: View {
     }
 }
 
-#Preview {
+#Preview(traits: .sizeThatFitsLayout) {
     VStack {
         ChatMessageView(message: MessageSD.sample[0], userInitials: "AM", editMessage: .constant(nil))
-            .previewLayout(.sizeThatFits)
         
         ChatMessageView(message: MessageSD.sample[1], userInitials: "AM", editMessage: .constant(nil))
-            .previewLayout(.sizeThatFits)
         
         ChatMessageView(message: MessageSD(content: "```python \nprint(5+5)\n```", role: "ai"), showLoader: true, userInitials: "AM", editMessage: .constant(nil))
-            .previewLayout(.sizeThatFits)
     }
 }

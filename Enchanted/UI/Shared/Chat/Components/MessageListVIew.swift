@@ -13,11 +13,17 @@ import AppKit
 
 struct MessageListView: View {
     private static let bottomAnchorID = "bottomAnchor"
+    private static let initialRenderWindow = 30
+    private static let renderWindowStep = 30
+    var conversationID: UUID?
     var messages: [MessageSD]
     var conversationState: ConversationState
     var userInitials: String
     @Binding var editMessage: MessageSD?
     @State private var messageSelected: MessageSD?
+    @State private var conversationStore = ConversationStore.shared
+    @State private var visibleMessageLimit = Self.initialRenderWindow
+    @State private var hoveredTurnID: UUID?
     @StateObject private var speechSynthesizer = SpeechSynthesizer.shared
 
     private var contentBackground: Color {
@@ -27,7 +33,42 @@ struct MessageListView: View {
         CodexTheme.appBackground
 #endif
     }
-    
+
+    private var displayedMessages: ArraySlice<MessageSD> {
+        messages.suffix(visibleMessageLimit)
+    }
+
+    private var hiddenLoadedMessageCount: Int {
+        max(0, messages.count - displayedMessages.count)
+    }
+
+    private var canShowEarlierMessages: Bool {
+        hiddenLoadedMessageCount > 0 || conversationStore.hasEarlierMessages
+    }
+
+#if os(macOS)
+    fileprivate struct TurnPreview: Identifiable {
+        let id: UUID
+        let userMessage: MessageSD
+        let response: MessageSD?
+    }
+
+    /// A turn starts with a user message and includes the first response before
+    /// the next user message. Keeping this derived from the already-rendered
+    /// window means the navigator never forces older SwiftData pages to mount.
+    private var turnPreviews: [TurnPreview] {
+        let visible = Array(displayedMessages)
+        return visible.indices.compactMap { index in
+            let message = visible[index]
+            guard message.role == "user" else { return nil }
+            let response = visible[(index + 1)...]
+                .prefix { $0.role != "user" }
+                .first
+            return TurnPreview(id: message.id, userMessage: message, response: response)
+        }
+    }
+#endif
+
     func onEditMessageTap() -> (MessageSD) -> Void {
         return { message in
             editMessage = message
@@ -46,20 +87,30 @@ struct MessageListView: View {
         }
     }
 
-    /// Pin the scroll view to the stable bottom marker, retried across a few
-    /// runloop hops.
-    ///
-    /// `onChange(of: messages)` does not fire for the initial value, so a
-    /// freshly-entered conversation relies on `defaultScrollAnchor` alone;
-    /// the retries here guarantee we land at the bottom even if the anchor
-    /// resolves before Markdown finishes its first measurement.
+    /// Pin to the stable bottom marker once on the next runloop, after SwiftUI
+    /// has installed the newly-selected transcript.
     private func pinToBottom(_ proxy: ScrollViewProxy) {
-        proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
         DispatchQueue.main.async {
             proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+            if let conversationID, !messages.isEmpty {
+                conversationStore.markConversationRendered(conversationID)
+            }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+    }
+
+    private func showEarlierMessages() {
+        if hiddenLoadedMessageCount > 0 {
+            visibleMessageLimit += Self.renderWindowStep
+            return
+        }
+
+        Task {
+            let previousCount = messages.count
+            await conversationStore.loadEarlierMessages()
+            let loadedCount = max(0, conversationStore.messages.count - previousCount)
+            if loadedCount > 0 {
+                visibleMessageLimit += min(Self.renderWindowStep, loadedCount)
+            }
         }
     }
 
@@ -69,18 +120,31 @@ struct MessageListView: View {
             ScrollViewReader { scrollViewProxy in
                 GeometryReader { geo in
                 ScrollView {
-                    // Plain (non-lazy) VStack: renders every row eagerly so all
-                    // heights are known at layout time. `LazyVStack` only
-                    // materialised visible rows and measured Markdown/code
-                    // heights asynchronously, which lost the race with
-                    // `defaultScrollAnchor`/`scrollTo` and parked the viewport
-                    // in empty space (the intermittent "blank on enter" bug).
-                    // Turns are small now (read-tool dumps are stripped from
-                    // `blocksJSON`), so eager layout is cheap and reliable.
+                    // Keep eager layout for reliable Markdown measurement, but
+                    // mount only a small tail window even when older database
+                    // pages are already cached.
                     VStack(spacing: 0) {
                         VStack {
+                        if canShowEarlierMessages {
+                            Button(action: showEarlierMessages) {
+                                HStack(spacing: 7) {
+                                    if conversationStore.isLoadingEarlierMessages {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    } else {
+                                        Image(systemName: "clock.arrow.circlepath")
+                                    }
+                                    Text("Show earlier messages")
+                                }
+                                .font(.system(size: 12))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 12)
+                            .disabled(conversationStore.isLoadingEarlierMessages)
+                        }
                         Group {
-                        ForEach(messages) { message in
+                        ForEach(displayedMessages) { message in
                             let contextMenu = ContextMenu(menuItems: {
                                 Button(action: {Clipboard.shared.setString(message.content)}) {
                                     Label("Copy", systemImage: "doc.on.doc")
@@ -159,24 +223,41 @@ struct MessageListView: View {
                 // scroll" symptom). Requires macOS 14 / iOS 17, which is
                 // already our deployment target.
                 .defaultScrollAnchor(.bottom)
-                // First entry into a conversation: `onChange(of: messages)`
-                // does NOT fire for the initial value, so the freshly-mounted
-                // list relies solely on `defaultScrollAnchor` — which loses the
-                // race against lazy Markdown measurement and lands blank. Pin
-                // explicitly once the view appears (with retries) to fix it.
+                // Cover the initial mount, where no tail-id change is emitted.
+                // The helper performs one next-runloop positioning pass.
                 .onAppear {
                     pinToBottom(scrollViewProxy)
                 }
-                // Fires when the messages array is replaced (switching
-                // conversations / new message) — extra safety net in case the
-                // anchor doesn't re-trigger on its own for a brand new list.
-                .onChange(of: messages) {
+                // A changed tail means a conversation was loaded or a new turn
+                // was appended. Prepending an older page keeps the same tail,
+                // so it deliberately does not jump the reader back to bottom.
+                .onChange(of: messages.last?.id) {
                     pinToBottom(scrollViewProxy)
                 }
                 // Follow the stream as the last message grows.
                 .onChange(of: messages.last?.content) {
                     scrollViewProxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
                 }
+                .onChange(of: conversationID) {
+                    visibleMessageLimit = Self.initialRenderWindow
+                    hoveredTurnID = nil
+                }
+#if os(macOS)
+                .overlay(alignment: .leading) {
+                    if turnPreviews.count > 1 {
+                        TurnNavigatorRail(
+                            turns: turnPreviews,
+                            hoveredTurnID: $hoveredTurnID,
+                            onSelect: { turn in
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    scrollViewProxy.scrollTo(turn.userMessage.id, anchor: .top)
+                                }
+                            }
+                        )
+                        .padding(.leading, 18)
+                    }
+                }
+#endif
 #if os(iOS) || os(visionOS)
                 .sheet(item: $messageSelected) { message in
                     SelectTextSheet(message: message)
@@ -197,8 +278,106 @@ struct MessageListView: View {
     }
 }
 
+#if os(macOS)
+private struct TurnNavigatorRail: View {
+    let turns: [MessageListView.TurnPreview]
+    @Binding var hoveredTurnID: UUID?
+    let onSelect: (MessageListView.TurnPreview) -> Void
+
+    private var hoveredTurn: MessageListView.TurnPreview? {
+        turns.first { $0.id == hoveredTurnID }
+    }
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(turns) { turn in
+                    Button {
+                        onSelect(turn)
+                    } label: {
+                        Capsule(style: .continuous)
+                            .fill(turn.id == hoveredTurnID ? Color.primary : CodexTheme.border)
+                            .frame(width: turn.id == hoveredTurnID ? 38 : 12, height: 3)
+                            .frame(width: 42, height: 8, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    // Hovering a marker must not move keyboard focus away from
+                    // the composer or change a keyboard-selected menu item.
+                    .focusable(false)
+                    .onHover { hovering in
+                        if hovering {
+                            hoveredTurnID = turn.id
+                        } else if hoveredTurnID == turn.id {
+                            hoveredTurnID = nil
+                        }
+                    }
+                    .accessibilityLabel("Jump to: \(turn.userMessage.content)")
+                }
+            }
+            .padding(.vertical, 10)
+
+            if let hoveredTurn {
+                TurnPreviewCard(turn: hoveredTurn)
+                    .offset(x: 70)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .leading)))
+                    .allowsHitTesting(false)
+                    .zIndex(2)
+            }
+        }
+        .animation(.easeOut(duration: 0.12), value: hoveredTurnID)
+        .frame(maxHeight: 360)
+    }
+}
+
+private struct TurnPreviewCard: View {
+    let turn: MessageListView.TurnPreview
+
+    private func summary(_ text: String, limit: Int) -> String {
+        let collapsed = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard collapsed.count > limit else { return collapsed }
+        return String(collapsed.prefix(limit)).trimmingCharacters(in: .whitespaces) + "…"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(summary(turn.userMessage.content, limit: 72))
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+
+            if let response = turn.response {
+                Text(summary(response.realContent ?? response.content, limit: 150))
+                    .font(.system(size: 13))
+                    .foregroundStyle(CodexTheme.mutedText)
+                    .lineLimit(3)
+            } else {
+                Text("等待回复…")
+                    .font(.system(size: 13))
+                    .foregroundStyle(CodexTheme.faintText)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(width: 420, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(CodexTheme.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(CodexTheme.border, lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.13), radius: 22, x: 0, y: 10)
+    }
+}
+#endif
+
 #Preview {
     MessageListView(
+        conversationID: nil,
         messages: MessageSD.sample,
         conversationState: .loading,
         userInitials: "AM",
