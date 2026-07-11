@@ -858,7 +858,26 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 subject?.send(.messageDelta(delta))
             } else if eventType == "thinking_delta", let delta = event["delta"] as? String {
                 subject?.send(.thinkingDelta(delta))
+            } else if eventType == "error", event["reason"] as? String != "aborted" {
+                let message = Self.assistantErrorMessage(in: obj) ?? "Agent request failed"
+                subject?.send(completion: .failure(
+                    NSError(
+                        domain: "PiConnector",
+                        code: 2,
+                        userInfo: [NSLocalizedDescriptionKey: message]
+                    )
+                ))
             }
+
+        case "message_end":
+            guard let message = Self.assistantErrorMessage(in: obj) else { break }
+            subject?.send(completion: .failure(
+                NSError(
+                    domain: "PiConnector",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: message]
+                )
+            ))
 
         case "tool_execution_start":
             let callId = obj["toolCallId"] as? String ?? UUID().uuidString
@@ -955,6 +974,33 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         default:
             break
         }
+    }
+
+    /// Extract the final provider error carried by pi's assistant lifecycle
+    /// events. pi still emits `agent_settled` after a failed model request, so
+    /// callers must recognize this payload before treating settlement as a
+    /// successful completion.
+    static func assistantErrorMessage(in object: [String: Any]) -> String? {
+        let event = object["assistantMessageEvent"] as? [String: Any]
+        let eventType = event?["type"] as? String
+        let eventReason = event?["reason"] as? String
+
+        let eventError = event?["error"]
+        let message = (eventError as? [String: Any])
+            ?? (object["message"] as? [String: Any])
+
+        let stopReason = message?["stopReason"] as? String
+        guard (eventType == "error" && eventReason != "aborted") || stopReason == "error" else {
+            return nil
+        }
+
+        if let errorMessage = message?["errorMessage"] as? String, !errorMessage.isEmpty {
+            return errorMessage
+        }
+        if let errorMessage = eventError as? String, !errorMessage.isEmpty {
+            return errorMessage
+        }
+        return nil
     }
 
     /// Extract human-readable text from a pi tool result.

@@ -22,8 +22,9 @@ xcodebuild -quiet -project Enchanted.xcodeproj -scheme Enchanted \
 Scripts/check-warnings.sh
 ```
 
-`EnchantedTests/CoreWorkflowTests.swift` 当前覆盖版本诊断、Plan 持久化、任务产物识别和
-Scheduled Task 运行记录。新增核心状态结构时，应优先补充无 UI 的序列化与策略测试。
+`EnchantedTests/CoreWorkflowTests.swift` 当前覆盖版本诊断、Plan 持久化、任务产物识别、
+Scheduled Task 运行记录，以及 pi assistant 错误/取消事件的区分。新增核心状态结构时，
+应优先补充无 UI 的序列化与策略测试。
 
 ## 告警策略
 

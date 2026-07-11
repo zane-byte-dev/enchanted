@@ -52,4 +52,36 @@ final class CoreWorkflowTests: XCTestCase {
         let data = try JSONEncoder().encode([record])
         XCTAssertEqual(try JSONDecoder().decode([ScheduledTaskRunRecord].self, from: data), [record])
     }
+
+    func testPiAssistantErrorExtraction() {
+        let payload: [String: Any] = [
+            "type": "message_update",
+            "assistantMessageEvent": [
+                "type": "error",
+                "reason": "error",
+                "error": [
+                    "stopReason": "error",
+                    "errorMessage": "Quota exceeded",
+                ],
+            ],
+        ]
+
+        XCTAssertEqual(PiConnector.assistantErrorMessage(in: payload), "Quota exceeded")
+    }
+
+    func testPiAssistantAbortIsNotAnError() {
+        let payload: [String: Any] = [
+            "type": "message_update",
+            "assistantMessageEvent": [
+                "type": "error",
+                "reason": "aborted",
+                "error": [
+                    "stopReason": "aborted",
+                    "errorMessage": "Request aborted",
+                ],
+            ],
+        ]
+
+        XCTAssertNil(PiConnector.assistantErrorMessage(in: payload))
+    }
 }

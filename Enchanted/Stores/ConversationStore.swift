@@ -61,6 +61,7 @@ private struct PiTranscriptMessage: Sendable {
     var content: String
     var blocks: [MessageBlock]
     var createdAt: Date
+    var errorMessage: String?
 }
 
 private struct PiSessionSeedMessage: Sendable {
@@ -251,6 +252,7 @@ final class ConversationStore: @unchecked Sendable {
     @MainActor private let messageCacheLimit = 8
     @MainActor private var prefetchingConversationIDs: Set<UUID> = []
     @MainActor private var refreshingConversationIDs: Set<UUID> = []
+    @MainActor private var repairedErrorConversationIDs: Set<UUID> = []
     /// Identifies the newest selection request so a slow, older fetch can
     /// never overwrite a conversation selected afterwards.
     @MainActor private var activeSelectionRequestID: UUID?
@@ -545,6 +547,7 @@ final class ConversationStore: @unchecked Sendable {
             try await swiftDataService.deleteMessages(forConversation: conversation.id)
             for snapshot in transcript {
                 let message = MessageSD(content: snapshot.content, role: snapshot.role, done: true)
+                message.error = snapshot.errorMessage != nil
                 if !snapshot.blocks.isEmpty,
                    let data = try? JSONEncoder().encode(snapshot.blocks) {
                     message.blocksJSON = String(data: data, encoding: .utf8)
@@ -638,7 +641,8 @@ final class ConversationStore: @unchecked Sendable {
                     role: "user",
                     content: contentText(message["content"]),
                     blocks: [],
-                    createdAt: date
+                    createdAt: date,
+                    errorMessage: nil
                 ))
             case "assistant":
                 var blocks: [MessageBlock] = []
@@ -662,12 +666,25 @@ final class ConversationStore: @unchecked Sendable {
                         }
                     }
                 }
+                let errorMessage = message["stopReason"] as? String == "error"
+                    ? message["errorMessage"] as? String
+                    : nil
+                if let errorMessage, !errorMessage.isEmpty {
+                    blocks.append(.text(String(localized: "Request failed: \(errorMessage)")))
+                }
                 let plain = blocks.compactMap { if case .text(let text) = $0 { text } else { nil } }.joined()
                 if let last = result.indices.last, result[last].role == "assistant" {
                     result[last].blocks.append(contentsOf: blocks)
                     result[last].content += plain
+                    result[last].errorMessage = errorMessage ?? result[last].errorMessage
                 } else {
-                    result.append(PiTranscriptMessage(role: "assistant", content: plain, blocks: blocks, createdAt: date))
+                    result.append(PiTranscriptMessage(
+                        role: "assistant",
+                        content: plain,
+                        blocks: blocks,
+                        createdAt: date,
+                        errorMessage: errorMessage
+                    ))
                 }
             case "toolResult":
                 guard let callID = message["toolCallId"] as? String,
@@ -1032,6 +1049,7 @@ final class ConversationStore: @unchecked Sendable {
             if cachedTranscript.messages.isEmpty {
                 markConversationRendered(conversationID)
             }
+            scheduleMissingErrorRepair(for: conversation)
             // Critical fast path: let the selection task return so SwiftUI can
             // commit the cached transcript before any database refresh.
             return
@@ -1076,6 +1094,60 @@ final class ConversationStore: @unchecked Sendable {
         refreshStats(for: conversationID)
         if page.messages.isEmpty {
             markConversationRendered(conversationID)
+        }
+        scheduleMissingErrorRepair(for: conversation)
+    }
+
+    /// Backfill errors lost by older builds that treated pi's terminal
+    /// `agent_settled` event as success even when the assistant message itself
+    /// ended with `stopReason=error`.
+    @MainActor
+    private func scheduleMissingErrorRepair(for conversation: ConversationSD) {
+        guard let path = conversation.piSessionPath,
+              !path.isEmpty,
+              !repairedErrorConversationIDs.contains(conversation.id) else { return }
+        repairedErrorConversationIDs.insert(conversation.id)
+        Task(priority: .utility) { @MainActor [weak self] in
+            await self?.repairMissingErrors(for: conversation, sessionPath: path)
+        }
+    }
+
+    @MainActor
+    private func repairMissingErrors(
+        for conversation: ConversationSD,
+        sessionPath: String
+    ) async {
+        async let localRequest = swiftDataService.fetchMessages(conversation.id)
+        let transcript = await Task.detached {
+            Self.readPiTranscript(at: sessionPath)
+        }.value
+        guard let local = try? await localRequest,
+              let transcript,
+              local.count <= transcript.count else { return }
+        let alignedTranscript = Array(transcript.prefix(local.count))
+        guard local.map(\.role) == alignedTranscript.map(\.role),
+              local.filter({ $0.role == "user" }).map(\.content)
+                == alignedTranscript.filter({ $0.role == "user" }).map(\.content) else { return }
+
+        var repaired = false
+        for (message, snapshot) in zip(local, alignedTranscript) {
+            guard message.role == "assistant",
+                  message.content.isEmpty,
+                  !message.error,
+                  let errorMessage = snapshot.errorMessage,
+                  !errorMessage.isEmpty else { continue }
+            message.content = snapshot.content
+            if let data = try? JSONEncoder().encode(snapshot.blocks) {
+                message.blocksJSON = String(data: data, encoding: .utf8)
+            }
+            message.error = true
+            message.done = true
+            try? await swiftDataService.updateMessage(message)
+            repaired = true
+        }
+
+        if repaired {
+            try? await reloadConversation(conversation)
         }
     }
 
@@ -2265,9 +2337,15 @@ final class ConversationStore: @unchecked Sendable {
 
     @MainActor
     private func handleError(_ errorMessage: String, convID: UUID) {
-        if let message = runs[convID]?.assistantMessage {
+        if let run = runs[convID] {
+            let message = run.assistantMessage
+            if !message.content.contains(errorMessage) {
+                let separator = message.content.isEmpty ? "" : "\n\n"
+                run.appendText(separator + String(localized: "Request failed: \(errorMessage)"))
+            }
+            run.flush()
             message.error = true
-            message.done = false
+            message.done = true
             Task(priority: .background) { try? await self.swiftDataService.updateMessage(message) }
         }
         runs[convID] = nil
