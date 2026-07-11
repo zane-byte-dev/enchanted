@@ -30,8 +30,10 @@
 
 ### 待办
 - [x] PiConnector 图片输入（支持多图、粘贴与历史展示）
-- [ ] PiConnector 补齐：steer、abort、compact
-- [ ] 搜索快捷键 / 会话内搜索
+- [x] PiConnector steer + abort
+- [ ] PiConnector compact
+- [x] 搜索快捷键（聊天 / 项目）
+- [ ] 会话内搜索
 - [ ] SwiftMath 渲染 `$...$` 公式（纯原生）
 - [ ] mermaid → 后端出 SVG/PNG，前端当图片
 - [ ] 右键菜单继续对齐 Codex（够用即停）
