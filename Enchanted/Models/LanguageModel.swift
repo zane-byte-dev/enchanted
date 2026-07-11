@@ -17,7 +17,6 @@ struct LanguageModel {
 }
 
 enum ModelProvider: String, Codable, Equatable, Hashable {
-    case ollama
     case openai
     case anthropic
     case google
@@ -31,7 +30,6 @@ enum ModelProvider: String, Codable, Equatable, Hashable {
 
     var iconName: String {
         switch self {
-        case .ollama: return "cube"
         case .openai: return "sparkles"
         case .anthropic: return "brain.head.profile"
         case .google: return "g.circle"

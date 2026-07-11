@@ -20,14 +20,14 @@ UI (SwiftUI, UI/macOS)
    ↕ 唯一接入点
 Stores/ConversationStore.swift  ── var backend: AgentBackend
    ↕ 统一事件流 AgentEvent
-Agent/{OllamaBackend, PiConnector, NeoConnector*, WandaConnector*}
+Agent/{PiConnector, NeoConnector*, WandaConnector*}
    ↕
 外部 agent 进程 / 服务
 ```
 
 - 统一协议：`Agent/AgentBackend.swift`（`AgentChatMessage` / `AgentEvent`）
 - pi 连接器：`Agent/PiConnector.swift`（有状态会话，只发最新 user turn）
-- 后端选择：`Agent/AgentBackendConfig.swift`（默认 `.pi`，可用 env 覆盖）
+- pi 配置：`Agent/AgentBackendConfig.swift`（可执行文件、工作目录、连接器创建）
 - 详见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
 ## 干活前必读的约束
@@ -55,8 +55,8 @@ Agent/{OllamaBackend, PiConnector, NeoConnector*, WandaConnector*}
 ## 常用
 
 ```bash
-# 指定后端 / 项目目录（env 覆盖 Settings）
-AGENT_BACKEND=pi PI_EXECUTABLE=~/.local/bin/pi PI_CWD=/path/to/proj open Enchanted.app
+# 指定 pi / 项目目录（env 覆盖 Settings）
+PI_EXECUTABLE=~/.local/bin/pi PI_CWD=/path/to/proj open Enchanted.app
 # 看这个项目的 AI 会话历史
 atm session list --days 14 | grep -i enchant
 ```

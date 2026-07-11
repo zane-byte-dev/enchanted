@@ -13,7 +13,7 @@ final class LanguageModelSD: Identifiable {
     @Attribute(.unique) var name: String
     var isAvailable: Bool = false
     var imageSupport: Bool = false
-    @Attribute var modelProvider: ModelProvider? = ModelProvider.ollama
+    @Attribute var modelProvider: ModelProvider? = ModelProvider.unknown
     /// Preserves custom/extension provider ids that are not enum cases.
     @Attribute var providerID: String?
     
@@ -73,8 +73,7 @@ extension LanguageModelSD {
     }
     
     static let sample: [LanguageModelSD] = [
-        .init(name: "Llama:latest", modelProvider: .ollama),
-        .init(name: "Mistral:latest", modelProvider: .ollama)
+        .init(name: "example-model", modelProvider: .unknown)
     ]
 }
 

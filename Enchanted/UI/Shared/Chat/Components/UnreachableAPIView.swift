@@ -14,7 +14,7 @@ struct UnreachableAPIView: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Ollama is unreachable. Go to Settings and update your Ollama API endpoint.")
+                Text("Pi is unavailable. Go to Settings and check the Pi executable and working directory.")
                     .lineLimit(nil)
                     .fontWeight(.medium)
                     .font(.system(size: 14))
@@ -25,7 +25,7 @@ struct UnreachableAPIView: View {
             
             ActivityIndicatorView(isVisible: .constant(true), type: .growingCircle)
                 .frame(width: 21, height: 21)
-                .accessibilityLabel(Text("Checking Ollama connection"))
+                .accessibilityLabel(Text("Checking Pi connection"))
             
             Button(action: { showSettings.toggle() }) {
                 Label("Settings", systemImage: "gearshape")

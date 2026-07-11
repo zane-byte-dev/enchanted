@@ -26,6 +26,7 @@
 ## 现状速览（截至 2026-07-10）
 
 - ✅ pi RPC 后端跑通（流式文本 / thinking / tool call / 会话恢复 / stats）
+- ✅ 移除旧 Ollama 运行链路与 OllamaKit 依赖，当前直接使用 pi
 - ✅ 技能管理页、Git worktree、项目文件夹菜单、快捷键自定义、任务通知
 - ✅ 内嵌终端（SwiftTerm PTY）、右侧工具侧边栏、简中本地化
 - ✅ SenseVoice / Apple Speech 语音输入

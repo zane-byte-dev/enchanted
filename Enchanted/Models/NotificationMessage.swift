@@ -22,7 +22,7 @@ struct NotificationMessage: Identifiable {
 // MARK: Sample data
 extension NotificationMessage {
     static let sample: [NotificationMessage] = [
-        .init(message: "Querying ollama", status: .info),
+        .init(message: "Querying pi", status: .info),
         .init(message: "Window changed. Stopping writing.", status: .info)
     ]
 }

@@ -1,5 +1,5 @@
 {
-  "originHash" : "27331dc8444266e5b3a6cc12e6eb6378dbf4919238b037677da61fa9a06d4846",
+  "originHash" : "46634b1d894e96dcf71ab84e9bbe410ca478938a2ad996d416d34b0776a00279",
   "pins" : [
     {
       "identity" : "activityindicatorview",
@@ -8,15 +8,6 @@
       "state" : {
         "revision" : "9970fd0bb7a05dad0b6566ae1f56937716686b24",
         "version" : "1.1.1"
-      }
-    },
-    {
-      "identity" : "alamofire",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Alamofire/Alamofire.git",
-      "state" : {
-        "revision" : "f455c2975872ccd2d9c81594c658af65716e9b9a",
-        "version" : "5.9.1"
       }
     },
     {
@@ -44,15 +35,6 @@
       "state" : {
         "revision" : "2849f5323265386e200484b0d0f896e73c3411b9",
         "version" : "6.0.1"
-      }
-    },
-    {
-      "identity" : "ollamakit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/AugustDev/OllamaKit",
-      "state" : {
-        "branch" : "main",
-        "revision" : "0079411b4568dbc821c9e2589345d3f9b9538af4"
       }
     },
     {

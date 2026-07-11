@@ -29,7 +29,7 @@
 
 - ❌ 不做 web 版（已论证性价比低）。
 - ❌ 不追求 iOS/visionOS 特性同步 —— 重心是 macOS coding 场景；iOS 代码保留但不优先。
-- ❌ 不做 Ollama 通用聊天产品运营 —— Ollama 后端仅作为回退/对照保留。
+- ❌ 不保留 Ollama 运行后端 —— 产品直接以 pi 为当前唯一实现，`AgentBackend` 抽象继续为 neo/wanda 预留。
 - ❌ 不上 App Store。走 **Developer ID 直分发**（官网/DMG + 公证），同 Codex。
   App Store 不允许下载/执行代码，与 coding agent 形态冲突。见 DECISIONS ADR-007。
 

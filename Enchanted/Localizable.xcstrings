@@ -32,16 +32,6 @@
         }
       }
     },
-    "Checking Ollama connection": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在检查 Ollama 连接"
-          }
-        }
-      }
-    },
     "Clear All Data": {
       "localizations": {
         "zh-Hans": {
@@ -358,36 +348,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "新建项目"
-          }
-        }
-      }
-    },
-    "Ollama": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ollama"
-          }
-        }
-      }
-    },
-    "Ollama is unreachable. Go to Settings and update your Ollama API endpoint.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法连接 Ollama。请前往设置更新 Ollama API 地址。"
-          }
-        }
-      }
-    },
-    "Ollama server URI": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ollama 服务器地址"
           }
         }
       }

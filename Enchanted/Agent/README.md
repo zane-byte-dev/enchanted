@@ -3,16 +3,15 @@
 > 📚 项目级知识库在 [`../../docs/README.md`](../../docs/README.md)（定位/架构/计划/性能/决策）。
 > 本文件只讲 Agent 层的实现细节；跨模块的计划与决策以 `docs/` 为准。
 
-把 Enchanted 从"只会连 Ollama"改造成"一套原生 GUI 驱动多个 agent CLI"
-（pi / neo / wanda）。对齐 pi 的 RPC 协议 / Zed 的 ACP。
+当前以 pi 作为唯一运行后端，并通过统一抽象为 neo / wanda 预留接入位。
+事件模型对齐 pi 的 RPC 协议，并计划向 Zed ACP 靠拢。
 
 ## 文件
 
 | 文件 | 作用 |
 |---|---|
 | `AgentBackend.swift` | 统一协议：`AgentChatMessage` / `AgentEvent` / `AgentBackend` |
-| `OllamaBackend.swift` | 默认后端，包一层现有 OllamaKit，行为不变 |
-| `PiConnector.swift` | 参考连接器：spawn `pi --mode rpc`，JSONL over stdio → `AgentEvent` |
+| `PiConnector.swift` | 当前连接器：spawn `pi --mode rpc`，JSONL over stdio → `AgentEvent` |
 | `PiSkill.swift` | 技能描述模型 + 从 pi `get_commands`（`source=="skill"`）解析 |
 
 ## 唯一的接入点
@@ -20,16 +19,16 @@
 `Stores/ConversationStore.swift` 里新增了一个属性：
 
 ```swift
-var backend: AgentBackend = OllamaBackend()
+var backend: AgentBackend = AgentBackendConfig.makeBackend()
 ```
 
-`sendPrompt` 里所有对 OllamaKit 的直接调用都换成了 `backend.chat(...)`，
+`sendPrompt` 只通过 `backend.chat(...)` 发起调用，
 事件通过 `handleEvent(_:)` 映射到 UI（`messageDelta` / `thinkingDelta` /
 `toolStart` / `done`）。
 
-## 切到 pi
+## 创建 pi 连接器
 
-在启动处（如 AppStore / 某个设置项）替换后端即可：
+默认由 `AgentBackendConfig` 创建；需要显式配置时可直接构造：
 
 ```swift
 ConversationStore.shared.backend = PiConnector(
@@ -51,13 +50,10 @@ user 消息**，历史由 pi 侧保存。Enchanted 自己的 SwiftData 历史与
 
 ## ⚠️ 沙盒约束（重要）
 
-沙盒 app **不能 spawn 外部进程**，也写不了容器外目录。所以：
-- `PiConnector`（spawn `pi --mode rpc`）**要求非沙盒**。Debug 已在
-  `EnchantedDebug.entitlements` 关掉 `com.apple.security.app-sandbox`。
-- 分发 / 上架 App Store 不能这么做，需 XPC helper，或改走
-  **网络连接**（neo/wanda 的 HTTP/WS server 天然绕开 spawn，只要
-  `com.apple.security.network.client` 即可，可保持沙盒）。
-- 结论：**pi 走 spawn（非沙盒）；neo/wanda 走网络（可沙盒）**。
+沙盒 app 可以 spawn 子进程，但子进程会继承父进程沙盒；hardened runtime 下，
+内置可执行体还需要同 Team 签名。当前 Debug 调用系统 PATH 中的外部 pi，因此暂时
+关闭 `com.apple.security.app-sandbox`。目标分发形态是把 pi 打入 bundle、同 Team
+签名，并通过 security-scoped bookmark 授权项目目录。详见 `docs/ARCHITECTURE.md`。
 
 启动时通过登录 shell 拉起 pi，以继承用户的 PATH（node）和 API key
 （如 `IDEALAB_API_KEY`）——见 `AgentBackendConfig.swift`。

@@ -17,7 +17,6 @@ import UniformTypeIdentifiers
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case general     = "general"
     case pi          = "pi"
-    case ollama      = "ollama"
     case appearance  = "appearance"
     case voice       = "voice"
     case shortcuts   = "shortcuts"
@@ -29,7 +28,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general:     return "常规"
         case .pi:          return "Pi"
-        case .ollama:      return "Ollama"
         case .appearance:  return "外观"
         case .voice:       return "语音"
         case .shortcuts:   return "快捷键"
@@ -41,7 +39,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general:     return "gearshape"
         case .pi:          return "terminal"
-        case .ollama:      return "cube"
         case .appearance:  return "paintbrush"
         case .voice:       return "waveform"
         case .shortcuts:   return "keyboard"
@@ -70,13 +67,9 @@ struct SettingsMacOS: View {
     private var conversationStore  = ConversationStore.shared
 
     // Persisted settings
-    @AppStorage("ollamaUri")          private var ollamaUri: String          = ""
-    @AppStorage("systemPrompt")       private var systemPrompt: String       = ""
     @AppStorage("vibrations")         private var vibrations: Bool           = true
     @AppStorage("colorScheme")        private var colorScheme: AppColorScheme = .system
-    @AppStorage("defaultOllamaModel") private var defaultOllamaModel: String = ""
     @AppStorage("piDefaultModel")     private var piDefaultModel: String     = ""
-    @AppStorage("ollamaBearerToken")  private var ollamaBearerToken: String  = ""
     @AppStorage("appUserInitials")    private var appUserInitials: String    = ""
     @AppStorage("pingInterval")       private var pingInterval: String       = "5"
     @AppStorage("voiceIdentifier")    private var voiceIdentifier: String    = ""
@@ -93,8 +86,6 @@ struct SettingsMacOS: View {
     @State private var piStatus: PiSettingsStatus?
 
     @State private var appLanguage: AppLanguage = AppLanguage.current
-    @State private var ollamaStatus: Bool?
-    @State private var ollamaModels: [LanguageModel] = []
     @State private var deleteConversationsDialog = false
     @State private var languageRestartDialog      = false
 
@@ -105,8 +96,6 @@ struct SettingsMacOS: View {
     // MARK: Actions
 
     private func save() {
-        if ollamaUri.last == "/" { ollamaUri = String(ollamaUri.dropLast()) }
-        OllamaService.shared.initEndpoint(url: ollamaUri, bearerToken: ollamaBearerToken)
         UserDefaults.standard.set(piThinkingLevel, forKey: "piThinkingLevel")
         let previousProvider = UserDefaults.standard.string(
             forKey: AgentBackendConfig.piDefaultProviderDefaultsKey
@@ -140,18 +129,6 @@ struct SettingsMacOS: View {
     private func handleDismiss() {
         save()
         AppStore.shared.showSettings = false
-    }
-
-    private func checkServer() {
-        Task {
-            OllamaService.shared.initEndpoint(url: ollamaUri)
-            ollamaStatus = await OllamaService.shared.reachable()
-            if ollamaStatus == true {
-                ollamaModels = (try? await OllamaService.shared.getModels()) ?? []
-            } else {
-                ollamaModels = []
-            }
-        }
     }
 
     private func checkPi() {
@@ -256,20 +233,10 @@ struct SettingsMacOS: View {
         .frame(minWidth: 740, minHeight: 520)
         .background(CodexTheme.appBackground)
         .preferredColorScheme(colorScheme.toiOSFormat)
-        .onChange(of: defaultOllamaModel) { _, name in
-            if AgentBackendConfig.currentKind == .ollama {
-                languageModelStore.setModel(modelName: name)
-            }
-        }
         .onChange(of: piDefaultModel) { _, name in
-            if AgentBackendConfig.currentKind == .pi {
-                languageModelStore.setModel(modelName: name)
-            }
+            languageModelStore.setModel(modelName: name)
         }
         .onAppear {
-            if piDefaultModel.isEmpty, AgentBackendConfig.currentKind == .pi {
-                piDefaultModel = defaultOllamaModel
-            }
             voiceCancellable = voiceTimer.sink { _ in speechSynthesiser.fetchVoices() }
             if piStatus == nil { checkPi() }
         }
@@ -343,16 +310,6 @@ struct SettingsMacOS: View {
             GeneralSettingsPane(
                 pingInterval: $pingInterval,
                 appUserInitials: $appUserInitials
-            )
-        case .ollama:
-            OllamaSettingsPane(
-                ollamaUri: $ollamaUri,
-                systemPrompt: $systemPrompt,
-                defaultModel: $defaultOllamaModel,
-                bearerToken: $ollamaBearerToken,
-                ollamaStatus: $ollamaStatus,
-                models: ollamaModels,
-                checkServer: checkServer
             )
         case .pi:
             PiSettingsPane(
@@ -613,7 +570,7 @@ private struct PiSettingsPane: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("工作目录只作为新对话的默认目录；已有对话继续使用各自绑定的项目。", systemImage: "folder")
                         Label("设置保存后，空闲 Pi 连接会立即重建；正在执行的任务会先正常完成。", systemImage: "arrow.triangle.2.circlepath")
-                        Label("当前“系统提示词”仍属于 Ollama 配置，尚未映射到 Pi RPC。", systemImage: "info.circle")
+                        Label("模型与 Provider 配置由 Pi RPC 读取并应用到新会话。", systemImage: "info.circle")
                     }
                     .font(.system(size: 12))
                     .foregroundColor(CodexTheme.mutedText)
@@ -742,98 +699,6 @@ private struct GeneralSettingsPane: View {
         }
     }
 
-}
-
-// MARK: - Ollama
-
-private struct OllamaSettingsPane: View {
-    @Binding var ollamaUri: String
-    @Binding var systemPrompt: String
-    @Binding var defaultModel: String
-    @Binding var bearerToken: String
-    @Binding var ollamaStatus: Bool?
-    var models: [LanguageModel]
-    var checkServer: () -> Void
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                paneTitle("Ollama")
-
-                settingsGroup("连接") {
-                    row("服务器地址") {
-                        HStack(spacing: 8) {
-                            TextField("http://localhost:11434", text: $ollamaUri, onCommit: checkServer)
-                                .textFieldStyle(.roundedBorder)
-                                .disableAutocorrection(true)
-                            statusDot
-                            Button("检查", action: checkServer)
-                                .buttonStyle(.bordered)
-                        }
-                    }
-                    settingsDivider
-                    row("Bearer Token") {
-                        SecureField("可选", text: $bearerToken)
-                            .textFieldStyle(.roundedBorder)
-                            .disableAutocorrection(true)
-                    }
-                }
-
-                settingsGroup("模型") {
-                    row("默认模型") {
-                        if models.isEmpty {
-                            Text(defaultModel.isEmpty ? "连接后读取模型" : defaultModel)
-                                .font(.system(size: 12))
-                                .foregroundColor(CodexTheme.mutedText)
-                        } else {
-                            Picker("", selection: $defaultModel) {
-                                ForEach(models, id: \.name) { model in
-                                    Text(model.name).tag(model.name)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(maxWidth: 260)
-                        }
-                    }
-                    settingsDivider
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("系统提示词")
-                            .font(.system(size: 12))
-                            .foregroundColor(CodexTheme.mutedText)
-                        TextEditor(text: $systemPrompt)
-                            .font(.system(size: 13))
-                            .frame(minHeight: 90, maxHeight: 160)
-                            .scrollContentBackground(.hidden)
-                            .background(settingsCardBackground)
-                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .stroke(CodexTheme.border, lineWidth: 1)
-                            )
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                }
-
-                settingsGroup("说明") {
-                    Text("这些配置仅在后端切换为 Ollama 时使用，不影响 Pi 会话。")
-                        .font(.system(size: 12))
-                        .foregroundColor(CodexTheme.mutedText)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                }
-            }
-            .padding(28)
-        }
-    }
-
-    @ViewBuilder
-    private var statusDot: some View {
-        if let ok = ollamaStatus {
-            Image(systemName: ok ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .foregroundColor(ok ? .green : .red)
-        }
-    }
 }
 
 // MARK: - Appearance

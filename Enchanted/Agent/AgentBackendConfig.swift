@@ -2,9 +2,7 @@
 //  AgentBackendConfig.swift
 //  Enchanted
 //
-//  One place to choose which agent backend the app talks to.
-//  Flip `Kind` (or set the `AGENT_BACKEND` env var) to switch between
-//  Ollama and the pi RPC connector.
+//  One place to configure the pi RPC backend.
 //
 
 import Foundation
@@ -21,14 +19,6 @@ enum AgentBackendConfig {
     static var piModelsConfigURL: URL {
         URL(fileURLWithPath: piAgentDirectory).appendingPathComponent("models.json")
     }
-
-    enum Kind: String {
-        case ollama
-        case pi
-    }
-
-    /// Default backend for this spike. Override with env `AGENT_BACKEND=ollama|pi`.
-    static let defaultKind: Kind = .pi
 
     /// pi launch settings. Environment overrides win so command-line launches
     /// remain reproducible; the Settings value is used for normal GUI launches.
@@ -79,11 +69,6 @@ enum AgentBackendConfig {
         return UserDefaults.standard.string(forKey: "piWorkingDirectory") ?? defaultWorkingDirectory
     }
 
-    static var currentKind: Kind {
-        ProcessInfo.processInfo.environment["AGENT_BACKEND"]
-            .flatMap(Kind.init(rawValue:)) ?? defaultKind
-    }
-
     static func makeBackend() -> AgentBackend {
         makeChatBackend(workingDirectory: piWorkingDirectory)
     }
@@ -91,19 +76,14 @@ enum AgentBackendConfig {
     /// Build a backend bound to a specific working directory (one per conversation).
     /// `resumeSessionPath` restores an existing pi session's context on spawn.
     static func makeChatBackend(workingDirectory: String, resumeSessionPath: String? = nil) -> AgentBackend {
-        switch currentKind {
-        case .ollama:
-            return OllamaBackend()
-        case .pi:
-            // Launch through a login shell so pi inherits the user's PATH (node)
-            // and API keys (e.g. IDEALAB_API_KEY) from ~/.zshrc. GUI apps started
-            // via `open` otherwise get a bare environment.
-            return makePiConnector(
-                executable: piExecutable,
-                workingDirectory: workingDirectory,
-                resumeSessionPath: resumeSessionPath
-            )
-        }
+        // Launch through a login shell so pi inherits the user's PATH (node)
+        // and API keys (e.g. IDEALAB_API_KEY) from ~/.zshrc. GUI apps started
+        // via `open` otherwise get a bare environment.
+        return makePiConnector(
+            executable: piExecutable,
+            workingDirectory: workingDirectory,
+            resumeSessionPath: resumeSessionPath
+        )
     }
 
     /// Build a temporary or conversation-scoped connector from explicit

@@ -13,7 +13,6 @@ struct Chat: View, Sendable {
     @State private var appStore: AppStore
     @AppStorage("systemPrompt") private var systemPrompt: String = ""
     @AppStorage("appUserInitials") private var userInitials: String = ""
-    @AppStorage("defaultOllamaModel") private var defaultOllamaModel: String = ""
     @AppStorage("piDefaultModel") private var piDefaultModel: String = ""
     @State var showMenu = false
     @State private var conversationSelectionTask: Task<Void, Never>?
@@ -36,11 +35,8 @@ struct Chat: View, Sendable {
     @MainActor
     func updateSelectedModel() {
         if languageModelStore.selectedModel == nil {
-            let configuredDefault = AgentBackendConfig.currentKind == .pi
-                ? piDefaultModel
-                : defaultOllamaModel
-            if !configuredDefault.isEmpty {
-                languageModelStore.setModel(modelName: configuredDefault)
+            if !piDefaultModel.isEmpty {
+                languageModelStore.setModel(modelName: piDefaultModel)
             } else {
                 languageModelStore.setModel(model: languageModelStore.models.first)
             }

@@ -2,15 +2,15 @@
 //  AgentBackend.swift
 //  Enchanted
 //
-//  Unified backend abstraction so the app can talk to any agent CLI/server
-//  (Ollama, pi, neo, wanda) through one streaming protocol.
+//  Unified backend abstraction so the app can talk to agent CLIs/servers
+//  (pi today; neo and wanda later) through one streaming protocol.
 //
 
 import Foundation
 import Combine
 
 /// Neutral chat message handed to any agent backend.
-/// Decoupled from OllamaKit so backends can map it to their own wire format.
+/// Decoupled from any backend wire format.
 struct AgentChatMessage: Sendable {
     enum Role: String, Sendable {
         case system
@@ -47,7 +47,6 @@ enum AgentEvent: Sendable {
 /// Any agent that can stream a chat completion.
 ///
 /// Implementations:
-/// - `OllamaBackend`  – wraps the existing OllamaKit path (stateless per request).
 /// - `PiConnector`    – drives `pi --mode rpc` over JSONL stdio (stateful session).
 protocol AgentBackend: Sendable {
     /// Stream a chat completion. Emits `AgentEvent`s, then completes (or errors).
@@ -64,6 +63,6 @@ protocol AgentBackend: Sendable {
 }
 
 extension AgentBackend {
-    /// Default: no skills (e.g. Ollama).
+    /// Default for backends that do not expose skills.
     func skills() async -> [PiSkill] { [] }
 }

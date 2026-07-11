@@ -13,12 +13,10 @@ struct Settings: View {
     var conversationStore = ConversationStore.shared
     var swiftDataService = SwiftDataService.shared
     
-    @AppStorage("ollamaUri") private var ollamaUri: String = ""
     @AppStorage("systemPrompt") private var systemPrompt: String = ""
     @AppStorage("vibrations") private var vibrations: Bool = true
     @AppStorage("colorScheme") private var colorScheme = AppColorScheme.system
-    @AppStorage("defaultOllamaModel") private var defaultOllamaModel: String = ""
-    @AppStorage("ollamaBearerToken") private var ollamaBearerToken: String = ""
+    @AppStorage("piDefaultModel") private var piDefaultModel: String = ""
     @AppStorage("appUserInitials") private var appUserInitials: String = ""
     @AppStorage("pingInterval") private var pingInterval: String = "5"
     @AppStorage("voiceIdentifier") private var voiceIdentifier: String = ""
@@ -35,25 +33,11 @@ struct Settings: View {
     private func save() {
 #if os(iOS)
 #endif
-        // remove trailing slash
-        if ollamaUri.last == "/" {
-            ollamaUri = String(ollamaUri.dropLast())
-        }
-        
-        OllamaService.shared.initEndpoint(url: ollamaUri, bearerToken: ollamaBearerToken)
         Task {
             Haptics.shared.mediumTap()
             try? await languageModelStore.loadModels()
         }
         presentationMode.wrappedValue.dismiss()
-    }
-    
-    private func checkServer() {
-        Task {
-            OllamaService.shared.initEndpoint(url: ollamaUri)
-            ollamaStatus = await OllamaService.shared.reachable()
-            try? await languageModelStore.loadModels()
-        }
     }
     
     private func deleteAll() {
@@ -63,30 +47,26 @@ struct Settings: View {
         }
     }
     
-    @State var ollamaStatus: Bool?
     var body: some View {
         SettingsView(
-            ollamaUri: $ollamaUri,
             systemPrompt: $systemPrompt, 
             vibrations: $vibrations,
             colorScheme: $colorScheme,
-            defaultOllamModel: $defaultOllamaModel, 
-            ollamaBearerToken: $ollamaBearerToken,
+            defaultModel: $piDefaultModel,
             appUserInitials: $appUserInitials,
             pingInterval: $pingInterval,
             voiceIdentifier: $voiceIdentifier,
             appLanguage: $appLanguage,
             save: save,
-            checkServer: checkServer,
             deleteAll: deleteAll,
-            ollamaLangugeModels: languageModelStore.models,
+            languageModels: languageModelStore.models,
             voices: speechSynthesiser.voices
         )
         .frame(maxWidth: 700)
         #if os(visionOS)
         .frame(minWidth: 600, minHeight: 800)
         #endif
-        .onChange(of: defaultOllamaModel) { _, modelName in
+        .onChange(of: piDefaultModel) { _, modelName in
             languageModelStore.setModel(modelName: modelName)
         }
         .onAppear {

@@ -27,8 +27,10 @@
 - [x] 任务完成通知（`NotificationService`）
 - [x] 简中本地化（String Catalog）
 - [x] 语音输入（SenseVoice + Apple Speech 双引擎）
+- [x] 移除 Ollama 运行链路与 OllamaKit 依赖，当前直接使用 pi
 
 ### 待办
+- [ ] 品牌轻量更名：用户可见名称从 `Enchanted` 改为 `Mox`（App 显示名称、窗口/About/设置文案、图标、README 与本地化）；第一阶段不改 Xcode 工程名、Target、Swift module、Bundle Identifier、源码目录和仓库名
 - [x] PiConnector 图片输入（支持多图、粘贴与历史展示）
 - [x] PiConnector steer + abort
 - [ ] PiConnector compact
@@ -65,7 +67,7 @@
 - [ ] `NeoConnector`（HTTP + SSE），事件映射到 `AgentEvent`
 - [ ] 事件模型对齐 ACP schema（对齐 Zed 生态，降低后续适配成本）
 - [ ] 验收标准：**接 neo 时 UI 层零改动**，只新增 connector + 配置项
-- [ ] 后端切换 UI（Settings 里选 pi / neo / ollama）
+- [ ] 后端切换 UI（接入 neo 后在 Settings 里选 pi / neo）
 
 ---
 

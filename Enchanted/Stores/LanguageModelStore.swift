@@ -64,10 +64,7 @@ final class LanguageModelStore {
             let availableModels = storedModels.filter { remoteModelNames.contains($0.name) }
             self.models = availableModels
 
-            let defaultsKey = AgentBackendConfig.currentKind == .pi
-                ? "piDefaultModel"
-                : "defaultOllamaModel"
-            let configuredDefault = UserDefaults.standard.string(forKey: defaultsKey)
+            let configuredDefault = UserDefaults.standard.string(forKey: "piDefaultModel")
             let preferredName = previouslySelectedName ?? configuredDefault
             let selection = preferredName.flatMap { preferred in
                 availableModels.first(where: { $0.name == preferred })

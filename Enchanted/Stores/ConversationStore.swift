@@ -100,7 +100,7 @@ final class ConversationStore: @unchecked Sendable {
 
     /// Default / control backend used for model listing + reachability.
     /// Per-conversation chat uses the dedicated connectors below.
-    var backend: AgentBackend = OllamaBackend()
+    var backend: AgentBackend = AgentBackendConfig.makeBackend()
 
     private var swiftDataService: SwiftDataService
 

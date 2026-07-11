@@ -7,8 +7,8 @@
 //  many agent CLIs" architecture (aligned with pi RPC / Zed's ACP).
 //
 //  NOTE: pi's RPC session is *stateful* — one process owns the whole
-//  conversation and its own transcript. So, unlike the stateless Ollama
-//  backend, PiConnector forwards only the latest user turn on each `chat()`
+//  conversation and its own transcript. PiConnector therefore forwards only
+//  the latest user turn on each `chat()`
 //  call and lets pi keep history. (For a first spike that's fine; syncing the
 //  two transcripts is a later step.)
 //

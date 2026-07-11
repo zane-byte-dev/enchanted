@@ -17,10 +17,8 @@
 		B7F289A22B24F4900011A4DC /* ToolCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E179A22B24F4900011A4DC /* ToolCardView.swift */; };
 		FF1002322B2483A20011A4DC /* Colours+Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002312B2483A20011A4DC /* Colours+Extension.swift */; };
 		FF1002392B24BBF20011A4DC /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1002382B24BBF20011A4DC /* Chat.swift */; };
-		FF10023E2B24F4900011A4DC /* OllamaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF10023D2B24F4900011A4DC /* OllamaService.swift */; };
 		FF10023A2E1F00000011A4DC /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF10023B2E1F00000011A4DC /* NotificationService.swift */; };
 		B7F280002B24F4900011A4DC /* AgentBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E170002B24F4900011A4DC /* AgentBackend.swift */; };
-		B7F280012B24F4900011A4DC /* OllamaBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E170012B24F4900011A4DC /* OllamaBackend.swift */; };
 		B7F280022B24F4900011A4DC /* PiConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E170022B24F4900011A4DC /* PiConnector.swift */; };
 		AA100201CCCC00000011AA01 /* PiSkill.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100200CCCC00000011AA01 /* PiSkill.swift */; };
 		AA100301CCCC00000011AA01 /* SkillStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100300CCCC00000011AA01 /* SkillStore.swift */; };
@@ -111,7 +109,6 @@
 		FFD57E302BF29145003FEFF1 /* MarkdownColours.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFD57E2F2BF29145003FEFF1 /* MarkdownColours.swift */; };
 		FFD57E322BF291B2003FEFF1 /* CodeBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFD57E312BF291B2003FEFF1 /* CodeBlockView.swift */; };
 		FFD5FAD22B8130490055AB51 /* Vortex in Frameworks */ = {isa = PBXBuildFile; productRef = FF464B122B8026DA008E5130 /* Vortex */; };
-		FFD5FAD52B8130CE0055AB51 /* OllamaKit in Frameworks */ = {isa = PBXBuildFile; productRef = FFD5FAD42B8130CE0055AB51 /* OllamaKit */; };
 		FFE21C782B82353A00A69B9C /* SleepTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFE21C772B82353A00A69B9C /* SleepTest.swift */; };
 		FFE2C8232B9A657A00BD82F3 /* Accessibility.plist in Resources */ = {isa = PBXBuildFile; fileRef = FFE2C8222B9A657A00BD82F3 /* Accessibility.plist */; };
 		FFEB9CA82BA04304004B1F3D /* NotificationMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFEB9CA72BA04304004B1F3D /* NotificationMessage.swift */; };
@@ -136,10 +133,8 @@
 		A6E179A22B24F4900011A4DC /* ToolCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCardView.swift; sourceTree = "<group>"; };
 		FF1002312B2483A20011A4DC /* Colours+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Colours+Extension.swift"; sourceTree = "<group>"; };
 		FF1002382B24BBF20011A4DC /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
-		FF10023D2B24F4900011A4DC /* OllamaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaService.swift; sourceTree = "<group>"; };
 		FF10023B2E1F00000011A4DC /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		A6E170002B24F4900011A4DC /* AgentBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentBackend.swift; sourceTree = "<group>"; };
-		A6E170012B24F4900011A4DC /* OllamaBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaBackend.swift; sourceTree = "<group>"; };
 		A6E170022B24F4900011A4DC /* PiConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiConnector.swift; sourceTree = "<group>"; };
 		AA100200CCCC00000011AA01 /* PiSkill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiSkill.swift; sourceTree = "<group>"; };
 		AA100300CCCC00000011AA01 /* SkillStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillStore.swift; sourceTree = "<group>"; };
@@ -247,7 +242,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				C92000000000000000000003 /* SherpaOnnx in Frameworks */,
-				FFD5FAD52B8130CE0055AB51 /* OllamaKit in Frameworks */,
 				FFD5FAD22B8130490055AB51 /* Vortex in Frameworks */,
 				FF0611F12C04A2FB00443B33 /* Splash in Frameworks */,
 				FF79AEB62CE72ECE00EDE10C /* MarkdownUI in Frameworks */,
@@ -569,7 +563,6 @@
 			isa = PBXGroup;
 			children = (
 				A6E170002B24F4900011A4DC /* AgentBackend.swift */,
-				A6E170012B24F4900011A4DC /* OllamaBackend.swift */,
 				A6E170022B24F4900011A4DC /* PiConnector.swift */,
 				AA100200CCCC00000011AA01 /* PiSkill.swift */,
 				A6E1799F2B24F4900011A4DC /* AgentBackendConfig.swift */,
@@ -587,7 +580,6 @@
 				FF0146CC2B3DADCA00A2A9F6 /* HapticsService.swift */,
 				FF2F03482B796A6500349855 /* HotkeyService.swift */,
 				FF10023B2E1F00000011A4DC /* NotificationService.swift */,
-				FF10023D2B24F4900011A4DC /* OllamaService.swift */,
 				FF10024F2B25C79F0011A4DC /* SwiftDataService.swift */,
 				FF6B7B122B3EE7AC00E8FEA3 /* Throttler.swift */,
 				FFCF00F02C03209A00590E79 /* SpeechService.swift */,
@@ -648,7 +640,6 @@
 				C92000000000000000000002 /* SherpaOnnx */,
 				FF1002652B2653EE0011A4DC /* ActivityIndicatorView */,
 				FF464B122B8026DA008E5130 /* Vortex */,
-				FFD5FAD42B8130CE0055AB51 /* OllamaKit */,
 				FFFD00C82B94CB5E00392AE6 /* AsyncAlgorithms */,
 				FF911DF02B98F08800915E94 /* WrappingHStack */,
 				FF4A605C2BC3587800D7BD4F /* KeyboardShortcuts */,
@@ -690,7 +681,6 @@
 				C92000000000000000000001 /* XCRemoteSwiftPackageReference "sherpa-onnx-spm" */,
 				FF1002642B2653EE0011A4DC /* XCRemoteSwiftPackageReference "ActivityIndicatorView" */,
 				FF464B112B8026DA008E5130 /* XCRemoteSwiftPackageReference "Vortex" */,
-				FFD5FAD32B8130CE0055AB51 /* XCRemoteSwiftPackageReference "OllamaKit" */,
 				FFFD00C72B94CB5E00392AE6 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */,
 				FF911DEF2B98F08800915E94 /* XCRemoteSwiftPackageReference "WrappingHStack" */,
 				FF4A605B2BC3587800D7BD4F /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
@@ -746,9 +736,7 @@
 				FF10024C2B25BEA00011A4DC /* MessageSD.swift in Sources */,
 				FFCF00F12C03209A00590E79 /* SpeechService.swift in Sources */,
 				FF10023A2E1F00000011A4DC /* NotificationService.swift in Sources */,
-				FF10023E2B24F4900011A4DC /* OllamaService.swift in Sources */,
 				B7F280002B24F4900011A4DC /* AgentBackend.swift in Sources */,
-				B7F280012B24F4900011A4DC /* OllamaBackend.swift in Sources */,
 				B7F280022B24F4900011A4DC /* PiConnector.swift in Sources */,
 				AA100201CCCC00000011AA01 /* PiSkill.swift in Sources */,
 				AA100301CCCC00000011AA01 /* SkillStore.swift in Sources */,
@@ -1153,14 +1141,6 @@
 				minimumVersion = 0.2.0;
 			};
 		};
-		FFD5FAD32B8130CE0055AB51 /* XCRemoteSwiftPackageReference "OllamaKit" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/AugustDev/OllamaKit";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
 		FFFD00C72B94CB5E00392AE6 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/apple/swift-async-algorithms.git";
@@ -1216,11 +1196,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = FF911DEF2B98F08800915E94 /* XCRemoteSwiftPackageReference "WrappingHStack" */;
 			productName = WrappingHStack;
-		};
-		FFD5FAD42B8130CE0055AB51 /* OllamaKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = FFD5FAD32B8130CE0055AB51 /* XCRemoteSwiftPackageReference "OllamaKit" */;
-			productName = OllamaKit;
 		};
 		FFFD00C82B94CB5E00392AE6 /* AsyncAlgorithms */ = {
 			isa = XCSwiftPackageProductDependency;

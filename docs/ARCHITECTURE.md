@@ -20,13 +20,13 @@
 ┌───────────────▼─────────────────────────────────────────┐
 │ Agent  (后端抽象)                                         │
 │  AgentBackend(协议) / AgentEvent / AgentChatMessage      │
-│  OllamaBackend │ PiConnector │ NeoConnector*│Wanda*       │
-│  AgentBackendConfig(选后端) / PiSkill / MessageBlock      │
+│  PiConnector │ NeoConnector* │ WandaConnector*             │
+│  AgentBackendConfig(pi 配置) / PiSkill / MessageBlock      │
 └───────────────┬─────────────────────────────────────────┘
                 │ stdio JSONL / HTTP+SSE / WS
         ┌───────▼───────┐
         │ pi / neo /    │   外部 agent 进程或服务
-        │ wanda / ollama│
+        │ wanda         │
         └───────────────┘
 
 旁路服务 Services: GitWorktree / Notification / Hotkey / Clipboard /
@@ -56,14 +56,13 @@ enum AgentEvent {
 ```
 
 **唯一接入点**：`ConversationStore` 里 `var backend: AgentBackend`。
-`sendPrompt` 不直接调 OllamaKit，而是 `backend.chat(...)`，事件经
+`sendPrompt` 只调用 `backend.chat(...)`，事件经
 `handleEvent(_:)` 映射到 UI。**接新后端 = 新写一个 connector，UI 层不动。**
 
 ## 后端实现对照
 
 | 后端 | 传输 | 会话状态 | 沙盒 | 状态 |
 |------|------|---------|------|------|
-| OllamaBackend | HTTP（OllamaKit） | 无状态，每次带全历史 | ✅ | 回退/对照 |
 | PiConnector | spawn + JSONL stdio | **有状态**，pi 进程持有历史 | ✅（需内置同签名） | 主力 |
 | NeoConnector* | HTTP + SSE | 服务端会话 | ✅ | 未实现 |
 | WandaConnector* | WebSocket | 服务端会话 | ✅ | 未实现 |
@@ -102,7 +101,7 @@ enum AgentEvent {
 
 | 目录 | 职责 |
 |------|------|
-| `Agent/` | 后端抽象、pi/ollama 连接器、技能模型、渲染块模型、后端配置 |
+| `Agent/` | 后端抽象、pi 连接器、技能模型、渲染块模型、后端配置 |
 | `Stores/` | `@Observable` 状态中枢，桥接 UI ↔ Agent ↔ SwiftData |
 | `Services/` | 无状态系统能力：Git worktree、通知、全局热键、剪贴板、语音、持久化 |
 | `VoiceInput/` | SenseVoice + Apple Speech 双引擎、录音协调、文本注入、悬浮层 |

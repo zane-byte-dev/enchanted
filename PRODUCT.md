@@ -6,11 +6,11 @@ product
 
 ## Users
 
-People using Enchanted are running or connecting to Ollama-compatible private model servers from Apple devices. They use the app for chat, voice prompts, image prompts, completions, and local conversation history.
+People using Enchanted run coding tasks through pi from a native macOS workspace. They use the app for project-scoped chat, tool calls, terminal workflows, voice prompts, images, and local conversation history.
 
 ## Product Purpose
 
-Enchanted provides a familiar chat interface for privately hosted language models across macOS, iOS, and visionOS. Success means users can connect their endpoint, pick a model, and use private multimodal workflows without sending conversation data to a third-party app service.
+Enchanted provides a native macOS interface for pi and keeps the UI decoupled through `AgentBackend` so additional coding-agent backends can be added later. Success means users can finish a real coding task without leaving the app.
 
 ## Brand Personality
 

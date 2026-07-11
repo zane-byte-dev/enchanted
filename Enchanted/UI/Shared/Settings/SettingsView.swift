@@ -10,21 +10,17 @@ import AVFoundation
 
 struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
-    @Binding var ollamaUri: String
     @Binding var systemPrompt: String
     @Binding var vibrations: Bool
     @Binding var colorScheme: AppColorScheme
-    @Binding var defaultOllamModel: String
-    @Binding var ollamaBearerToken: String
+    @Binding var defaultModel: String
     @Binding var appUserInitials: String
     @Binding var pingInterval: String
     @Binding var voiceIdentifier: String
     @Binding var appLanguage: AppLanguage
-    @State var ollamaStatus: Bool?
     var save: () -> ()
-    var checkServer: () -> ()
     var deleteAll: () -> ()
-    var ollamaLangugeModels: [LanguageModelSD]
+    var languageModels: [LanguageModelSD]
     var voices: [AVSpeechSynthesisVoice]
     
     @State private var deleteConversationsDialog = false
@@ -64,18 +60,7 @@ struct SettingsView: View {
             .background(CodexTheme.sidebarBackground)
             
             Form {
-                Section(header: Text("Ollama").font(.headline)) {
-                    
-                    TextField("Ollama server URI", text: $ollamaUri, onCommit: checkServer)
-                        .textContentType(.URL)
-                        .disableAutocorrection(true)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-#if !os(macOS)
-                        .padding(.top, 8)
-                        .keyboardType(.URL)
-                        .autocapitalization(.none)
-#endif
-                    
+                Section(header: Text("Pi").font(.headline)) {
                     VStack(alignment: .leading) {
                         Text("System prompt")
                         TextEditor(text: $systemPrompt)
@@ -85,30 +70,20 @@ struct SettingsView: View {
                             .frame(minHeight: 100)
                     }
                     
-                    Picker(selection: $defaultOllamModel) {
-                        ForEach(ollamaLangugeModels, id:\.self) { model in
+                    Picker(selection: $defaultModel) {
+                        ForEach(languageModels, id:\.self) { model in
                             Text(model.name).tag(model.name)
                         }
                     } label: {
                         Label {
                             Text("Default Model")
                         } icon: {
-                            Image("ollama")
-                                .renderingMode(.template)
-                                .resizable()
-                                .scaledToFit()
+                            Image(systemName: "terminal")
                                 .foregroundColor(Color(.label))
-                                .frame(width: 24, height: 24)
                         }
                     }
                     
                     
-                    TextField("Bearer Token", text: $ollamaBearerToken)
-                        .disableAutocorrection(true)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-#if os(iOS)
-                        .autocapitalization(.none)
-#endif
                     TextField("Ping Interval (seconds)", text: $pingInterval)
                         .disableAutocorrection(true)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -227,20 +202,17 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView(
-        ollamaUri: .constant(""),
         systemPrompt: .constant("You are an intelligent assistant solving complex problems. You are an intelligent assistant solving complex problems. You are an intelligent assistant solving complex problems."),
         vibrations: .constant(true),
         colorScheme: .constant(.light),
-        defaultOllamModel: .constant("llama2"),
-        ollamaBearerToken: .constant("x"),
+        defaultModel: .constant("model"),
         appUserInitials: .constant("AM"),
         pingInterval: .constant("5"),
         voiceIdentifier: .constant("sample"),
         appLanguage: .constant(.system),
         save: {},
-        checkServer: {},
         deleteAll: {},
-        ollamaLangugeModels: LanguageModelSD.sample,
+        languageModels: LanguageModelSD.sample,
         voices: []
     )
 }
