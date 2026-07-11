@@ -9,7 +9,7 @@
 #if os(macOS)
 import SwiftUI
 import AppKit
-import SwiftTerm
+@preconcurrency import SwiftTerm
 
 // MARK: - Model
 
@@ -17,6 +17,7 @@ import SwiftTerm
 /// running the user's login shell) so terminal state survives tab switches and
 /// SwiftUI redraws.
 @Observable
+@MainActor
 final class TerminalTab: Identifiable {
     let id = UUID()
     var title: String
@@ -60,25 +61,24 @@ final class TerminalTab: Identifiable {
     }
 
     /// Bridges SwiftTerm's delegate callbacks back into the observable tab.
-    private final class Coordinator: NSObject, LocalProcessTerminalViewDelegate {
+    @MainActor
+    private final class Coordinator: NSObject, @preconcurrency LocalProcessTerminalViewDelegate {
         weak var owner: TerminalTab?
 
         func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
         func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
             guard let directory else { return }
             let name = (directory as NSString).lastPathComponent
-            DispatchQueue.main.async { self.owner?.title = name.isEmpty ? "/" : name }
+            owner?.title = name.isEmpty ? "/" : name
         }
         func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
             guard !title.isEmpty else { return }
-            DispatchQueue.main.async { self.owner?.title = title }
+            owner?.title = title
         }
         func processTerminated(source: TerminalView, exitCode: Int32?) {
-            DispatchQueue.main.async {
-                guard let owner = self.owner else { return }
-                owner.terminated = true
-                TerminalStore.shared.close(owner)
-            }
+            guard let owner else { return }
+            owner.terminated = true
+            TerminalStore.shared.close(owner)
         }
     }
 }

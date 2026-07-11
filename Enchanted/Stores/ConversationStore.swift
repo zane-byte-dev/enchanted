@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import SwiftData
+@preconcurrency import SwiftData
 import Combine
 import SwiftUI
 import os
@@ -170,6 +170,13 @@ final class ConversationStore: @unchecked Sendable {
         var messages: [MessageSD]
         var hasEarlierMessages: Bool
         var refreshedAt: Date
+    }
+
+    /// SwiftData model references stay serialized by `SwiftDataService`'s
+    /// ModelActor. This box only makes the audited hand-off into MainActor
+    /// closures explicit to the Swift 5 concurrency checker.
+    private struct SwiftDataTransfer<Value>: @unchecked Sendable {
+        let value: Value
     }
 
     private struct DeletedMessageSnapshot: @unchecked Sendable {
@@ -773,18 +780,19 @@ final class ConversationStore: @unchecked Sendable {
 
     func loadConversations() async throws {
         let fetchedConversations = try await swiftDataService.fetchConversations()
+        let fetchedTransfer = SwiftDataTransfer(value: fetchedConversations)
         let shouldRecoverInterruptedRuns = await MainActor.run {
-            self.conversations = fetchedConversations
+            self.conversations = fetchedTransfer.value
             guard !self.didRecoverInterruptedRuns else { return false }
             self.didRecoverInterruptedRuns = true
             return true
         }
         Task(priority: .utility) { [weak self] in
-            await self?.prefetchRecentConversations(from: fetchedConversations)
+            await self?.prefetchRecentConversations(from: fetchedTransfer.value)
         }
         if shouldRecoverInterruptedRuns {
             Task(priority: .utility) { [weak self] in
-                await self?.recoverInterruptedRuns(from: fetchedConversations)
+                await self?.recoverInterruptedRuns(from: fetchedTransfer.value)
             }
         }
     }
@@ -804,12 +812,13 @@ final class ConversationStore: @unchecked Sendable {
                   let conversation = conversations.first(where: { $0.id == conversationID })
             else { continue }
             recoveredConversationIDs.insert(conversationID)
+            let conversationTransfer = SwiftDataTransfer(value: conversation)
 
             let connector: PiConnector? = await MainActor.run {
                 guard self.runs[conversationID] == nil,
-                      let sessionPath = conversation.piSessionPath,
+                      let sessionPath = conversationTransfer.value.piSessionPath,
                       !sessionPath.isEmpty else { return nil }
-                return self.connector(for: conversation) as? PiConnector
+                return self.connector(for: conversationTransfer.value) as? PiConnector
             }
             let recoveredTurn = await connector?.recoverLatestTurn()
             await applyRecoveredTurn(
@@ -829,8 +838,11 @@ final class ConversationStore: @unchecked Sendable {
             "The previous task was interrupted when the app exited. Recovered output and session context were preserved; send a message to continue."
         )
         let completedSuccessfully = recoveredTurn?.completedSuccessfully == true
+        let messageTransfer = SwiftDataTransfer(value: message)
+        let conversationTransfer = SwiftDataTransfer(value: conversation)
 
         await MainActor.run {
+            let message = messageTransfer.value
             var blocks = recoveredTurn?.blocks ?? message.renderBlocks
             if completedSuccessfully {
                 message.error = false
@@ -855,7 +867,7 @@ final class ConversationStore: @unchecked Sendable {
             // There is no live publisher after relaunch. Mark rendering as
             // terminal even when the recovered turn itself was interrupted.
             message.done = true
-            self.states[conversation.id] = completedSuccessfully
+            self.states[conversationTransfer.value.id] = completedSuccessfully
                 ? .completed
                 : .error(message: interruptedNotice)
         }
@@ -961,20 +973,21 @@ final class ConversationStore: @unchecked Sendable {
     /// Refresh a transcript without changing the current selection. This is
     /// also used after persisting a newly-sent turn.
     func reloadConversation(_ conversation: ConversationSD) async throws {
+        let conversationID = conversation.id
         let displayLimit = await MainActor.run {
-            max(Self.messagePageSize, self.messageCache[conversation.id]?.messages.count ?? 0)
+            max(Self.messagePageSize, self.messageCache[conversationID]?.messages.count ?? 0)
         }
         let page = try await swiftDataService.fetchMessagePage(
-            conversation.id,
+            conversationID,
             limit: displayLimit
         )
         await MainActor.run {
             self.cacheMessages(
                 page.messages,
-                for: conversation.id,
+                for: conversationID,
                 hasEarlierMessages: page.hasMore
             )
-            guard self.selectedConversation?.id == conversation.id else { return }
+            guard self.selectedConversation?.id == conversationID else { return }
             self.messages = page.messages
             self.hasEarlierMessages = page.hasMore
         }
@@ -1388,7 +1401,10 @@ final class ConversationStore: @unchecked Sendable {
         UserDefaults.standard.set(true, forKey: key)
         if changed {
             let fetched = try? await swiftDataService.fetchConversations()
-            await MainActor.run { if let fetched { self.conversations = fetched } }
+            let fetchedTransfer = SwiftDataTransfer(value: fetched)
+            await MainActor.run {
+                if let fetched = fetchedTransfer.value { self.conversations = fetched }
+            }
         }
     }
 
@@ -2402,14 +2418,16 @@ final class ConversationStore: @unchecked Sendable {
         for conversation: ConversationSD,
         using connector: PiConnector
     ) async {
+        let conversationTransfer = SwiftDataTransfer(value: conversation)
         let alreadyPersisted = await MainActor.run {
-            !(conversation.piSessionPath?.isEmpty ?? true)
+            !(conversationTransfer.value.piSessionPath?.isEmpty ?? true)
         }
         guard !alreadyPersisted,
               let path = await connector.currentSessionPath(),
               !path.isEmpty else { return }
 
         let shouldSave = await MainActor.run {
+            let conversation = conversationTransfer.value
             guard conversation.piSessionPath?.isEmpty ?? true else { return false }
             conversation.piSessionPath = path
             return true

@@ -144,7 +144,7 @@ extension MessageSD {
         }
     }
 
-    static let sample: [MessageSD] = [
+    @MainActor static let sample: [MessageSD] = [
         .init(content: "How many quarks there are in SM?", role: "user"),
         .init(content: "There are 6 quarks in SM, each of them has an antiparticle and colour.", role: "assistant"),
         .init(content: "How elementary particle is defined in mathematics?", role: "user"),
@@ -152,10 +152,12 @@ extension MessageSD {
     ]
 }
 
+// SwiftData model instances are confined by SwiftDataService/ConversationStore.
+// The unchecked marker documents that boundary for Swift 5 strict concurrency.
+
 // SwiftData models cross the ModelActor boundary throughout the existing data
 // layer. Keep the explicit audited conformance until that layer is migrated to
 // immutable DTOs under Swift 6 strict concurrency.
-extension MessageSD: @unchecked Sendable {}
 
 /// Result of splitting a message's `content` around `<think>…</think>`.
 /// Computed once per `content` change and cached (see `MessageSD.thinkParse`).

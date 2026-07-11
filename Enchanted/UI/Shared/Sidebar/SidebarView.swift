@@ -22,14 +22,14 @@ struct SidebarView: View {
     @AppStorage("appUserInitials") private var appUserInitials: String = ""
     
     private func onSkillsTap() {
-        Task { await Haptics.shared.mediumTap() }
+        Haptics.shared.mediumTap()
 #if os(macOS)
         AppStore.shared.showSkills.toggle()
 #endif
     }
 
     private func onSettingsTap() {
-        Task { await Haptics.shared.mediumTap() }
+        Haptics.shared.mediumTap()
 #if os(macOS)
         AppStore.shared.showSettings = true
 #else

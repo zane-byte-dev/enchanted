@@ -72,10 +72,10 @@ extension LanguageModelSD {
         return false
     }
     
-    static let sample: [LanguageModelSD] = [
+    @MainActor static let sample: [LanguageModelSD] = [
         .init(name: "example-model", modelProvider: .unknown)
     ]
 }
 
+
 // See MessageSD's Sendable note.
-extension LanguageModelSD: @unchecked Sendable {}

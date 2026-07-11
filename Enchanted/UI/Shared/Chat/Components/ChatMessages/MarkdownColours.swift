@@ -42,6 +42,7 @@ struct MarkdownColours {
     /// (no underline), roomier line-height, custom code block, and a
     /// header + zebra table style. Everything else (strong, link, blockquote,
     /// headings 4-6, task list, thematic break) is inherited from `.gitHub`.
+    @MainActor
     static var enchantedTheme: Theme { Theme.gitHub
         .text {
             ForegroundColor(CodexTheme.primaryText)

@@ -8,12 +8,24 @@
 import Foundation
 @preconcurrency import SwiftData
 
-struct MessagePage: Sendable {
+struct MessagePage: @unchecked Sendable {
     let messages: [MessageSD]
     let hasMore: Bool
 }
 
 final actor SwiftDataService: ModelActor {
+    private static let scheduledTaskSort = SortDescriptor(\ScheduledTaskSD.nextRunAt)
+    private static let modelNameSort = SortDescriptor(\LanguageModelSD.name)
+    private static let conversationUpdatedSort = SortDescriptor(
+        \ConversationSD.updatedAt,
+        order: .reverse
+    )
+    private static let messageCreatedSort = SortDescriptor(\MessageSD.createdAt)
+    private static let messageCreatedReverseSort = SortDescriptor(
+        \MessageSD.createdAt,
+        order: .reverse
+    )
+
     let modelContainer: ModelContainer
     let modelExecutor: ModelExecutor
     private let modelContext: ModelContext
@@ -48,8 +60,7 @@ final actor SwiftDataService: ModelActor {
 
 extension SwiftDataService {
     func fetchScheduledTasks() throws -> [ScheduledTaskSD] {
-        let sort = SortDescriptor(\ScheduledTaskSD.nextRunAt)
-        return try modelContext.fetch(FetchDescriptor<ScheduledTaskSD>(sortBy: [sort]))
+        try modelContext.fetch(FetchDescriptor<ScheduledTaskSD>(sortBy: [Self.scheduledTaskSort]))
     }
 
     func createScheduledTask(_ task: ScheduledTaskSD) throws {
@@ -70,8 +81,7 @@ extension SwiftDataService {
 // MARK: - Language Models
 extension SwiftDataService {
     func fetchModels() throws -> [LanguageModelSD] {
-        let sortDescriptor = SortDescriptor(\LanguageModelSD.name)
-        let fetchDescriptor = FetchDescriptor<LanguageModelSD>(sortBy: [sortDescriptor])
+        let fetchDescriptor = FetchDescriptor<LanguageModelSD>(sortBy: [Self.modelNameSort])
         let models = try modelContext.fetch(fetchDescriptor)
         
         return models
@@ -113,8 +123,7 @@ extension SwiftDataService {
     }
     
     func fetchConversations() throws -> [ConversationSD] {
-        let sortDescriptor = SortDescriptor(\ConversationSD.updatedAt, order: .reverse)
-        let fetchDescriptor = FetchDescriptor<ConversationSD>(sortBy: [sortDescriptor])
+        let fetchDescriptor = FetchDescriptor<ConversationSD>(sortBy: [Self.conversationUpdatedSort])
         return try modelContext.fetch(fetchDescriptor)
     }
     
@@ -146,8 +155,10 @@ extension SwiftDataService {
 extension SwiftDataService {
     func fetchMessages(_ conversationId: UUID) throws -> [MessageSD] {
         let predicate = #Predicate<MessageSD>{ $0.conversation?.id == conversationId }
-        let sortDescriptor = SortDescriptor(\MessageSD.createdAt)
-        let fetchDescriptor = FetchDescriptor<MessageSD>(predicate: predicate, sortBy: [sortDescriptor])
+        let fetchDescriptor = FetchDescriptor<MessageSD>(
+            predicate: predicate,
+            sortBy: [Self.messageCreatedSort]
+        )
         return try modelContext.fetch(fetchDescriptor)
     }
 
@@ -158,9 +169,8 @@ extension SwiftDataService {
         let predicate = #Predicate<MessageSD> {
             $0.role == "assistant" && !$0.done && !$0.error
         }
-        let sortDescriptor = SortDescriptor(\MessageSD.createdAt, order: .reverse)
         return try modelContext.fetch(
-            FetchDescriptor<MessageSD>(predicate: predicate, sortBy: [sortDescriptor])
+            FetchDescriptor<MessageSD>(predicate: predicate, sortBy: [Self.messageCreatedReverseSort])
         )
     }
 
@@ -173,8 +183,10 @@ extension SwiftDataService {
         limit: Int
     ) throws -> MessagePage {
         let predicate = #Predicate<MessageSD>{ $0.conversation?.id == conversationId }
-        let sortDescriptor = SortDescriptor(\MessageSD.createdAt, order: .reverse)
-        var fetchDescriptor = FetchDescriptor<MessageSD>(predicate: predicate, sortBy: [sortDescriptor])
+        var fetchDescriptor = FetchDescriptor<MessageSD>(
+            predicate: predicate,
+            sortBy: [Self.messageCreatedReverseSort]
+        )
         fetchDescriptor.fetchOffset = offset
         fetchDescriptor.fetchLimit = limit + 1
 

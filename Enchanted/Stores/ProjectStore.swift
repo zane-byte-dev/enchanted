@@ -10,6 +10,7 @@
 import Foundation
 
 @Observable
+@MainActor
 final class ProjectStore {
     static let shared = ProjectStore()
 

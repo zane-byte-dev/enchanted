@@ -9,6 +9,7 @@
 import SwiftUI
 #if os(macOS)
 import UniformTypeIdentifiers
+@preconcurrency import AppKit
 #endif
 
 struct InputFieldsView: View {
@@ -1257,24 +1258,29 @@ private struct SlashOutsideClickMonitor: NSViewRepresentable {
         coordinator.setActive(false)
     }
 
+    @MainActor
     final class Coordinator {
+        private struct EventBox: @unchecked Sendable {
+            let event: NSEvent
+        }
+
         weak var hostView: NSView?
         var onOutsideClick: (@MainActor () -> Void)?
-        private var eventMonitor: Any?
+        nonisolated(unsafe) private var eventMonitor: Any?
 
         func setActive(_ active: Bool) {
             if active, eventMonitor == nil {
                 eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp, .rightMouseUp]) { [weak self] event in
-                    guard let self,
-                          let hostView,
-                          let window = hostView.window,
-                          event.window === window else { return event }
+                    let box = EventBox(event: event)
+                    MainActor.assumeIsolated {
+                        guard let self,
+                              let hostView = self.hostView,
+                              let window = hostView.window,
+                              box.event.window === window else { return }
 
-                    let point = hostView.convert(event.locationInWindow, from: nil)
-                    guard !hostView.bounds.contains(point) else { return event }
-
-                    DispatchQueue.main.async { [weak self] in
-                        self?.onOutsideClick?()
+                        let point = hostView.convert(box.event.locationInWindow, from: nil)
+                        guard !hostView.bounds.contains(point) else { return }
+                        self.onOutsideClick?()
                     }
                     return event
                 }
@@ -1573,6 +1579,7 @@ struct CustomPasteTextView: NSViewRepresentable {
         }
     }
 
+    @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: CustomPasteTextView
         weak var textView: PasteInterceptingTextView?
@@ -1587,12 +1594,12 @@ struct CustomPasteTextView: NSViewRepresentable {
             // screenshot tools and Finder-copied image files, so decode all
             // common AppKit pasteboard representations.
             if let image = Self.image(from: pasteboard) {
-                DispatchQueue.main.async { self.parent.onImagePaste(image) }
+                parent.onImagePaste(image)
                 return true
             }
             if let string = pasteboard.string(forType: .string),
                PasteThreshold.isLarge(string) {
-                DispatchQueue.main.async { self.parent.onLargePaste(string) }
+                parent.onLargePaste(string)
                 return true
             }
             return false
@@ -1708,9 +1715,7 @@ struct CustomPasteTextView: NSViewRepresentable {
             let inset = textView.textContainerInset.height * 2
             let newHeight = min(max(used + inset, parent.minHeight), parent.maxHeight)
             if abs(newHeight - parent.calculatedHeight) > 0.5 {
-                DispatchQueue.main.async {
-                    self.parent.calculatedHeight = newHeight
-                }
+                parent.calculatedHeight = newHeight
             }
         }
     }

@@ -27,9 +27,7 @@ struct Chat: View, Sendable {
         withAnimation(.spring) {
             showMenu.toggle()
         }
-        Task {
-            await Haptics.shared.mediumTap()
-        }
+        Haptics.shared.mediumTap()
     }
     
     @MainActor
@@ -78,7 +76,7 @@ struct Chat: View, Sendable {
             } catch {
                 return
             }
-            await languageModelStore.setModel(model: conversation.model)
+            languageModelStore.setModel(model: conversation.model)
             Haptics.shared.mediumTap()
         }
         withAnimation {
@@ -93,7 +91,7 @@ struct Chat: View, Sendable {
     
     func onConversationDelete(_ conversation: ConversationSD) {
         Task {
-            await Haptics.shared.mediumTap()
+            Haptics.shared.mediumTap()
             try? await conversationStore.delete(conversation)
         }
     }
@@ -107,7 +105,7 @@ struct Chat: View, Sendable {
         }
         
         Task {
-            await Haptics.shared.mediumTap()
+            Haptics.shared.mediumTap()
             try? await languageModelStore.loadModels()
         }
         

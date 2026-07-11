@@ -51,7 +51,7 @@ final class ConversationSD: Identifiable {
 
 // MARK: - Sample data
 extension ConversationSD {
-    static let sample = [
+    @MainActor static let sample = [
         ConversationSD(name: String(localized: "New Chat"), updatedAt: Date.now),
         ConversationSD(name: "Presidential", updatedAt: Calendar.current.date(byAdding: .day, value: -1, to: Date.now)!),
         ConversationSD(name: "What is QFT?", updatedAt: Calendar.current.date(byAdding: .day, value: -2, to: Date.now)!)
@@ -61,7 +61,6 @@ extension ConversationSD {
 // See MessageSD's Sendable note. Model instances are serialized through the
 // shared ModelActor even though the SDK macro doesn't expose that fact cleanly
 // to strict-concurrency diagnostics yet.
-extension ConversationSD: @unchecked Sendable {}
 
 @Model
 final class ScheduledTaskSD: Identifiable {
@@ -98,5 +97,3 @@ final class ScheduledTaskSD: Identifiable {
         self.missedPolicy = missedPolicy
     }
 }
-
-extension ScheduledTaskSD: @unchecked Sendable {}

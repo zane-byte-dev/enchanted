@@ -8,17 +8,17 @@
 import Foundation
 
 @Observable
+@MainActor
 final class SkillStore {
     static let shared = SkillStore()
 
-    @MainActor var skills: [PiSkill] = []
-    @MainActor var isLoading = false
-    @MainActor var lastError: String?
+    var skills: [PiSkill] = []
+    var isLoading = false
+    var lastError: String?
 
     private init() {}
 
     /// Fetch skills from the control backend (the default pi RPC process).
-    @MainActor
     func load() async {
         isLoading = true
         lastError = nil

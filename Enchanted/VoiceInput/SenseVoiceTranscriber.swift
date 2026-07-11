@@ -156,7 +156,7 @@ private final class SenseVoiceAudioAccumulator: @unchecked Sendable {
 actor SenseVoiceInferenceEngine {
     static let shared = SenseVoiceInferenceEngine()
 
-    private var recognizer: OpaquePointer?
+    nonisolated(unsafe) private var recognizer: OpaquePointer?
     private var configurationKey = ""
 
     deinit {

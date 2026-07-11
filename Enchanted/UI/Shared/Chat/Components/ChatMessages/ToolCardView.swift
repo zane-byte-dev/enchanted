@@ -277,7 +277,7 @@ private struct QuickLookArtifactView: NSViewRepresentable {
 #endif
 
 private struct BodyHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
     }

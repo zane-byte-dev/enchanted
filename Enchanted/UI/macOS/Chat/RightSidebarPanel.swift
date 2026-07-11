@@ -59,6 +59,7 @@ enum RightSidebarTool: String, CaseIterable, Identifiable {
 
     /// Human-readable shortcut hint shown right-aligned in each row. Reads the
     /// live binding from `ShortcutStore` so custom keys are reflected here too.
+    @MainActor
     var shortcutHint: String {
         ShortcutStore.shared.effective(shortcutCommandID)?.displayKeys.joined() ?? ""
     }

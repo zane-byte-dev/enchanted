@@ -114,6 +114,30 @@ struct PiModelDescriptor: Identifiable, Equatable, Sendable {
 }
 
 final class PiConnector: AgentBackend, @unchecked Sendable {
+    /// Foundation JSON containers are immutable after parsing in this connector,
+    /// but `[String: Any]` cannot express that to Swift's Sendable checker.
+    private struct RPCResponse: @unchecked Sendable {
+        let object: [String: Any]?
+    }
+
+    /// Thread-safe one-shot continuation shared by the reply and timeout paths.
+    private final class ResponseLatch: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<RPCResponse, Never>?
+
+        init(_ continuation: CheckedContinuation<RPCResponse, Never>) {
+            self.continuation = continuation
+        }
+
+        func finish(_ object: [String: Any]?) {
+            let continuation = lock.withLock {
+                defer { self.continuation = nil }
+                return self.continuation
+            }
+            continuation?.resume(returning: RPCResponse(object: object))
+        }
+    }
+
     struct Config {
         /// Absolute path to the `pi` executable (or a launcher that runs it).
         var executable: String
@@ -170,6 +194,32 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         self.config = config
     }
 
+    private func request(
+        id: String,
+        command: [String: Any],
+        timeout: TimeInterval,
+        errorCode: Bool = false
+    ) async -> [String: Any]? {
+        let response = await withCheckedContinuation { continuation in
+            let latch = ResponseLatch(continuation)
+            lock.withLock { pending[id] = { latch.finish($0) } }
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { [self, latch] in
+                lock.withLock { pending[id] = nil }
+                latch.finish(nil)
+            }
+            do {
+                try send(command)
+            } catch {
+                lock.withLock { pending[id] = nil }
+                latch.finish(errorCode ? [
+                    "success": false,
+                    "error": error.localizedDescription,
+                ] : nil)
+            }
+        }
+        return response.object
+    }
+
     // MARK: - AgentBackend
 
     func chat(model: String, messages: [AgentChatMessage]) -> AnyPublisher<AgentEvent, Error> {
@@ -191,7 +241,7 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 ]
             }
 
-        Task {
+        Task { [self] in
             do {
                 try ensureProcess()
                 // Restore prior context BEFORE prompting. pi handles stdin lines
@@ -220,7 +270,7 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 }
                 try send(promptCommand)
             } catch {
-                subject.send(completion: .failure(error))
+                lock.withLock { self.subject }?.send(completion: .failure(error))
             }
         }
 
@@ -239,20 +289,12 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         guard shouldResume, let resume, !resume.isEmpty else { return }
 
         let id = nextId()
-        _ = await withCheckedContinuation { (continuation: CheckedContinuation<[String: Any]?, Never>) in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { obj in
-                if resumed { return }; resumed = true
-                continuation.resume(returning: obj)
-            }
-            lock.withLock { pending[id] = { obj in finish(obj) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
-                self.lock.withLock { self.pending[id] = nil }
-                finish(nil)
-            }
-            try? send(["id": id, "type": "switch_session", "sessionPath": resume])
-            AgentBackendConfig.debugLog("PiConnector: switch_session -> \(resume)")
-        }
+        _ = await request(
+            id: id,
+            command: ["id": id, "type": "switch_session", "sessionPath": resume],
+            timeout: 12
+        )
+        AgentBackendConfig.debugLog("PiConnector: switch_session -> \(resume)")
     }
 
     /// Ensure pi's live session is using `modelId`. No-op if already applied.
@@ -288,20 +330,12 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         }
 
         let id = nextId()
-        let response: [String: Any]? = await withCheckedContinuation { (continuation: CheckedContinuation<[String: Any]?, Never>) in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { obj in
-                if resumed { return }; resumed = true
-                continuation.resume(returning: obj)
-            }
-            lock.withLock { pending[id] = { obj in finish(obj) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-                self.lock.withLock { self.pending[id] = nil }
-                finish(nil)
-            }
-            try? send(["id": id, "type": "set_model", "provider": provider, "modelId": modelId])
-            AgentBackendConfig.debugLog("PiConnector: set_model -> \(provider)/\(modelId)")
-        }
+        let response = await request(
+            id: id,
+            command: ["id": id, "type": "set_model", "provider": provider, "modelId": modelId],
+            timeout: 8
+        )
+        AgentBackendConfig.debugLog("PiConnector: set_model -> \(provider)/\(modelId)")
 
         if let success = response?["success"] as? Bool, success {
             lock.withLock { appliedModelId = modelId }
@@ -314,20 +348,11 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     func models() async throws -> [LanguageModel] {
         try ensureProcess()
         let id = nextId()
-        let response: [String: Any]? = await withCheckedContinuation { continuation in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { obj in
-                if resumed { return }; resumed = true
-                continuation.resume(returning: obj)
-            }
-            lock.withLock { pending[id] = { obj in finish(obj) } }
-            // Timeout guard so startup hiccups don't hang the UI.
-            DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
-                self.lock.withLock { self.pending[id] = nil }
-                finish(nil)
-            }
-            try? send(["id": id, "type": "get_available_models"])
-        }
+        let response = await request(
+            id: id,
+            command: ["id": id, "type": "get_available_models"],
+            timeout: 12
+        )
 
         guard
             let data = response?["data"] as? [String: Any],
@@ -359,19 +384,11 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     func diagnosticModels() async -> [PiModelDescriptor]? {
         guard (try? ensureProcess()) != nil else { return nil }
         let id = nextId()
-        let response: [String: Any]? = await withCheckedContinuation { continuation in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { obj in
-                if resumed { return }; resumed = true
-                continuation.resume(returning: obj)
-            }
-            lock.withLock { pending[id] = { obj in finish(obj) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-                self.lock.withLock { self.pending[id] = nil }
-                finish(nil)
-            }
-            try? send(["id": id, "type": "get_available_models"])
-        }
+        let response = await request(
+            id: id,
+            command: ["id": id, "type": "get_available_models"],
+            timeout: 8
+        )
         guard
             let data = response?["data"] as? [String: Any],
             let models = data["models"] as? [[String: Any]]
@@ -402,19 +419,11 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     func sessionStats() async -> PiSessionStats? {
         guard process?.isRunning == true else { return nil }
         let id = nextId()
-        let response: [String: Any]? = await withCheckedContinuation { continuation in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { obj in
-                if resumed { return }; resumed = true
-                continuation.resume(returning: obj)
-            }
-            lock.withLock { pending[id] = { obj in finish(obj) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-                self.lock.withLock { self.pending[id] = nil }
-                finish(nil)
-            }
-            try? send(["id": id, "type": "get_session_stats"])
-        }
+        let response = await request(
+            id: id,
+            command: ["id": id, "type": "get_session_stats"],
+            timeout: 8
+        )
         guard let data = response?["data"] as? [String: Any] else { return nil }
         return PiSessionStats(data)
     }
@@ -428,27 +437,16 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         await resumeSessionIfNeeded()
 
         let id = nextId()
-        let response: [String: Any]? = await withCheckedContinuation { continuation in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { obj in
-                if resumed { return }; resumed = true
-                continuation.resume(returning: obj)
-            }
-            lock.withLock { pending[id] = { obj in finish(obj) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 120) {
-                self.lock.withLock { self.pending[id] = nil }
-                finish(nil)
-            }
-            var command: [String: Any] = ["id": id, "type": "compact"]
-            if let customInstructions, !customInstructions.isEmpty {
-                command["customInstructions"] = customInstructions
-            }
-            do {
-                try send(command)
-            } catch {
-                finish(["success": false, "error": error.localizedDescription])
-            }
+        var command: [String: Any] = ["id": id, "type": "compact"]
+        if let customInstructions, !customInstructions.isEmpty {
+            command["customInstructions"] = customInstructions
         }
+        let response = await request(
+            id: id,
+            command: command,
+            timeout: 120,
+            errorCode: true
+        )
 
         guard let response else {
             throw NSError(
@@ -473,23 +471,12 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         try ensureProcess()
         await resumeSessionIfNeeded()
         let id = nextId()
-        let response: [String: Any]? = await withCheckedContinuation { continuation in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { value in
-                if resumed { return }; resumed = true
-                continuation.resume(returning: value)
-            }
-            lock.withLock { pending[id] = { finish($0) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-                self.lock.withLock { self.pending[id] = nil }
-                finish(nil)
-            }
-            do {
-                try send(["id": id, "type": "set_auto_compaction", "enabled": enabled])
-            } catch {
-                finish(["success": false, "error": error.localizedDescription])
-            }
-        }
+        let response = await request(
+            id: id,
+            command: ["id": id, "type": "set_auto_compaction", "enabled": enabled],
+            timeout: 8,
+            errorCode: true
+        )
         guard let response else {
             throw NSError(domain: "PiConnector", code: 4,
                           userInfo: [NSLocalizedDescriptionKey: "Updating auto compaction timed out"])
@@ -512,19 +499,11 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         guard (try? ensureProcess()) != nil else { return nil }
         await resumeSessionIfNeeded()
         let id = nextId()
-        let response: [String: Any]? = await withCheckedContinuation { continuation in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { value in
-                if resumed { return }; resumed = true
-                continuation.resume(returning: value)
-            }
-            lock.withLock { pending[id] = { finish($0) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-                self.lock.withLock { self.pending[id] = nil }
-                finish(nil)
-            }
-            try? send(["id": id, "type": "get_fork_messages"])
-        }
+        let response = await request(
+            id: id,
+            command: ["id": id, "type": "get_fork_messages"],
+            timeout: 8
+        )
         guard let data = response?["data"] as? [String: Any],
               let messages = data["messages"] as? [[String: Any]] else { return nil }
         return messages.compactMap { $0["text"] as? String }
@@ -535,19 +514,11 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     func skills() async -> [PiSkill] {
         guard (try? ensureProcess()) != nil else { return [] }
         let id = nextId()
-        let response: [String: Any]? = await withCheckedContinuation { continuation in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { obj in
-                if resumed { return }; resumed = true
-                continuation.resume(returning: obj)
-            }
-            lock.withLock { pending[id] = { obj in finish(obj) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-                self.lock.withLock { self.pending[id] = nil }
-                finish(nil)
-            }
-            try? send(["id": id, "type": "get_commands"])
-        }
+        let response = await request(
+            id: id,
+            command: ["id": id, "type": "get_commands"],
+            timeout: 8
+        )
         guard
             let data = response?["data"] as? [String: Any],
             let commands = data["commands"] as? [[String: Any]]
@@ -624,20 +595,12 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         guard (try? ensureProcess()) != nil else { return nil }
         await resumeSessionIfNeeded()
         let id = nextId()
-        let response: [String: Any]? = await withCheckedContinuation { continuation in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { obj in
-                if resumed { return }; resumed = true
-                continuation.resume(returning: obj)
-            }
-            lock.withLock { pending[id] = { obj in finish(obj) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
-                self.lock.withLock { self.pending[id] = nil }
-                finish(nil)
-            }
-            try? send(["id": id, "type": "clone"])
-            AgentBackendConfig.debugLog("PiConnector: clone")
-        }
+        let response = await request(
+            id: id,
+            command: ["id": id, "type": "clone"],
+            timeout: 12
+        )
+        AgentBackendConfig.debugLog("PiConnector: clone")
         if let data = response?["data"] as? [String: Any], (data["cancelled"] as? Bool) == true {
             return nil
         }
@@ -662,19 +625,11 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         await resumeSessionIfNeeded()
 
         let messagesID = nextId()
-        let messagesResponse: [String: Any]? = await withCheckedContinuation { continuation in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { obj in
-                if resumed { return }; resumed = true
-                continuation.resume(returning: obj)
-            }
-            lock.withLock { pending[messagesID] = { obj in finish(obj) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-                self.lock.withLock { self.pending[messagesID] = nil }
-                finish(nil)
-            }
-            try? send(["id": messagesID, "type": "get_fork_messages"])
-        }
+        let messagesResponse = await request(
+            id: messagesID,
+            command: ["id": messagesID, "type": "get_fork_messages"],
+            timeout: 8
+        )
 
         guard
             let data = messagesResponse?["data"] as? [String: Any],
@@ -697,20 +652,12 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         }
 
         let forkID = nextId()
-        let forkResponse: [String: Any]? = await withCheckedContinuation { continuation in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { obj in
-                if resumed { return }; resumed = true
-                continuation.resume(returning: obj)
-            }
-            lock.withLock { pending[forkID] = { obj in finish(obj) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
-                self.lock.withLock { self.pending[forkID] = nil }
-                finish(nil)
-            }
-            try? send(["id": forkID, "type": "fork", "entryId": entryID])
-            AgentBackendConfig.debugLog("PiConnector: fork before user message \(userMessageIndex)")
-        }
+        let forkResponse = await request(
+            id: forkID,
+            command: ["id": forkID, "type": "fork", "entryId": entryID],
+            timeout: 12
+        )
+        AgentBackendConfig.debugLog("PiConnector: fork before user message \(userMessageIndex)")
 
         guard
             forkResponse?["success"] as? Bool == true,
@@ -731,19 +678,11 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     func currentSessionPath() async -> String? {
         try? ensureProcess()
         let id = nextId()
-        let response: [String: Any]? = await withCheckedContinuation { continuation in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { obj in
-                if resumed { return }; resumed = true
-                continuation.resume(returning: obj)
-            }
-            lock.withLock { pending[id] = { obj in finish(obj) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-                self.lock.withLock { self.pending[id] = nil }
-                finish(nil)
-            }
-            try? send(["id": id, "type": "get_state"])
-        }
+        let response = await request(
+            id: id,
+            command: ["id": id, "type": "get_state"],
+            timeout: 8
+        )
         let data = response?["data"] as? [String: Any]
         return data?["sessionFile"] as? String
     }
@@ -757,20 +696,11 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         await resumeSessionIfNeeded()
 
         let id = nextId()
-        let response: [String: Any]? = await withCheckedContinuation { continuation in
-            var resumed = false
-            let finish: ([String: Any]?) -> Void = { obj in
-                if resumed { return }
-                resumed = true
-                continuation.resume(returning: obj)
-            }
-            lock.withLock { pending[id] = { obj in finish(obj) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
-                self.lock.withLock { self.pending[id] = nil }
-                finish(nil)
-            }
-            try? send(["id": id, "type": "get_messages"])
-        }
+        let response = await request(
+            id: id,
+            command: ["id": id, "type": "get_messages"],
+            timeout: 12
+        )
 
         guard
             let data = response?["data"] as? [String: Any],

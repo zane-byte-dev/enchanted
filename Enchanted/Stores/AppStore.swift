@@ -15,6 +15,7 @@ enum AppState {
 }
 
 @Observable
+@MainActor
 final class AppStore {
     static let shared = AppStore()
     
@@ -24,9 +25,9 @@ final class AppStore {
     private var lastInstallationDiagnosticAt = Date.distantPast
     private var lastInstallationDiagnosticPassed = false
     private var lastDiagnosticExecutable = ""
-    @MainActor var isReachable: Bool = true
-    @MainActor var notifications: [NotificationMessage] = []
-    @MainActor var menuBarIcon: String? = nil
+    var isReachable: Bool = true
+    var notifications: [NotificationMessage] = []
+    var menuBarIcon: String? = nil
     var appState: AppState = .chat
     /// macOS only: replace main window content with full-page Settings.
     var showSettings: Bool = false
@@ -46,24 +47,18 @@ final class AppStore {
         startCheckingReachability(interval: pingInterval)
     }
     
-    deinit {
-        stopCheckingReachability()
-    }
-    
     private func startCheckingReachability(interval: TimeInterval = 5) {
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
             Task { [weak self] in
                 let status = await self?.reachable() ?? false
-                self?.updateReachable(status)
+                await self?.updateReachable(status)
             }
         }
     }
     
     private func updateReachable(_ isReachable: Bool) {
-        DispatchQueue.main.async {
-            withAnimation {
-                self.isReachable = isReachable
-            }
+        withAnimation {
+            self.isReachable = isReachable
         }
     }
 
@@ -95,7 +90,7 @@ final class AppStore {
         updateReachable(await reachable())
     }
     
-    @MainActor func uiLog(message: String, status: NotificationMessage.Status) {
+    func uiLog(message: String, status: NotificationMessage.Status) {
         notifications = [NotificationMessage(message: message, status: status)] + notifications.suffix(5)
     }
 }

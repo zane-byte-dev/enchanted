@@ -54,6 +54,7 @@ struct ShortcutCommandMeta: Identifiable {
     let defaultShortcut: Shortcut?
 }
 
+@MainActor
 final class ShortcutStore: ObservableObject {
     static let shared = ShortcutStore()
 

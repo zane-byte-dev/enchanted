@@ -220,7 +220,7 @@ struct SettingsMacOS: View {
 
     private func deleteAll() {
         Task {
-            try? await conversationStore.deleteAllConversations()
+            conversationStore.deleteAllConversations()
             try? await languageModelStore.deleteAllModels()
         }
     }

@@ -5,8 +5,9 @@
 //  Created by Augustinas Malinauskas on 09/12/2023.
 //
 
-import SwiftUI
+import AppIntents
 import SwiftData
+import SwiftUI
 
 #if os(macOS)
 import KeyboardShortcuts

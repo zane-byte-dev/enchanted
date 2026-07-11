@@ -8,7 +8,8 @@
 #if os(iOS)
 import UIKit
 
-class Haptics: @unchecked Sendable {
+@MainActor
+final class Haptics {
     static let shared = Haptics()
     
     private init() { }
@@ -36,7 +37,8 @@ class Haptics: @unchecked Sendable {
     }
 }
 #else
-class Haptics {
+@MainActor
+final class Haptics {
     static let shared = Haptics()
     func lightTap() {}
     func mediumTap() {}

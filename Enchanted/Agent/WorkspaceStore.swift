@@ -9,6 +9,7 @@
 import Foundation
 
 @Observable
+@MainActor
 final class WorkspaceStore {
     static let shared = WorkspaceStore()
     static let defaultsKey = "piWorkingDirectory"
@@ -24,7 +25,6 @@ final class WorkspaceStore {
         URL(fileURLWithPath: currentDirectory).lastPathComponent
     }
 
-    @MainActor
     func setDirectory(_ path: String, reconfigureBackend: Bool = true) {
         guard path != currentDirectory else { return }
         currentDirectory = path

@@ -45,13 +45,13 @@ final class VoiceInputCoordinator: ObservableObject {
     private var globalEscapeMonitor: Any?
 
     init(
-        transcriber: SpeechTranscribing = SpeechTranscriberRouter(),
-        injector: TextInjectionService = TextInjectionService(),
-        textProcessor: VoiceTextProcessor = VoiceTextProcessor()
+        transcriber: SpeechTranscribing? = nil,
+        injector: TextInjectionService? = nil,
+        textProcessor: VoiceTextProcessor? = nil
     ) {
-        self.transcriber = transcriber
-        self.injector = injector
-        self.textProcessor = textProcessor
+        self.transcriber = transcriber ?? SpeechTranscriberRouter()
+        self.injector = injector ?? TextInjectionService()
+        self.textProcessor = textProcessor ?? VoiceTextProcessor()
     }
 
     func shortcutKeyDown() {

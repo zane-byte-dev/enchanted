@@ -10,6 +10,7 @@ import Foundation
 import Magnet
 import SwiftUI
 
+@MainActor
 final class HotkeyService {
     static let shared = HotkeyService()
     
