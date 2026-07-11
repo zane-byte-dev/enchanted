@@ -482,7 +482,7 @@ private struct ScheduledTasksSettingsPane: View {
 
             let history = store.history(for: task)
             if !history.isEmpty {
-                DisclosureGroup("Run History (\(history.count))") {
+                DisclosureGroup {
                     VStack(alignment: .leading, spacing: 5) {
                         ForEach(history.prefix(8)) { record in
                             HStack {
@@ -496,6 +496,8 @@ private struct ScheduledTasksSettingsPane: View {
                         }
                     }
                     .padding(.top, 6)
+                } label: {
+                    Text("\(localizedSettingsString("Run History")) (\(history.count))")
                 }
                 .font(.system(size: 11))
             }
@@ -507,9 +509,14 @@ private struct ScheduledTasksSettingsPane: View {
 
     private var editorSheet: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(editingTaskID == nil ? "New Scheduled Task" : "Edit Scheduled Task")
+            Text(localizedSettingsString(
+                editingTaskID == nil ? "New Scheduled Task" : "Edit Scheduled Task"
+            ))
                 .font(.headline)
             TextField("Name", text: $name)
+            Text("Task instructions")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
             TextEditor(text: $prompt)
                 .font(.system(size: 12))
                 .frame(height: 110)
@@ -526,7 +533,7 @@ private struct ScheduledTasksSettingsPane: View {
             }
             Picker("Repeat", selection: $intervalSeconds) {
                 ForEach(intervals, id: \.1) { label, seconds in
-                    Text(label).tag(seconds)
+                    Text(localizedSettingsString(label)).tag(seconds)
                 }
             }
             DatePicker("Next run", selection: $nextRunAt)
@@ -598,7 +605,7 @@ private struct ScheduledTasksSettingsPane: View {
     }
 
     private func intervalLabel(_ seconds: Double) -> String {
-        intervals.first(where: { $0.1 == seconds })?.0 ?? "Custom"
+        localizedSettingsString(intervals.first(where: { $0.1 == seconds })?.0 ?? "Custom")
     }
 
     private func historyIcon(_ status: String) -> String {
@@ -606,7 +613,7 @@ private struct ScheduledTasksSettingsPane: View {
     }
 
     private func historyLabel(_ status: String) -> String {
-        switch status {
+        let key = switch status {
         case "manual": "Manual"
         case "scheduled": "Scheduled"
         case "missed_run": "Recovered missed run"
@@ -615,6 +622,7 @@ private struct ScheduledTasksSettingsPane: View {
         case "failed": "Failed"
         default: "Failed"
         }
+        return localizedSettingsString(key)
     }
 }
 

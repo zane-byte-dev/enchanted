@@ -1310,6 +1310,51 @@
     },
     "Thinking Level": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "推理等级" } } }
+    },
+    "Working directory": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作目录" } } }
+    },
+    "Choose…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "选择…" } } }
+    },
+    "Model": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "模型" } } }
+    },
+    "Default model": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "默认模型" } } }
+    },
+    "Repeat": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "重复周期" } } }
+    },
+    "Next run": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "下次运行" } } }
+    },
+    "If a run was missed": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "错过运行时" } } }
+    },
+    "Task instructions": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "任务说明" } } }
+    },
+    "Run History": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "运行历史" } } }
+    },
+    "Custom": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "自定义" } } }
+    },
+    "Manual": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "手动运行" } } }
+    },
+    "Scheduled": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "计划运行" } } }
+    },
+    "Recovered missed run": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "补跑错过任务" } } }
+    },
+    "Skipped": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "已跳过" } } }
+    },
+    "Failed": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "失败" } } }
     }
   }
 }
