@@ -25,9 +25,31 @@ struct MessageListView: View {
     @State private var visibleMessageLimit = Self.initialRenderWindow
     @State private var hoveredTurnID: UUID?
     @StateObject private var speechSynthesizer = SpeechSynthesizer.shared
+#if os(macOS)
+    @State private var isSearchPresented = false
+    @State private var searchQuery = ""
+    @State private var searchSelection = 0
+    @FocusState private var isSearchFocused: Bool
+    @State private var deepLinkHighlightMessageID: UUID?
+    @State private var pendingRetry: (response: MessageSD, user: MessageSD)?
+    @State private var regeneratingMessageID: UUID?
+#endif
 
     private var contentBackground: Color {
         CodexTheme.appBackground
+    }
+
+    private func searchHighlightColor(for message: MessageSD) -> Color {
+#if os(macOS)
+        if deepLinkHighlightMessageID == message.id {
+            return Color.accentColor.opacity(0.18)
+        }
+        return !searchQuery.isEmpty && message.content.localizedCaseInsensitiveContains(searchQuery)
+            ? Color.yellow.opacity(0.12)
+            : Color.clear
+#else
+        return Color.clear
+#endif
     }
 
     private var displayedMessages: ArraySlice<MessageSD> {
@@ -61,6 +83,67 @@ struct MessageListView: View {
                 .prefix { $0.role != "user" }
                 .first
             return TurnPreview(id: message.id, userMessage: message, response: response)
+        }
+    }
+
+    private var searchMatches: [MessageSD] {
+        guard !searchQuery.isEmpty else { return [] }
+        return messages.filter {
+            $0.content.localizedCaseInsensitiveContains(searchQuery)
+        }
+    }
+
+    private func precedingUserMessage(for message: MessageSD) -> MessageSD? {
+        guard let index = messages.firstIndex(where: { $0.id == message.id }) else { return nil }
+        return messages[...index].last { $0.role == "user" }
+    }
+
+    private func codeBlocks(in content: String) -> String {
+        let parts = content.components(separatedBy: "```")
+        guard parts.count >= 3 else { return "" }
+        return stride(from: 1, to: parts.count, by: 2)
+            .map { block in
+                let lines = parts[block].split(separator: "\n", omittingEmptySubsequences: false)
+                return lines.dropFirst().joined(separator: "\n")
+            }
+            .joined(separator: "\n\n")
+    }
+
+    private func retryMayRepeatActions(_ response: MessageSD) -> Bool {
+        response.renderBlocks.contains { block in
+            guard case .tool(let tool) = block else { return false }
+            return !tool.isReadOnly
+        }
+    }
+
+    private func regenerate(_ response: MessageSD, after userMessage: MessageSD) {
+        if retryMayRepeatActions(response) {
+            pendingRetry = (response, userMessage)
+            return
+        }
+        performRegenerate(response, after: userMessage)
+    }
+
+    private func performRegenerate(_ response: MessageSD, after userMessage: MessageSD) {
+        guard regeneratingMessageID == nil else { return }
+        regeneratingMessageID = response.id
+        Task {
+            await conversationStore.regenerateResponse(after: userMessage)
+            regeneratingMessageID = nil
+        }
+    }
+
+    private func focusLinkedMessage(_ messageID: UUID, using proxy: ScrollViewProxy) {
+        visibleMessageLimit = max(visibleMessageLimit, messages.count)
+        deepLinkHighlightMessageID = messageID
+        conversationStore.pendingMessageFocusID = nil
+        DispatchQueue.main.async {
+            proxy.scrollTo(messageID, anchor: .center)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
+            if deepLinkHighlightMessageID == messageID {
+                withAnimation { deepLinkHighlightMessageID = nil }
+            }
         }
     }
 #endif
@@ -145,6 +228,52 @@ struct MessageListView: View {
                                 Button(action: {Clipboard.shared.setString(message.content)}) {
                                     Label("Copy", systemImage: "doc.on.doc")
                                 }
+#if os(macOS)
+                                Button(action: {
+                                    Clipboard.shared.setString("**\(message.role.capitalized):**\n\n\(message.content)")
+                                }) {
+                                    Label("Copy as Markdown", systemImage: "text.badge.checkmark")
+                                }
+                                let extractedCode = codeBlocks(in: message.content)
+                                if !extractedCode.isEmpty {
+                                    Button(action: { Clipboard.shared.setString(extractedCode) }) {
+                                        Label("Copy Code Blocks", systemImage: "chevron.left.forwardslash.chevron.right")
+                                    }
+                                }
+                                if let conversationID {
+                                    Button(action: {
+                                        Clipboard.shared.setString(
+                                            ConversationStore.deepLink(for: conversationID, messageID: message.id)
+                                        )
+                                    }) {
+                                        Label("Copy Message Link", systemImage: "link")
+                                    }
+                                }
+
+                                Divider()
+
+                                Button(action: {
+                                    Task { await conversationStore.forkFromHere(message) }
+                                }) {
+                                    Label("Fork from Here", systemImage: "arrow.branch")
+                                }
+                                .disabled(conversationState == .loading)
+
+                                if let userMessage = precedingUserMessage(for: message),
+                                   message.role == "assistant" {
+                                    Button(action: {
+                                        regenerate(message, after: userMessage)
+                                    }) {
+                                        Label(
+                                            regeneratingMessageID == message.id
+                                                ? "Creating Branch…"
+                                                : (message.error ? "Retry" : "Regenerate"),
+                                            systemImage: "arrow.clockwise"
+                                        )
+                                    }
+                                    .disabled(conversationState == .loading || regeneratingMessageID != nil)
+                                }
+#endif
                                 
 #if os(iOS) || os(visionOS)
                                 Button(action: { messageSelected = message }) {
@@ -185,9 +314,23 @@ struct MessageListView: View {
                             .listRowSeparator(.hidden)
                             .padding(.vertical, 12)
                             .padding(.horizontal, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(searchHighlightColor(for: message))
+                            )
                             .contentShape(Rectangle())
                             .contextMenu(contextMenu)
                             .runningBorder(animated: message.id == editMessage?.id)
+                            .overlay(alignment: .topTrailing) {
+#if os(macOS)
+                                if conversationStore.isBranching(messageID: message.id)
+                                    || regeneratingMessageID == message.id {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .padding(8)
+                                }
+#endif
+                            }
                             .id(message.id)
                         }
                         }
@@ -223,6 +366,11 @@ struct MessageListView: View {
                 // The helper performs one next-runloop positioning pass.
                 .onAppear {
                     pinToBottom(scrollViewProxy)
+#if os(macOS)
+                    if let messageID = conversationStore.pendingMessageFocusID {
+                        focusLinkedMessage(messageID, using: scrollViewProxy)
+                    }
+#endif
                 }
                 // A changed tail means a conversation was loaded or a new turn
                 // was appended. Prepending an older page keeps the same tail,
@@ -237,8 +385,70 @@ struct MessageListView: View {
                 .onChange(of: conversationID) {
                     visibleMessageLimit = Self.initialRenderWindow
                     hoveredTurnID = nil
+#if os(macOS)
+                    isSearchPresented = false
+                    searchQuery = ""
+                    searchSelection = 0
+                    deepLinkHighlightMessageID = nil
+#endif
                 }
 #if os(macOS)
+                .onChange(of: conversationStore.pendingMessageFocusID) { _, messageID in
+                    guard let messageID else { return }
+                    focusLinkedMessage(messageID, using: scrollViewProxy)
+                }
+                .overlay(alignment: .topTrailing) {
+                    if isSearchPresented {
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(.secondary)
+                            TextField("Find in chat", text: $searchQuery)
+                                .textFieldStyle(.plain)
+                                .frame(width: 220)
+                                .focused($isSearchFocused)
+                                .onSubmit {
+                                    guard !searchMatches.isEmpty else { return }
+                                    searchSelection = (searchSelection + 1) % searchMatches.count
+                                    scrollViewProxy.scrollTo(searchMatches[searchSelection].id, anchor: .center)
+                                }
+                            Text(searchMatches.isEmpty ? "0/0" : "\(min(searchSelection + 1, searchMatches.count))/\(searchMatches.count)")
+                                .font(.system(size: 11).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(minWidth: 38)
+                            Button(action: {
+                                guard !searchMatches.isEmpty else { return }
+                                searchSelection = (searchSelection - 1 + searchMatches.count) % searchMatches.count
+                                scrollViewProxy.scrollTo(searchMatches[searchSelection].id, anchor: .center)
+                            }) { Image(systemName: "chevron.up") }
+                            Button(action: {
+                                guard !searchMatches.isEmpty else { return }
+                                searchSelection = (searchSelection + 1) % searchMatches.count
+                                scrollViewProxy.scrollTo(searchMatches[searchSelection].id, anchor: .center)
+                            }) { Image(systemName: "chevron.down") }
+                            Button(action: {
+                                isSearchPresented = false
+                                searchQuery = ""
+                            }) { Image(systemName: "xmark") }
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(CodexTheme.border))
+                        .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
+                        .padding(.top, 12)
+                        .padding(.trailing, 18)
+                        .onChange(of: searchQuery) {
+                            searchSelection = 0
+                            if let first = searchMatches.first {
+                                visibleMessageLimit = max(visibleMessageLimit, messages.count)
+                                DispatchQueue.main.async {
+                                    scrollViewProxy.scrollTo(first.id, anchor: .center)
+                                }
+                            }
+                        }
+                    }
+                }
                 .overlay(alignment: .leading) {
                     if turnPreviews.count > 1 {
                         TurnNavigatorRail(
@@ -271,6 +481,30 @@ struct MessageListView: View {
                 )
         }
         .background(contentBackground)
+#if os(macOS)
+        .onReceive(NotificationCenter.default.publisher(for: .cmdFindInChat)) { _ in
+            isSearchPresented = true
+            Task {
+                await conversationStore.loadAllMessagesForSearch()
+                visibleMessageLimit = max(visibleMessageLimit, conversationStore.messages.count)
+                isSearchFocused = true
+            }
+        }
+        .alert("Retry may repeat actions", isPresented: Binding(
+            get: { pendingRetry != nil },
+            set: { if !$0 { pendingRetry = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { pendingRetry = nil }
+            Button("Retry Anyway", role: .destructive) {
+                if let pendingRetry {
+                    performRegenerate(pendingRetry.response, after: pendingRetry.user)
+                }
+                pendingRetry = nil
+            }
+        } message: {
+            Text("This response used commands or tools that may change files or external state. Retrying can run those actions again.")
+        }
+#endif
     }
 }
 

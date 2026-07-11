@@ -19,6 +19,7 @@ extension Notification.Name {
     static let cmdNewChat       = Notification.Name("enchanted.cmd.newChat")
     static let cmdToggleSidebar = Notification.Name("enchanted.cmd.toggleSidebar")
     static let cmdRenameChat    = Notification.Name("enchanted.cmd.renameChat")
+    static let cmdFindInChat    = Notification.Name("enchanted.cmd.findInChat")
 }
 
 struct ChatCommands: Commands {
@@ -42,6 +43,13 @@ struct ChatCommands: Commands {
         }
 
         CommandMenu("Chat") {
+            Button("Find in Chat…") {
+                NotificationCenter.default.post(name: .cmdFindInChat, object: nil)
+            }
+            .keyboardShortcut("f", modifiers: .command)
+
+            Divider()
+
             Button("Toggle Sidebar") {
                 NotificationCenter.default.post(name: .cmdToggleSidebar, object: nil)
             }

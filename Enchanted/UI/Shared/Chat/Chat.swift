@@ -180,6 +180,9 @@ struct Chat: View, Sendable {
                     copyChat: copyChat,
                     stats: conversationStore.currentStats,
                     onSteer: { _ = conversationStore.steerIfRunning($0) },
+                    onFollowUp: { message, images in
+                        Task { _ = await conversationStore.followUpIfRunning(message, images: images) }
+                    },
                     onNewConversationInProject: newConversationInProject,
                     showSkills: appStore.showSkills
                 )

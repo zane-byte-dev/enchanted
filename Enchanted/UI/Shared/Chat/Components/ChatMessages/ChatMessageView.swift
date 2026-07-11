@@ -235,7 +235,14 @@ struct ChatMessageView: View {
                 
                 VStack(alignment: .leading) {
                     let blocks = message.renderBlocks
-                    if message.role != "user", !blocks.isEmpty {
+                    if message.role == "status" {
+                        Label(message.content, systemImage: message.error ? "exclamationmark.triangle" : "arrow.down.right.and.arrow.up.left")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(message.error ? Color.red : Color.secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(CodexTheme.surfaceSubtle, in: RoundedRectangle(cornerRadius: 7))
+                    } else if message.role != "user", !blocks.isEmpty {
                         let segs = segments(blocks)
                         ForEach(segs) { segment in
                             SegmentView(
@@ -375,6 +382,7 @@ struct ChatMessageView: View {
                 .showIf(message.role == "user")
             }
             .opacity(mouseHover ? 1 : 0.0001)
+            .showIf(message.role != "status")
             
 #endif
         }

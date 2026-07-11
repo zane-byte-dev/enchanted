@@ -7,6 +7,10 @@
 
 import SwiftUI
 import MarkdownUI
+#if os(macOS)
+import AppKit
+import QuickLookUI
+#endif
 
 /// Codex-style collapsible group wrapping a run of thinking + tool blocks.
 /// Expanded while the turn is streaming, auto-collapses once complete.
@@ -91,6 +95,8 @@ struct ToolCardView: View {
     let tool: ToolCall
     @State private var expanded = false
     @State private var bodyContentHeight: CGFloat = 0
+    @State private var conversationStore = ConversationStore.shared
+    @State private var previewURL: URL?
 
     /// Max height of the expanded body before it becomes scrollable.
     private let maxBodyHeight: CGFloat = 320
@@ -109,6 +115,21 @@ struct ToolCardView: View {
             || tool.writeContent != nil
             || (tool.resultText.map { !$0.isEmpty } ?? false)
     }
+
+#if os(macOS)
+    private var artifactURL: URL? {
+        guard !tool.running, !tool.isError, let path = tool.artifactPath else { return nil }
+        let url: URL
+        if path.hasPrefix("/") {
+            url = URL(fileURLWithPath: path)
+        } else {
+            let root = conversationStore.selectedConversation?.workingDirectory
+                ?? WorkspaceStore.shared.currentDirectory
+            url = URL(fileURLWithPath: root).appendingPathComponent(path)
+        }
+        return FileManager.default.fileExists(atPath: url.path) ? url.standardizedFileURL : nil
+    }
+#endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -149,6 +170,28 @@ struct ToolCardView: View {
             }
             .buttonStyle(.plain)
 
+#if os(macOS)
+            if let artifactURL {
+                HStack(spacing: 10) {
+                    Spacer()
+                    Button(action: { previewURL = artifactURL }) {
+                        Label("Preview", systemImage: "eye")
+                    }
+                    Button("Open") { NSWorkspace.shared.open(artifactURL) }
+                    Button(action: {
+                        NSWorkspace.shared.activateFileViewerSelecting([artifactURL])
+                    }) {
+                        Label("Reveal", systemImage: "folder")
+                    }
+                }
+                .font(.system(size: 10))
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 6)
+            }
+#endif
+
             // Body
             if expanded && hasBody {
                 Divider()
@@ -178,8 +221,60 @@ struct ToolCardView: View {
         .background(Color.gray.opacity(0.08))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+#if os(macOS)
+        .sheet(isPresented: Binding(
+            get: { previewURL != nil },
+            set: { if !$0 { previewURL = nil } }
+        )) {
+            if let previewURL {
+                ArtifactPreviewSheet(url: previewURL)
+            }
+        }
+#endif
     }
 }
+
+#if os(macOS)
+private struct ArtifactPreviewSheet: View {
+    let url: URL
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Image(systemName: "doc")
+                Text(url.lastPathComponent)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                Spacer()
+                Button("Open") { NSWorkspace.shared.open(url) }
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding(10)
+            Divider()
+            QuickLookArtifactView(url: url)
+                .frame(minWidth: 760, minHeight: 520)
+        }
+    }
+}
+
+private struct QuickLookArtifactView: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> QLPreviewView {
+        let view = QLPreviewView(frame: .zero, style: .normal)!
+        view.autostarts = true
+        view.previewItem = url as NSURL
+        return view
+    }
+
+    func updateNSView(_ view: QLPreviewView, context: Context) {
+        view.previewItem = url as NSURL
+        view.refreshPreviewItem()
+    }
+}
+#endif
 
 private struct BodyHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0

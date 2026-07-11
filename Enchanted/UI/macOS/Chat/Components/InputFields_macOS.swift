@@ -21,6 +21,7 @@ struct InputFieldsView: View {
     var onSendMessageTap: @MainActor (_ prompt: String, _ model: LanguageModelSD, _ images: [Image], _ trimmingMessageId: String?) -> ()
     var stats: PiSessionStats? = nil
     var onSteer: @MainActor (_ message: String) -> Void = { _ in }
+    var onFollowUp: @MainActor (_ message: String, _ images: [Image]) -> Void = { _, _ in }
     var focusTrigger: Int = 0
     var slashPalettePlacement: SlashPalettePlacement = .above
     @Binding var editMessage: MessageSD?
@@ -31,6 +32,12 @@ struct InputFieldsView: View {
     @State private var inputHeight: CGFloat = 32
     @State private var isInputFocused: Bool = false
     @State private var previewAttachment: TextAttachment?
+    @State private var showGoalEditor = false
+    @State private var goalDraft = ""
+    @State private var goalAutoContinue = false
+    @State private var conversationStore = ConversationStore.shared
+    @AppStorage("piRunningMessageMode") private var runningMessageMode = "steer"
+    @AppStorage("newTaskEnvironment") private var newTaskEnvironment = "local"
 #if os(macOS)
     @State private var skillStore = SkillStore.shared
     @State private var appStore = AppStore.shared
@@ -186,10 +193,15 @@ struct InputFieldsView: View {
         if conversationState == .loading {
             let trimmed = composedPrompt().trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
-            onSteer(trimmed)
+            if runningMessageMode == "followUp" {
+                onFollowUp(trimmed, selectedImages.map(\.image))
+            } else {
+                onSteer(trimmed)
+            }
             withAnimation {
                 message = ""
                 attachments = []
+                selectedImages = []
             }
             return
         }
@@ -222,13 +234,19 @@ struct InputFieldsView: View {
     /// Whether there is something worth sending: a typed instruction or at
     /// least one large-text attachment.
     private var canSend: Bool {
-        !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !conversationStore.isPreparingNewTaskEnvironment
+            && (!message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || !attachments.isEmpty
-            || !selectedImages.isEmpty
+            || !selectedImages.isEmpty)
     }
     
     @ViewBuilder
     private var sendButton: some View {
+        if conversationStore.isPreparingNewTaskEnvironment {
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 28, height: 28)
+        } else {
         switch conversationState {
         case .loading:
             Button(action: onStopGenerateTap) {
@@ -250,10 +268,81 @@ struct InputFieldsView: View {
             .buttonStyle(.plain)
             .disabled(!canSend)
         }
+        }
     }
 
     private func inputCard(framed: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let goal = conversationStore.currentGoalText {
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "target")
+                        Text("Long-running goal")
+                            .fontWeight(.semibold)
+                        Text(goalStatusLabel)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if conversationStore.currentGoalStatus == "active" {
+                            Button("Pause") { conversationStore.pauseCurrentGoal() }
+                        } else if conversationStore.currentGoalStatus == "paused" {
+                            Button("Resume") { conversationStore.resumeCurrentGoal() }
+                        }
+                        Button("Edit") { openGoalEditor() }
+                    }
+                    .font(.system(size: 10))
+                    .buttonStyle(.plain)
+
+                    Text(goal)
+                        .font(.system(size: 11))
+                        .lineLimit(3)
+                    if conversationStore.currentGoalAutoContinues {
+                        Label("Auto-continues while the plan has unfinished steps", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 7)
+                .background(Color.accentColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 7))
+            }
+
+            if let plan = conversationStore.currentPlan, !plan.items.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checklist")
+                        Text("Plan")
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Text(verbatim: "\(completedPlanCount(plan))/\(plan.items.count)")
+                            .foregroundStyle(.tertiary)
+                    }
+                    .font(.system(size: 10))
+
+                    if let explanation = plan.explanation, !explanation.isEmpty {
+                        Text(explanation)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+
+                    ForEach(plan.items) { item in
+                        HStack(alignment: .firstTextBaseline, spacing: 7) {
+                            Image(systemName: planIcon(for: item.status))
+                                .foregroundStyle(planColor(for: item.status))
+                                .frame(width: 12)
+                            Text(item.step)
+                                .font(.system(size: 11))
+                                .foregroundStyle(item.status == "completed" ? .secondary : .primary)
+                                .strikethrough(item.status == "completed")
+                                .lineLimit(2)
+                        }
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 7)
+                .background(CodexTheme.surface.opacity(0.55), in: RoundedRectangle(cornerRadius: 7))
+            }
+
             if !selectedImages.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -328,6 +417,87 @@ struct InputFieldsView: View {
                 .allowsHitTesting(!fileDropActive)
 #endif
 
+            if let request = conversationStore.currentUIRequest {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(request.title, systemImage: "exclamationmark.shield")
+                        .font(.system(size: 12, weight: .semibold))
+                    if let detail = request.message, !detail.isEmpty {
+                        Text(detail)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textSelection(.enabled)
+                            .lineLimit(5)
+                    }
+                    HStack {
+                        if request.method == "select" {
+                            ForEach(request.options, id: \.self) { option in
+                                Button(option) {
+                                    conversationStore.respondToCurrentUIRequest(value: option)
+                                }
+                            }
+                        } else {
+                            Button("Block", role: .destructive) {
+                                conversationStore.respondToCurrentUIRequest(confirmed: false)
+                            }
+                            Button("Allow") {
+                                conversationStore.respondToCurrentUIRequest(confirmed: true)
+                            }
+                            .keyboardShortcut(.defaultAction)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(10)
+                .background(Color.orange.opacity(0.09), in: RoundedRectangle(cornerRadius: 7))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7)
+                        .strokeBorder(Color.orange.opacity(0.35), lineWidth: 1)
+                )
+            }
+
+            if conversationState == .loading && !conversationStore.currentFollowUps.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Label("Queued follow-ups", systemImage: "clock")
+                            .font(.system(size: 10, weight: .semibold))
+                        Spacer()
+                        Text("\(conversationStore.currentFollowUps.count)")
+                            .font(.system(size: 10, design: .monospaced))
+                    }
+                    ForEach(Array(conversationStore.currentFollowUps.enumerated()), id: \.element.id) { index, item in
+                        HStack(spacing: 6) {
+                            Text("\(index + 1)")
+                                .font(.system(size: 9, design: .monospaced))
+                                .frame(width: 14)
+                            Text(item.text)
+                                .font(.system(size: 11))
+                                .lineLimit(1)
+                            Spacer()
+                            if !item.imageData.isEmpty {
+                                Label("\(item.imageData.count)", systemImage: "photo")
+                                    .font(.system(size: 9))
+                            }
+                            Button(action: { conversationStore.moveFollowUp(item.id, by: -1) }) {
+                                Image(systemName: "chevron.up")
+                            }
+                            .disabled(index == 0)
+                            Button(action: { conversationStore.moveFollowUp(item.id, by: 1) }) {
+                                Image(systemName: "chevron.down")
+                            }
+                            .disabled(index == conversationStore.currentFollowUps.count - 1)
+                            Button(action: { conversationStore.removeFollowUp(item.id) }) {
+                                Image(systemName: "xmark")
+                            }
+                            .help("Remove from queue")
+                        }
+                        .foregroundStyle(.secondary)
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 5)
+                .background(CodexTheme.surface.opacity(0.55), in: RoundedRectangle(cornerRadius: 6))
+            }
+
             // Bottom control row (Codex-style)
             HStack(spacing: 10) {
                 ComposerAddButton(
@@ -337,6 +507,40 @@ struct InputFieldsView: View {
 
                 // Project / working-directory context badge
                 ComposerContextBadge()
+
+                if conversationStore.selectedConversation != nil {
+                    Button(action: openGoalEditor) {
+                        Image(systemName: "target")
+                            .font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Set long-running goal")
+                }
+
+                if conversationStore.selectedConversation == nil {
+                    Menu {
+                        Button(action: { newTaskEnvironment = "local" }) {
+                            Label("Local", systemImage: newTaskEnvironment == "local" ? "checkmark" : "folder")
+                        }
+                        Button(action: { newTaskEnvironment = "worktree" }) {
+                            Label("Worktree", systemImage: newTaskEnvironment == "worktree" ? "checkmark" : "arrow.triangle.branch")
+                        }
+                        Divider()
+                        Button(action: {}) {
+                            Label("Cloud requires a remote runner", systemImage: "cloud")
+                        }
+                        .disabled(true)
+                    } label: {
+                        Label(
+                            newTaskEnvironment == "worktree" ? "Worktree" : "Local",
+                            systemImage: newTaskEnvironment == "worktree" ? "arrow.triangle.branch" : "laptopcomputer"
+                        )
+                        .font(.system(size: 11))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                }
 
                 // Model selector
                 ModelSelectorView(
@@ -354,6 +558,28 @@ struct InputFieldsView: View {
 
                 if let stats {
                     SessionStatsBadge(stats: stats)
+                }
+
+                if conversationState == .loading {
+                    Menu {
+                        Button(action: { runningMessageMode = "steer" }) {
+                            Label("Steer current run", systemImage: runningMessageMode == "steer" ? "checkmark" : "arrow.turn.up.right")
+                        }
+                        Button(action: { runningMessageMode = "followUp" }) {
+                            Label("Queue follow-up", systemImage: runningMessageMode == "followUp" ? "checkmark" : "clock")
+                        }
+                    } label: {
+                        Label(
+                            runningMessageMode == "followUp"
+                                ? "Queue · \(conversationStore.currentFollowUps.count)"
+                                : "Steer",
+                            systemImage: runningMessageMode == "followUp" ? "clock" : "arrow.turn.up.right"
+                        )
+                        .font(.system(size: 11))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
                 }
 
                 Spacer()
@@ -444,7 +670,53 @@ struct InputFieldsView: View {
                 onClose: { previewAttachment = nil }
             )
         }
+        .sheet(isPresented: $showGoalEditor) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Long-running goal")
+                    .font(.headline)
+                TextEditor(text: $goalDraft)
+                    .font(.system(size: 12))
+                    .frame(width: 420, height: 110)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(CodexTheme.border))
+                Toggle("Automatically continue while the plan has unfinished steps", isOn: $goalAutoContinue)
+                Text("Automatic continuation requires the agent to maintain a structured Plan and pauses after 12 rounds.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    if conversationStore.currentGoalText != nil {
+                        Button("Clear", role: .destructive) {
+                            conversationStore.setCurrentGoal("", autoContinue: false)
+                            showGoalEditor = false
+                        }
+                    }
+                    Spacer()
+                    Button("Cancel") { showGoalEditor = false }
+                    Button("Save") {
+                        conversationStore.setCurrentGoal(goalDraft, autoContinue: goalAutoContinue)
+                        showGoalEditor = false
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(goalDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .padding(20)
+        }
 #endif
+    }
+
+    private var goalStatusLabel: String {
+        switch conversationStore.currentGoalStatus {
+        case "active": String(localized: "Active")
+        case "paused": String(localized: "Paused")
+        case "completed": String(localized: "Completed")
+        default: ""
+        }
+    }
+
+    private func openGoalEditor() {
+        goalDraft = conversationStore.currentGoalText ?? ""
+        goalAutoContinue = conversationStore.currentGoalAutoContinues
+        showGoalEditor = true
     }
 
     private func openAttachmentPanel() {
@@ -551,11 +823,34 @@ struct InputFieldsView: View {
         }
 #endif
     }
+
+    private func completedPlanCount(_ plan: AgentPlanSnapshot) -> Int {
+        plan.items.reduce(into: 0) { count, item in
+            if item.status == "completed" { count += 1 }
+        }
+    }
+
+    private func planIcon(for status: String) -> String {
+        switch status {
+        case "completed": "checkmark.circle.fill"
+        case "in_progress": "circle.inset.filled"
+        default: "circle"
+        }
+    }
+
+    private func planColor(for status: String) -> Color {
+        switch status {
+        case "completed": .green
+        case "in_progress": .accentColor
+        default: .secondary
+        }
+    }
 }
 
 /// Compact token / cost / context indicator for the composer (Codex-style).
 struct SessionStatsBadge: View {
     let stats: PiSessionStats
+    @State private var conversationStore = ConversationStore.shared
 
     private func fmt(_ n: Int) -> String {
         if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
@@ -571,7 +866,44 @@ struct SessionStatsBadge: View {
     }
 
     var body: some View {
+        Menu {
+            Button(action: {}) {
+                Label(contextTooltip, systemImage: "info.circle")
+            }
+            .disabled(true)
+
+            Divider()
+
+            Button(action: {
+                Task { await conversationStore.compactSelectedConversation() }
+            }) {
+                if conversationStore.isCompactingSelectedConversation {
+                    Label("Compacting Context…", systemImage: "hourglass")
+                } else {
+                    Label("Compact Context", systemImage: "arrow.down.right.and.arrow.up.left")
+                }
+            }
+            .disabled(
+                conversationStore.isCompactingSelectedConversation
+                    || conversationStore.conversationState == .loading
+            )
+        } label: {
+            statsLabel
+        }
+#if os(macOS)
+        .menuStyle(.borderlessButton)
+#endif
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(contextTooltip)
+    }
+
+    private var statsLabel: some View {
         HStack(spacing: 8) {
+            if conversationStore.isCompactingSelectedConversation {
+                ProgressView()
+                    .controlSize(.mini)
+            }
             if let p = stats.contextPercent {
                 HStack(spacing: 3) {
                     Image(systemName: "gauge.with.dots.needle.33percent")
@@ -587,10 +919,10 @@ struct SessionStatsBadge: View {
             if stats.cost > 0 {
                 Text(String(format: "$%.3f", stats.cost))
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                .foregroundStyle(.secondary)
             }
         }
-        .help(contextTooltip)
+        .contentShape(Rectangle())
     }
 
     private var contextTooltip: String {
@@ -648,6 +980,7 @@ struct ComposerAddButton: View {
             .background(CodexTheme.surface)
         }
     }
+
 }
 
 private struct ComposerAddMenuRow: View {

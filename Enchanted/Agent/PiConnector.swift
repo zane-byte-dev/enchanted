@@ -40,6 +40,18 @@ struct PiSessionStats: Equatable {
     }
 }
 
+struct PiCompactionResult: Equatable {
+    let summary: String
+    let tokensBefore: Int
+    let estimatedTokensAfter: Int
+
+    init(_ data: [String: Any]) {
+        summary = data["summary"] as? String ?? ""
+        tokensBefore = (data["tokensBefore"] as? NSNumber)?.intValue ?? 0
+        estimatedTokensAfter = (data["estimatedTokensAfter"] as? NSNumber)?.intValue ?? 0
+    }
+}
+
 /// The last user turn reconstructed from pi's persisted transcript. Used when
 /// Enchanted restarts after creating a local assistant placeholder but before
 /// receiving the run's terminal event.
@@ -136,6 +148,7 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     private var stdoutBuffer = Data()
     private var subject: PassthroughSubject<AgentEvent, Error>?
     private var commandCounter = 0
+    private(set) var lastForkError: String?
     /// One-shot response continuations keyed by command id (for request/reply
     /// commands like get_available_models).
     private var pending: [String: ([String: Any]) -> Void] = [:]
@@ -151,6 +164,7 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     /// send `set_model` when the user actually switches models, and re-send it
     /// after a respawn (reset to nil in `ensureProcess`).
     private var appliedModelId: String?
+    private var queuedInjectedTexts: [String] = []
 
     init(config: Config) {
         self.config = config
@@ -161,9 +175,7 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     func chat(model: String, messages: [AgentChatMessage]) -> AnyPublisher<AgentEvent, Error> {
         let subject = PassthroughSubject<AgentEvent, Error>()
 
-        lock.lock()
-        self.subject = subject
-        lock.unlock()
+        lock.withLock { self.subject = subject }
 
         // pi keeps history itself → only forward the newest user turn.
         let lastUserMessage = messages.last(where: { $0.role == .user })
@@ -196,6 +208,8 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 if let level = UserDefaults.standard.string(forKey: "piThinkingLevel"), !level.isEmpty {
                     try? send(["id": nextId(), "type": "set_thinking_level", "level": level])
                 }
+                let autoCompact = UserDefaults.standard.object(forKey: "piAutoCompaction") as? Bool ?? true
+                try? await setAutoCompaction(autoCompact)
                 var promptCommand: [String: Any] = [
                     "id": nextId(),
                     "type": "prompt",
@@ -216,11 +230,11 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     /// If the process was just spawned for a resumed conversation, send
     /// `switch_session` and wait for its response before continuing.
     private func resumeSessionIfNeeded() async {
-        lock.lock()
-        let shouldResume = needsResume
-        let resume = config.resumeSessionPath
-        if shouldResume { needsResume = false }
-        lock.unlock()
+        let (shouldResume, resume) = lock.withLock {
+            let value = (needsResume, config.resumeSessionPath)
+            if needsResume { needsResume = false }
+            return value
+        }
 
         guard shouldResume, let resume, !resume.isEmpty else { return }
 
@@ -231,11 +245,9 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 if resumed { return }; resumed = true
                 continuation.resume(returning: obj)
             }
-            lock.lock()
-            pending[id] = { obj in finish(obj) }
-            lock.unlock()
+            lock.withLock { pending[id] = { obj in finish(obj) } }
             DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
-                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                self.lock.withLock { self.pending[id] = nil }
                 finish(nil)
             }
             try? send(["id": id, "type": "switch_session", "sessionPath": resume])
@@ -249,10 +261,9 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     private func applyModelIfNeeded(_ modelId: String) async {
         guard !modelId.isEmpty else { return }
 
-        lock.lock()
-        let already = appliedModelId == modelId
-        var providers = providersByModelId[modelId] ?? []
-        lock.unlock()
+        let initial = lock.withLock { (appliedModelId == modelId, providersByModelId[modelId] ?? []) }
+        let already = initial.0
+        var providers = initial.1
 
         let preferredProvider = UserDefaults.standard.string(
             forKey: AgentBackendConfig.piDefaultProviderDefaultsKey
@@ -266,9 +277,7 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         // we can resolve the provider required by set_model.
         if provider == nil {
             _ = try? await models()
-            lock.lock()
-            providers = providersByModelId[modelId] ?? []
-            lock.unlock()
+            providers = lock.withLock { providersByModelId[modelId] ?? [] }
             provider = preferredProvider.flatMap { providers.contains($0) ? $0 : nil }
                 ?? providers.first
         }
@@ -285,11 +294,9 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 if resumed { return }; resumed = true
                 continuation.resume(returning: obj)
             }
-            lock.lock()
-            pending[id] = { obj in finish(obj) }
-            lock.unlock()
+            lock.withLock { pending[id] = { obj in finish(obj) } }
             DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                self.lock.withLock { self.pending[id] = nil }
                 finish(nil)
             }
             try? send(["id": id, "type": "set_model", "provider": provider, "modelId": modelId])
@@ -297,7 +304,7 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         }
 
         if let success = response?["success"] as? Bool, success {
-            lock.lock(); appliedModelId = modelId; lock.unlock()
+            lock.withLock { appliedModelId = modelId }
         } else {
             let err = (response?["error"] as? String) ?? "no response"
             AgentBackendConfig.debugLog("PiConnector: set_model failed for \(provider)/\(modelId): \(err)")
@@ -313,12 +320,10 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 if resumed { return }; resumed = true
                 continuation.resume(returning: obj)
             }
-            lock.lock()
-            pending[id] = { obj in finish(obj) }
-            lock.unlock()
+            lock.withLock { pending[id] = { obj in finish(obj) } }
             // Timeout guard so startup hiccups don't hang the UI.
             DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
-                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                self.lock.withLock { self.pending[id] = nil }
                 finish(nil)
             }
             try? send(["id": id, "type": "get_available_models"])
@@ -333,11 +338,11 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         }
         return models.compactMap { record in
             guard let descriptor = PiModelDescriptor(record: record) else { return nil }
-            lock.lock()
-            var providers = providersByModelId[descriptor.modelID] ?? []
-            if !providers.contains(descriptor.provider) { providers.append(descriptor.provider) }
-            providersByModelId[descriptor.modelID] = providers
-            lock.unlock()
+            lock.withLock {
+                var providers = providersByModelId[descriptor.modelID] ?? []
+                if !providers.contains(descriptor.provider) { providers.append(descriptor.provider) }
+                providersByModelId[descriptor.modelID] = providers
+            }
             let provider = ModelProvider(rawValue: descriptor.provider.lowercased()) ?? .unknown
             return LanguageModel(
                 name: descriptor.modelID,
@@ -360,11 +365,9 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 if resumed { return }; resumed = true
                 continuation.resume(returning: obj)
             }
-            lock.lock()
-            pending[id] = { obj in finish(obj) }
-            lock.unlock()
+            lock.withLock { pending[id] = { obj in finish(obj) } }
             DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                self.lock.withLock { self.pending[id] = nil }
                 finish(nil)
             }
             try? send(["id": id, "type": "get_available_models"])
@@ -383,7 +386,16 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
 
     /// Send a steering message into an in-flight turn (adjust course mid-run).
     func steer(_ message: String) {
-        try? send(["id": nextId(), "type": "steer", "message": message])
+        lock.withLock { queuedInjectedTexts.append(message) }
+        do {
+            try send(["id": nextId(), "type": "steer", "message": message])
+        } catch {
+            lock.withLock {
+                if let index = queuedInjectedTexts.lastIndex(of: message) {
+                    queuedInjectedTexts.remove(at: index)
+                }
+            }
+        }
     }
 
     /// Fetch token/cost/context stats for the current session.
@@ -396,17 +408,126 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 if resumed { return }; resumed = true
                 continuation.resume(returning: obj)
             }
-            lock.lock()
-            pending[id] = { obj in finish(obj) }
-            lock.unlock()
+            lock.withLock { pending[id] = { obj in finish(obj) } }
             DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                self.lock.withLock { self.pending[id] = nil }
                 finish(nil)
             }
             try? send(["id": id, "type": "get_session_stats"])
         }
         guard let data = response?["data"] as? [String: Any] else { return nil }
         return PiSessionStats(data)
+    }
+
+    /// Manually compact the active pi context. The RPC response arrives only
+    /// after summary generation has completed; compaction lifecycle events are
+    /// intentionally left out of AgentEvent because this is a control action,
+    /// not an assistant turn rendered into the local transcript.
+    func compact(customInstructions: String? = nil) async throws -> PiCompactionResult {
+        try ensureProcess()
+        await resumeSessionIfNeeded()
+
+        let id = nextId()
+        let response: [String: Any]? = await withCheckedContinuation { continuation in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { obj in
+                if resumed { return }; resumed = true
+                continuation.resume(returning: obj)
+            }
+            lock.withLock { pending[id] = { obj in finish(obj) } }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 120) {
+                self.lock.withLock { self.pending[id] = nil }
+                finish(nil)
+            }
+            var command: [String: Any] = ["id": id, "type": "compact"]
+            if let customInstructions, !customInstructions.isEmpty {
+                command["customInstructions"] = customInstructions
+            }
+            do {
+                try send(command)
+            } catch {
+                finish(["success": false, "error": error.localizedDescription])
+            }
+        }
+
+        guard let response else {
+            throw NSError(
+                domain: "PiConnector",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Compaction timed out"]
+            )
+        }
+        guard response["success"] as? Bool == true,
+              let data = response["data"] as? [String: Any] else {
+            let message = response["error"] as? String ?? "pi could not compact this session"
+            throw NSError(
+                domain: "PiConnector",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: message]
+            )
+        }
+        return PiCompactionResult(data)
+    }
+
+    func setAutoCompaction(_ enabled: Bool) async throws {
+        try ensureProcess()
+        await resumeSessionIfNeeded()
+        let id = nextId()
+        let response: [String: Any]? = await withCheckedContinuation { continuation in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { value in
+                if resumed { return }; resumed = true
+                continuation.resume(returning: value)
+            }
+            lock.withLock { pending[id] = { finish($0) } }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
+                self.lock.withLock { self.pending[id] = nil }
+                finish(nil)
+            }
+            do {
+                try send(["id": id, "type": "set_auto_compaction", "enabled": enabled])
+            } catch {
+                finish(["success": false, "error": error.localizedDescription])
+            }
+        }
+        guard let response else {
+            throw NSError(domain: "PiConnector", code: 4,
+                          userInfo: [NSLocalizedDescriptionKey: "Updating auto compaction timed out"])
+        }
+        guard response["success"] as? Bool == true else {
+            throw NSError(domain: "PiConnector", code: 5,
+                          userInfo: [NSLocalizedDescriptionKey: response["error"] as? String ?? "Could not update auto compaction"])
+        }
+    }
+
+    func respondToUIRequest(id: String, confirmed: Bool? = nil, value: String? = nil) {
+        var response: [String: Any] = ["type": "extension_ui_response", "id": id]
+        if let confirmed { response["confirmed"] = confirmed }
+        else if let value { response["value"] = value }
+        else { response["cancelled"] = true }
+        try? send(response)
+    }
+
+    func forkableUserMessageTexts() async -> [String]? {
+        guard (try? ensureProcess()) != nil else { return nil }
+        await resumeSessionIfNeeded()
+        let id = nextId()
+        let response: [String: Any]? = await withCheckedContinuation { continuation in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { value in
+                if resumed { return }; resumed = true
+                continuation.resume(returning: value)
+            }
+            lock.withLock { pending[id] = { finish($0) } }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
+                self.lock.withLock { self.pending[id] = nil }
+                finish(nil)
+            }
+            try? send(["id": id, "type": "get_fork_messages"])
+        }
+        guard let data = response?["data"] as? [String: Any],
+              let messages = data["messages"] as? [[String: Any]] else { return nil }
+        return messages.compactMap { $0["text"] as? String }
     }
 
     /// Fetch skills available to the current session (pi `get_commands`,
@@ -420,11 +541,9 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 if resumed { return }; resumed = true
                 continuation.resume(returning: obj)
             }
-            lock.lock()
-            pending[id] = { obj in finish(obj) }
-            lock.unlock()
+            lock.withLock { pending[id] = { obj in finish(obj) } }
             DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                self.lock.withLock { self.pending[id] = nil }
                 finish(nil)
             }
             try? send(["id": id, "type": "get_commands"])
@@ -443,10 +562,9 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     // MARK: - Process lifecycle
 
     private func ensureProcess() throws {
-        lock.lock()
-        defer { lock.unlock() }
+        try lock.withLock {
 
-        if let existing = process, existing.isRunning { return }
+            if let existing = process, existing.isRunning { return }
 
         AgentBackendConfig.debugLog("PiConnector.ensureProcess: spawning \(config.executable) \(config.arguments) cwd=\(config.workingDirectory)")
         let proc = Process()
@@ -493,7 +611,8 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         }
         // Fresh process → pi is back on its default model, so force the next
         // chat() to re-apply the user's selection.
-        appliedModelId = nil
+            appliedModelId = nil
+        }
     }
 
     /// Restore this connector's context (if resuming) and duplicate the active
@@ -511,11 +630,9 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 if resumed { return }; resumed = true
                 continuation.resume(returning: obj)
             }
-            lock.lock()
-            pending[id] = { obj in finish(obj) }
-            lock.unlock()
+            lock.withLock { pending[id] = { obj in finish(obj) } }
             DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
-                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                self.lock.withLock { self.pending[id] = nil }
                 finish(nil)
             }
             try? send(["id": id, "type": "clone"])
@@ -528,6 +645,88 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         return await currentSessionPath()
     }
 
+    /// Fork the resumed session immediately before the user message at
+    /// `userMessageIndex`. pi owns the durable entry ids, so callers address a
+    /// turn by its stable ordinal in the visible transcript and this connector
+    /// resolves the corresponding RPC entry before issuing `fork`.
+    func forkSession(beforeUserMessageAt userMessageIndex: Int, expectedText: String) async -> String? {
+        lastForkError = nil
+        guard userMessageIndex >= 0 else {
+            lastForkError = "The selected turn is not forkable"
+            return nil
+        }
+        guard (try? ensureProcess()) != nil else {
+            lastForkError = "Could not start pi to create the branch"
+            return nil
+        }
+        await resumeSessionIfNeeded()
+
+        let messagesID = nextId()
+        let messagesResponse: [String: Any]? = await withCheckedContinuation { continuation in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { obj in
+                if resumed { return }; resumed = true
+                continuation.resume(returning: obj)
+            }
+            lock.withLock { pending[messagesID] = { obj in finish(obj) } }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
+                self.lock.withLock { self.pending[messagesID] = nil }
+                finish(nil)
+            }
+            try? send(["id": messagesID, "type": "get_fork_messages"])
+        }
+
+        guard
+            let data = messagesResponse?["data"] as? [String: Any],
+            let messages = data["messages"] as? [[String: Any]]
+        else {
+            lastForkError = "Could not read forkable turns from pi"
+            return nil
+        }
+        guard messages.indices.contains(userMessageIndex) else {
+            lastForkError = "Local history has more turns than the pi session"
+            return nil
+        }
+        guard messages[userMessageIndex]["text"] as? String == expectedText else {
+            lastForkError = "Local history no longer matches the pi session at this turn"
+            return nil
+        }
+        guard let entryID = messages[userMessageIndex]["entryId"] as? String else {
+            lastForkError = "pi did not return an entry id for this turn"
+            return nil
+        }
+
+        let forkID = nextId()
+        let forkResponse: [String: Any]? = await withCheckedContinuation { continuation in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { obj in
+                if resumed { return }; resumed = true
+                continuation.resume(returning: obj)
+            }
+            lock.withLock { pending[forkID] = { obj in finish(obj) } }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
+                self.lock.withLock { self.pending[forkID] = nil }
+                finish(nil)
+            }
+            try? send(["id": forkID, "type": "fork", "entryId": entryID])
+            AgentBackendConfig.debugLog("PiConnector: fork before user message \(userMessageIndex)")
+        }
+
+        guard
+            forkResponse?["success"] as? Bool == true,
+            let forkData = forkResponse?["data"] as? [String: Any],
+            (forkData["cancelled"] as? Bool) != true
+        else {
+            lastForkError = "pi rejected or cancelled the branch operation"
+            return nil
+        }
+        guard let path = await currentSessionPath() else {
+            lastForkError = "pi created the branch but did not return its session path"
+            return nil
+        }
+        return path
+    }
+
     /// Query pi for the current session file path (for persistence).
     func currentSessionPath() async -> String? {
         try? ensureProcess()
@@ -538,11 +737,9 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 if resumed { return }; resumed = true
                 continuation.resume(returning: obj)
             }
-            lock.lock()
-            pending[id] = { obj in finish(obj) }
-            lock.unlock()
+            lock.withLock { pending[id] = { obj in finish(obj) } }
             DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-                self.lock.lock(); self.pending[id] = nil; self.lock.unlock()
+                self.lock.withLock { self.pending[id] = nil }
                 finish(nil)
             }
             try? send(["id": id, "type": "get_state"])
@@ -567,13 +764,9 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 resumed = true
                 continuation.resume(returning: obj)
             }
-            lock.lock()
-            pending[id] = { obj in finish(obj) }
-            lock.unlock()
+            lock.withLock { pending[id] = { obj in finish(obj) } }
             DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
-                self.lock.lock()
-                self.pending[id] = nil
-                self.lock.unlock()
+                self.lock.withLock { self.pending[id] = nil }
                 finish(nil)
             }
             try? send(["id": id, "type": "get_messages"])
@@ -684,19 +877,17 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     }
 
     private func nextId() -> String {
-        lock.lock()
-        defer { lock.unlock() }
-        commandCounter += 1
-        return "c\(commandCounter)"
+        lock.withLock {
+            commandCounter += 1
+            return "c\(commandCounter)"
+        }
     }
 
     private func send(_ command: [String: Any]) throws {
         var line = try JSONSerialization.data(withJSONObject: command)
         line.append(0x0A) // newline-delimited JSON
 
-        lock.lock()
-        let pipe = stdinPipe
-        lock.unlock()
+        let pipe = lock.withLock { stdinPipe }
 
         pipe?.fileHandleForWriting.write(line)
     }
@@ -704,17 +895,16 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     // MARK: - stdout parsing (JSONL)
 
     private func ingest(_ data: Data) {
-        lock.lock()
-        stdoutBuffer.append(data)
-
-        var lines: [Data] = []
-        while let newline = stdoutBuffer.firstIndex(of: 0x0A) {
-            let line = stdoutBuffer.subdata(in: stdoutBuffer.startIndex..<newline)
-            lines.append(line)
-            stdoutBuffer.removeSubrange(stdoutBuffer.startIndex...newline)
+        let (lines, subj): ([Data], PassthroughSubject<AgentEvent, Error>?) = lock.withLock {
+            stdoutBuffer.append(data)
+            var lines: [Data] = []
+            while let newline = stdoutBuffer.firstIndex(of: 0x0A) {
+                let line = stdoutBuffer.subdata(in: stdoutBuffer.startIndex..<newline)
+                lines.append(line)
+                stdoutBuffer.removeSubrange(stdoutBuffer.startIndex...newline)
+            }
+            return (lines, self.subject)
         }
-        let subj = self.subject
-        lock.unlock()
 
         for line in lines where !line.isEmpty {
             handleLine(line, subject: subj)
@@ -743,25 +933,85 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         case "tool_execution_start":
             let callId = obj["toolCallId"] as? String ?? UUID().uuidString
             let name = obj["toolName"] as? String ?? "tool"
+            if name == "update_plan", let args = obj["args"] as? [String: Any] {
+                let items = (args["plan"] as? [[String: Any]] ?? []).compactMap { item -> AgentPlanItem? in
+                    guard let step = item["step"] as? String,
+                          let status = item["status"] as? String else { return nil }
+                    return AgentPlanItem(step: step, status: status)
+                }
+                subject?.send(.planUpdate(explanation: args["explanation"] as? String, items: items))
+                break
+            }
             let args = jsonString(obj["args"])
             subject?.send(.toolStart(callId: callId, name: name, args: args))
 
         case "tool_execution_end":
             let callId = obj["toolCallId"] as? String ?? ""
             let name = obj["toolName"] as? String ?? "tool"
+            if name == "update_plan" { break }
             let isError = obj["isError"] as? Bool ?? false
             subject?.send(.toolEnd(callId: callId, name: name, result: toolResultText(obj["result"]), isError: isError))
 
+        case "queue_update":
+            let steering = obj["steering"] as? [String] ?? []
+            let followUps = obj["followUp"] as? [String] ?? []
+            subject?.send(.queueUpdate(steering: steering, followUps: followUps))
+
+        case "compaction_start":
+            subject?.send(.compactionStarted(reason: obj["reason"] as? String ?? "manual"))
+
+        case "compaction_end":
+            let result = obj["result"] as? [String: Any]
+            subject?.send(.compactionFinished(
+                reason: obj["reason"] as? String ?? "manual",
+                tokensBefore: result?["tokensBefore"] as? Int,
+                estimatedTokensAfter: result?["estimatedTokensAfter"] as? Int,
+                error: obj["errorMessage"] as? String
+            ))
+
+        case "extension_ui_request":
+            let method = obj["method"] as? String ?? "notify"
+            if method == "confirm" || method == "select" {
+                subject?.send(.uiRequest(AgentUIRequest(
+                    id: obj["id"] as? String ?? UUID().uuidString,
+                    method: method,
+                    title: obj["title"] as? String ?? "Agent request",
+                    message: obj["message"] as? String,
+                    options: obj["options"] as? [String] ?? []
+                )))
+            } else if method == "notify" {
+                let message = obj["message"] as? String ?? "Agent notification"
+                subject?.send(.uiRequest(AgentUIRequest(
+                    id: obj["id"] as? String ?? UUID().uuidString,
+                    method: method,
+                    title: message,
+                    message: nil,
+                    options: []
+                )))
+            }
+
+        case "message_start":
+            guard let message = obj["message"] as? [String: Any],
+                  message["role"] as? String == "user" else { break }
+            let text = messageText(message)
+            let queuedIndex = lock.withLock {
+                let index = queuedInjectedTexts.firstIndex(of: text)
+                if let index { queuedInjectedTexts.remove(at: index) }
+                return index
+            }
+            if queuedIndex != nil { subject?.send(.queuedTurnStarted(text)) }
+
         case "agent_end":
+            break
+
+        case "agent_settled":
             subject?.send(.done)
             subject?.send(completion: .finished)
 
         case "response":
             // Fulfil any awaiting request/reply continuation first.
             if let id = obj["id"] as? String {
-                lock.lock()
-                let cont = pending.removeValue(forKey: id)
-                lock.unlock()
+                let cont = lock.withLock { pending.removeValue(forKey: id) }
                 cont?(obj)
             }
             if let success = obj["success"] as? Bool, success == false {
@@ -795,6 +1045,17 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         return jsonString(value)
     }
 
+    private func messageText(_ message: [String: Any]) -> String {
+        if let text = message["content"] as? String { return text }
+        if let content = message["content"] as? [[String: Any]] {
+            return content.compactMap { part in
+                guard part["type"] as? String == "text" else { return nil }
+                return part["text"] as? String
+            }.joined()
+        }
+        return ""
+    }
+
     private func jsonString(_ value: Any?) -> String {
         guard let value else { return "" }
         if let string = value as? String { return string }
@@ -808,11 +1069,12 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     // MARK: - Shutdown
 
     func terminate() {
-        lock.lock()
-        let proc = process
-        process = nil
-        stdinPipe = nil
-        lock.unlock()
+        let proc = lock.withLock {
+            let current = process
+            process = nil
+            stdinPipe = nil
+            return current
+        }
         proc?.terminate()
     }
 }

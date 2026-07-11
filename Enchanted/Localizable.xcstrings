@@ -911,6 +911,357 @@
           }
         }
       }
+    },
+    "Find in Chat…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "在对话中查找…" } } }
+    },
+    "Find in chat": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "在对话中查找" } } }
+    },
+    "Copy as Markdown": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "复制为 Markdown" } } }
+    },
+    "Copy Code Blocks": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "复制代码块" } } }
+    },
+    "Copy Message Link": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "复制消息链接" } } }
+    },
+    "Fork from Here": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "从这里创建分支" } } }
+    },
+    "Retry": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "重试" } } }
+    },
+    "Regenerate": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新生成" } } }
+    },
+    "Export as Markdown…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "导出为 Markdown…" } } }
+    },
+    "Export as JSON…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "导出为 JSON…" } } }
+    },
+    "Show Project in Finder": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "在访达中显示项目" } } }
+    },
+    "Creating Branch…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在创建分支…" } } }
+    },
+    "Retry may repeat actions": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "重试可能会重复执行操作" } } }
+    },
+    "Retry Anyway": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "仍然重试" } } }
+    },
+    "This response used commands or tools that may change files or external state. Retrying can run those actions again.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "该回复使用了可能修改文件或外部状态的命令或工具。重试可能再次执行这些操作。" } } }
+    },
+    "Conversation deleted": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "对话已删除" } } }
+    },
+    "Undo": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "撤销" } } }
+    },
+    "Delete Conversation?": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "删除对话？" } } }
+    },
+    "This removes the conversation and its local transcript. You can undo for 10 seconds.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "这会删除该对话及其本地记录。你可以在 10 秒内撤销。" } } }
+    },
+    "Compact Context": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "压缩上下文" } } }
+    },
+    "Compacting Context…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在压缩上下文…" } } }
+    },
+    "Changes": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "更改" } } }
+    },
+    "Changes · %lld": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "更改 · %lld" } } }
+    },
+    "Git unavailable": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "Git 不可用" } } }
+    },
+    "No changes": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "没有更改" } } }
+    },
+    "The working tree is clean.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作区是干净的。" } } }
+    },
+    "Steer current run": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "引导当前任务" } } }
+    },
+    "Queue follow-up": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "加入后续队列" } } }
+    },
+    "Queue": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "排队" } } }
+    },
+    "Steer": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "引导" } } }
+    },
+    "Check History Sync": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "检查历史同步" } } }
+    },
+    "Checking History…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在检查历史…" } } }
+    },
+    "History in Sync · %lld turns": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "历史已同步 · %lld 轮" } } }
+    },
+    "History Drift · local %lld / pi %lld": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "历史有偏差 · 本地 %lld / pi %lld" } } }
+    },
+    "History Sync Unavailable": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法检查历史同步" } } }
+    },
+    "Queued follow-ups": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "后续任务队列" } } }
+    },
+    "Remove from queue": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "从队列移除" } } }
+    },
+    "Queue · %lld": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "排队 · %lld" } } }
+    },
+    "Open file": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "打开文件" } } }
+    },
+    "Stage": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "暂存" } } }
+    },
+    "Unstage": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "取消暂存" } } }
+    },
+    "Discard changes": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "丢弃更改" } } }
+    },
+    "Discard changes?": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "丢弃更改？" } } }
+    },
+    "Discard %@": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "丢弃 %@" } } }
+    },
+    "This permanently deletes the untracked file.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "这会永久删除未跟踪文件。" } } }
+    },
+    "This permanently discards working tree changes in this file. Staged changes are preserved.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "这会永久丢弃该文件的工作区更改，已暂存的更改会保留。" } } }
+    },
+    "Automatically compacting context…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在自动压缩上下文…" } } }
+    },
+    "Compacting context…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在压缩上下文…" } } }
+    },
+    "Context compacted": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "上下文已压缩" } } }
+    },
+    "Context compacted · %@ → ~%@ tokens": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "上下文已压缩 · %@ → 约 %@ tokens" } } }
+    },
+    "Context compaction failed: %@": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "上下文压缩失败：%@" } } }
+    },
+    "Review History Drift…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "查看历史差异…" } } }
+    },
+    "History Drift": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "历史记录有偏差" } } }
+    },
+    "Local and pi user turns differ. Review the mismatched turns, then choose which history should become authoritative.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "本地与 pi 的用户轮次不一致。请查看差异，然后选择以哪份历史为准。" } } }
+    },
+    "Turn %lld": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "第 %lld 轮" } } }
+    },
+    "Local": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "本地" } } }
+    },
+    "Missing": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "缺失" } } }
+    },
+    "Use pi History…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "使用 pi 历史…" } } }
+    },
+    "Use Local History…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "使用本地历史…" } } }
+    },
+    "Replace local history?": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "替换本地历史？" } } }
+    },
+    "Rebuild pi context?": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "重建 pi 上下文？" } } }
+    },
+    "Replace Local History": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "替换本地历史" } } }
+    },
+    "Rebuild pi from Local History": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "从本地历史重建 pi" } } }
+    },
+    "The local transcript will be replaced by the active pi branch. This cannot be undone.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "本地记录将替换为 pi 的当前分支，且无法撤销。" } } }
+    },
+    "A new pi session will be created from visible user and assistant text. Tool traces and hidden thinking are not copied into model context.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "将使用可见的用户与助手文本创建新的 pi 会话；工具记录和隐藏思考不会复制到模型上下文。" } } }
+    },
+    "Allow": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "允许" } } }
+    },
+    "Block": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "阻止" } } }
+    },
+    "Plan": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "计划" } } }
+    },
+    "Worktree": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作树" } } }
+    },
+    "Cloud requires a remote runner": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "Cloud 需要远程运行器" } } }
+    },
+    "Review changes in a new task": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "在新任务中审查变更" } } }
+    },
+    "Ask a temporary question without changing the main task context.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "临时提问，不改变主任务上下文。" } } }
+    },
+    "Ask in side chat": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "在临时对话中提问" } } }
+    },
+    "Long-running goal": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "长期目标" } } }
+    },
+    "Set long-running goal": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "设置长期目标" } } }
+    },
+    "Auto-continues while the plan has unfinished steps": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "计划仍有未完成步骤时自动续跑" } } }
+    },
+    "Automatically continue while the plan has unfinished steps": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "计划仍有未完成步骤时自动继续" } } }
+    },
+    "Automatic continuation requires the agent to maintain a structured Plan and pauses after 12 rounds.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "自动续跑要求 Agent 持续维护结构化计划，并会在 12 轮后暂停。" } } }
+    },
+    "Active": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "进行中" } } }
+    },
+    "Paused": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "已暂停" } } }
+    },
+    "Completed": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "已完成" } } }
+    },
+    "Pause": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "暂停" } } }
+    },
+    "Resume": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "继续" } } }
+    },
+    "Clear": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "清除" } } }
+    },
+    "Active long-running goal": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "进行中的长期目标" } } }
+    },
+    "Paused long-running goal": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "已暂停的长期目标" } } }
+    },
+    "Open": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "打开" } } }
+    },
+    "Reveal": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "在 Finder 中显示" } } }
+    },
+    "Scheduled Tasks": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "定时任务" } } }
+    },
+    "New Schedule": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "新建定时任务" } } }
+    },
+    "No Scheduled Tasks": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "暂无定时任务" } } }
+    },
+    "Run Now": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "立即运行" } } }
+    },
+    "New Scheduled Task": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "新建定时任务" } } }
+    },
+    "Edit Scheduled Task": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "编辑定时任务" } } }
+    },
+    "Every hour": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "每小时" } } }
+    },
+    "Every day": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "每天" } } }
+    },
+    "Every week": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "每周" } } }
+    },
+    "Run once when the app opens": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "应用打开后补跑一次" } } }
+    },
+    "Skip to the next occurrence": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "跳到下一次执行" } } }
+    },
+    "Schedules run only while Enchanted is open. Each run creates a normal task with visible permissions, history, and notifications.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "定时任务仅在 Enchanted 打开时运行。每次运行都会创建普通任务，并保留可见的权限确认、历史与通知。" } } }
+    },
+    "Extensions": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "扩展" } } }
+    },
+    "Install Extension": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "安装扩展" } } }
+    },
+    "Update All": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "全部更新" } } }
+    },
+    "No Extensions Installed": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "尚未安装扩展" } } }
+    },
+    "Install pi Extension": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "安装 pi 扩展" } } }
+    },
+    "User — available in every project": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "用户级 — 所有项目可用" } } }
+    },
+    "Project — only this working directory": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "项目级 — 仅当前工作目录" } } }
+    },
+    "Package code runs inside pi and can register tools. Install only sources you trust.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "Package 代码会在 pi 中运行并可注册工具。请只安装可信来源。" } } }
+    },
+    "Remove extension?": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "移除扩展？" } } }
+    },
+    "Last command output": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "最近命令输出" } } }
+    },
+    "Preview": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "预览" } } }
+    },
+    "操作审批": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "操作审批" } } }
+    },
+    "仅高风险": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "仅高风险" } } }
+    },
+    "所有变更操作": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "所有变更操作" } } }
+    },
+    "网络命令策略": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "网络命令策略" } } }
+    },
+    "每次询问": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "每次询问" } } }
+    },
+    "Done": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "完成" } } }
     }
   }
 }

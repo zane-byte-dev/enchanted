@@ -17,6 +17,8 @@ import UniformTypeIdentifiers
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case general     = "general"
     case pi          = "pi"
+    case automations = "automations"
+    case extensions  = "extensions"
     case appearance  = "appearance"
     case voice       = "voice"
     case shortcuts   = "shortcuts"
@@ -28,6 +30,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general:     return "常规"
         case .pi:          return "Pi"
+        case .automations: return "Scheduled Tasks"
+        case .extensions:  return "Extensions"
         case .appearance:  return "外观"
         case .voice:       return "语音"
         case .shortcuts:   return "快捷键"
@@ -39,6 +43,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general:     return "gearshape"
         case .pi:          return "terminal"
+        case .automations: return "calendar.badge.clock"
+        case .extensions:  return "puzzlepiece.extension"
         case .appearance:  return "paintbrush"
         case .voice:       return "waveform"
         case .shortcuts:   return "keyboard"
@@ -335,6 +341,10 @@ struct SettingsMacOS: View {
                 openModelsConfig: openPiModelsConfig,
                 checkConnection: checkPi
             )
+        case .automations:
+            ScheduledTasksSettingsPane()
+        case .extensions:
+            PiExtensionsSettingsPane()
         case .appearance:
             AppearanceSettingsPane(
                 colorScheme: $colorScheme,
@@ -360,6 +370,493 @@ struct SettingsMacOS: View {
     }
 }
 
+// MARK: - Scheduled Tasks
+
+private struct ScheduledTasksSettingsPane: View {
+    @State private var store = ScheduledTaskStore.shared
+    @State private var showEditor = false
+    @State private var editingTaskID: UUID?
+    @State private var name = ""
+    @State private var prompt = ""
+    @State private var workingDirectory = WorkspaceStore.shared.currentDirectory
+    @State private var modelName = ""
+    @State private var intervalSeconds = 86_400.0
+    @State private var nextRunAt = Date.now.addingTimeInterval(3600)
+    @State private var missedPolicy = "run_once"
+
+    private let intervals: [(String, Double)] = [
+        ("Every hour", 3_600),
+        ("Every day", 86_400),
+        ("Every week", 604_800)
+    ]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    paneTitle("Scheduled Tasks")
+                    Spacer()
+                    Button(action: { openEditor(nil) }) {
+                        Label("New Schedule", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
+                Text("Schedules run only while Enchanted is open. Each run creates a normal task with visible permissions, history, and notifications.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+
+                if !store.isLoaded {
+                    ProgressView()
+                } else if store.tasks.isEmpty {
+                    ContentUnavailableView(
+                        "No Scheduled Tasks",
+                        systemImage: "calendar.badge.clock",
+                        description: Text("Create a recurring coding task such as a daily review or test run.")
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 260)
+                } else {
+                    VStack(spacing: 10) {
+                        ForEach(store.tasks) { task in
+                            scheduledTaskRow(task)
+                        }
+                    }
+                }
+            }
+            .padding(28)
+        }
+        .task { await store.reload() }
+        .sheet(isPresented: $showEditor) { editorSheet }
+    }
+
+    @ViewBuilder
+    private func scheduledTaskRow(_ task: ScheduledTaskSD) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                Toggle("", isOn: Binding(
+                    get: { task.isEnabled },
+                    set: { value in
+                        task.isEnabled = value
+                        Task { await store.save(task) }
+                    }
+                ))
+                .labelsHidden()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(task.name).font(.system(size: 13, weight: .semibold))
+                    Text(task.prompt).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2)
+                }
+                Spacer()
+                Button("Run Now") { Task { await store.runNow(task) } }
+                Button("Edit") { openEditor(task) }
+                Menu {
+                    Button("Delete", role: .destructive) {
+                        Task { await store.delete(task) }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            }
+
+            HStack(spacing: 12) {
+                Label(task.nextRunAt.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
+                Text(intervalLabel(task.intervalSeconds))
+                Text(URL(fileURLWithPath: task.workingDirectory).lastPathComponent)
+            }
+            .font(.system(size: 10))
+            .foregroundStyle(.secondary)
+
+            let history = store.history(for: task)
+            if !history.isEmpty {
+                DisclosureGroup("Run History (\(history.count))") {
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(history.prefix(8)) { record in
+                            HStack {
+                                Image(systemName: historyIcon(record.status))
+                                Text(record.launchedAt.formatted(date: .abbreviated, time: .shortened))
+                                Spacer()
+                                Text(historyLabel(record.status))
+                            }
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.top, 6)
+                }
+                .font(.system(size: 11))
+            }
+        }
+        .padding(12)
+        .background(CodexTheme.surface, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(CodexTheme.border))
+    }
+
+    private var editorSheet: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(editingTaskID == nil ? "New Scheduled Task" : "Edit Scheduled Task")
+                .font(.headline)
+            TextField("Name", text: $name)
+            TextEditor(text: $prompt)
+                .font(.system(size: 12))
+                .frame(height: 110)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(CodexTheme.border))
+            HStack {
+                TextField("Working directory", text: $workingDirectory)
+                Button("Choose…", action: chooseDirectory)
+            }
+            Picker("Model", selection: $modelName) {
+                Text("Default model").tag("")
+                ForEach(LanguageModelStore.shared.models) { model in
+                    Text(model.name).tag(model.name)
+                }
+            }
+            Picker("Repeat", selection: $intervalSeconds) {
+                ForEach(intervals, id: \.1) { label, seconds in
+                    Text(label).tag(seconds)
+                }
+            }
+            DatePicker("Next run", selection: $nextRunAt)
+            Picker("If a run was missed", selection: $missedPolicy) {
+                Text("Run once when the app opens").tag("run_once")
+                Text("Skip to the next occurrence").tag("skip")
+            }
+            HStack {
+                Spacer()
+                Button("Cancel") { showEditor = false }
+                Button("Save") { saveEditor() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || workingDirectory.isEmpty)
+            }
+        }
+        .textFieldStyle(.roundedBorder)
+        .padding(22)
+        .frame(width: 500)
+    }
+
+    private func openEditor(_ task: ScheduledTaskSD?) {
+        editingTaskID = task?.id
+        name = task?.name ?? ""
+        prompt = task?.prompt ?? ""
+        workingDirectory = task?.workingDirectory ?? WorkspaceStore.shared.currentDirectory
+        modelName = task?.modelName ?? ""
+        intervalSeconds = task?.intervalSeconds ?? 86_400
+        nextRunAt = task?.nextRunAt ?? Date.now.addingTimeInterval(3600)
+        missedPolicy = task?.missedPolicy ?? "run_once"
+        showEditor = true
+    }
+
+    private func saveEditor() {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        Task {
+            if let id = editingTaskID, let task = store.tasks.first(where: { $0.id == id }) {
+                task.name = trimmedName
+                task.prompt = trimmedPrompt
+                task.workingDirectory = workingDirectory
+                task.modelName = modelName.isEmpty ? nil : modelName
+                task.intervalSeconds = intervalSeconds
+                task.nextRunAt = nextRunAt
+                task.missedPolicy = missedPolicy
+                await store.save(task)
+            } else {
+                await store.create(
+                    name: trimmedName,
+                    prompt: trimmedPrompt,
+                    workingDirectory: workingDirectory,
+                    modelName: modelName.isEmpty ? nil : modelName,
+                    intervalSeconds: intervalSeconds,
+                    nextRunAt: nextRunAt,
+                    missedPolicy: missedPolicy
+                )
+            }
+            showEditor = false
+        }
+    }
+
+    private func chooseDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        if panel.runModal() == .OK, let path = panel.url?.path { workingDirectory = path }
+    }
+
+    private func intervalLabel(_ seconds: Double) -> String {
+        intervals.first(where: { $0.1 == seconds })?.0 ?? "Custom"
+    }
+
+    private func historyIcon(_ status: String) -> String {
+        status == "skipped" || status == "failed_no_model" ? "exclamationmark.circle" : "checkmark.circle"
+    }
+
+    private func historyLabel(_ status: String) -> String {
+        switch status {
+        case "manual": "Manual"
+        case "scheduled": "Scheduled"
+        case "missed_run": "Recovered missed run"
+        case "completed": "Completed"
+        case "skipped": "Skipped"
+        case "failed": "Failed"
+        default: "Failed"
+        }
+    }
+}
+
+// MARK: - Pi Extensions / Packages
+
+private struct PiInstalledPackage: Identifiable, Hashable {
+    let source: String
+    let scope: String
+    var id: String { "\(scope):\(source)" }
+}
+
+@MainActor
+@Observable
+private final class PiPackageManager {
+    var packages: [PiInstalledPackage] = []
+    var isBusy = false
+    var lastOutput = ""
+    var lastError: String?
+
+    func reload() {
+        let userURL = URL(fileURLWithPath: AgentBackendConfig.piAgentDirectory)
+            .appendingPathComponent("settings.json")
+        let projectURL = URL(fileURLWithPath: WorkspaceStore.shared.currentDirectory)
+            .appendingPathComponent(".pi/settings.json")
+        packages = Self.readPackages(at: userURL, scope: "user")
+            + Self.readPackages(at: projectURL, scope: "project")
+        packages.sort { ($0.scope, $0.source) < ($1.scope, $1.source) }
+    }
+
+    func install(source: String, local: Bool) async {
+        var arguments = ["install", source]
+        if local { arguments.append("--local") }
+        arguments.append("--approve")
+        await run(arguments)
+    }
+
+    func remove(_ package: PiInstalledPackage) async {
+        var arguments = ["remove", package.source]
+        if package.scope == "project" { arguments.append("--local") }
+        arguments.append("--approve")
+        await run(arguments)
+    }
+
+    func update(_ package: PiInstalledPackage) async {
+        await run(["update", package.source, "--approve"])
+    }
+
+    func updateAll() async {
+        await run(["update", "--extensions", "--approve"])
+    }
+
+    private func run(_ arguments: [String]) async {
+        guard !isBusy else { return }
+        isBusy = true
+        lastError = nil
+        lastOutput = ""
+        let executable = AgentBackendConfig.piExecutable
+        let cwd = WorkspaceStore.shared.currentDirectory
+        let result = await Task.detached {
+            Self.execute(executable: executable, arguments: arguments, cwd: cwd)
+        }.value
+        lastOutput = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if result.exitCode == 0 {
+            reload()
+            AgentBackendConfig.reconfigure()
+        } else {
+            lastError = lastOutput.isEmpty ? "pi command failed (\(result.exitCode))" : lastOutput
+        }
+        isBusy = false
+    }
+
+    nonisolated private static func execute(
+        executable: String,
+        arguments: [String],
+        cwd: String
+    ) -> (exitCode: Int32, output: String) {
+        let process = Process()
+        let pipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        process.currentDirectoryURL = URL(fileURLWithPath: cwd)
+        process.standardOutput = pipe
+        process.standardError = pipe
+        var environment = ProcessInfo.processInfo.environment
+        let usefulPath = [
+            NSHomeDirectory() + "/.local/bin",
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin"
+        ].joined(separator: ":")
+        environment["PATH"] = usefulPath + ":" + (environment["PATH"] ?? "")
+        process.environment = environment
+        do {
+            try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
+        } catch {
+            return (-1, error.localizedDescription)
+        }
+    }
+
+    nonisolated private static func readPackages(
+        at url: URL,
+        scope: String
+    ) -> [PiInstalledPackage] {
+        guard let data = try? Data(contentsOf: url),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rawPackages = object["packages"] as? [Any] else { return [] }
+        return rawPackages.compactMap { item in
+            if let source = item as? String {
+                return PiInstalledPackage(source: source, scope: scope)
+            }
+            if let dictionary = item as? [String: Any],
+               let source = dictionary["source"] as? String {
+                return PiInstalledPackage(source: source, scope: scope)
+            }
+            return nil
+        }
+    }
+}
+
+private struct PiExtensionsSettingsPane: View {
+    @State private var manager = PiPackageManager()
+    @State private var showInstaller = false
+    @State private var source = ""
+    @State private var installLocally = false
+    @State private var pendingRemoval: PiInstalledPackage?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    paneTitle("Extensions")
+                    Spacer()
+                    Button("Update All") { Task { await manager.updateAll() } }
+                        .disabled(manager.isBusy || manager.packages.isEmpty)
+                    Button(action: { showInstaller = true }) {
+                        Label("Install Extension", systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(manager.isBusy)
+                }
+
+                Text("Uses pi's native package manager. Sources may be npm packages, Git repositories, URLs, or local paths. Changes apply to new agent processes.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+
+                if manager.isBusy {
+                    HStack { ProgressView().controlSize(.small); Text("Running pi package command…") }
+                        .font(.system(size: 12))
+                }
+
+                if manager.packages.isEmpty && !manager.isBusy {
+                    ContentUnavailableView(
+                        "No Extensions Installed",
+                        systemImage: "puzzlepiece.extension",
+                        description: Text("Install a pi package to add tools, commands, themes, or integrations.")
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 240)
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(manager.packages) { package in
+                            HStack(spacing: 10) {
+                                Image(systemName: "shippingbox")
+                                    .foregroundStyle(.secondary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(package.source)
+                                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                        .textSelection(.enabled)
+                                    Text(package.scope == "project" ? "Project" : "User")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button("Update") { Task { await manager.update(package) } }
+                                Button("Remove", role: .destructive) { pendingRemoval = package }
+                            }
+                            .padding(11)
+                            .background(CodexTheme.surface, in: RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(CodexTheme.border))
+                        }
+                    }
+                }
+
+                if let error = manager.lastError {
+                    LabeledContent("Error") {
+                        Text(error).textSelection(.enabled)
+                    }
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.red)
+                } else if !manager.lastOutput.isEmpty {
+                    DisclosureGroup("Last command output") {
+                        Text(manager.lastOutput)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 6)
+                    }
+                    .font(.system(size: 11))
+                }
+            }
+            .padding(28)
+        }
+        .onAppear { manager.reload() }
+        .sheet(isPresented: $showInstaller) { installerSheet }
+        .confirmationDialog(
+            "Remove extension?",
+            isPresented: Binding(
+                get: { pendingRemoval != nil },
+                set: { if !$0 { pendingRemoval = nil } }
+            )
+        ) {
+            Button("Remove", role: .destructive) {
+                guard let package = pendingRemoval else { return }
+                pendingRemoval = nil
+                Task { await manager.remove(package) }
+            }
+            Button("Cancel", role: .cancel) { pendingRemoval = nil }
+        } message: {
+            Text(pendingRemoval?.source ?? "")
+        }
+    }
+
+    private var installerSheet: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Install pi Extension").font(.headline)
+            TextField("npm:@scope/package, Git URL, or local path", text: $source)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 460)
+            Picker("Install scope", selection: $installLocally) {
+                Text("User — available in every project").tag(false)
+                Text("Project — only this working directory").tag(true)
+            }
+            Text("Package code runs inside pi and can register tools. Install only sources you trust.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button("Cancel") { showInstaller = false }
+                Button("Install") {
+                    let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+                    showInstaller = false
+                    source = ""
+                    Task { await manager.install(source: trimmed, local: installLocally) }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(22)
+    }
+}
+
 // MARK: - Pi
 
 private struct PiSettingsPane: View {
@@ -377,6 +874,10 @@ private struct PiSettingsPane: View {
     let detectExecutable: () -> Void
     let openModelsConfig: () -> Void
     let checkConnection: () -> Void
+    @AppStorage("piAutoCompaction") private var autoCompaction = true
+    @AppStorage("piApprovalMode") private var approvalMode = AgentBackendConfig.approvalMode
+    @AppStorage("piNetworkPolicy") private var networkPolicy = AgentBackendConfig.networkPolicy
+    @State private var conversationStore = ConversationStore.shared
 
     private let thinkingLevels: [(id: String, label: String)] = [
         ("off", "关闭"),
@@ -539,6 +1040,42 @@ private struct PiSettingsPane: View {
                         .labelsHidden()
                         .pickerStyle(.segmented)
                         .frame(width: 390)
+                    }
+                    settingsDivider
+                    row("自动压缩上下文") {
+                        Toggle("上下文接近上限时由 pi 自动 Compact", isOn: $autoCompaction)
+                            .toggleStyle(.switch)
+                            .onChange(of: autoCompaction) { _, enabled in
+                                Task { await conversationStore.applyAutoCompactionSetting(enabled) }
+                            }
+                    }
+                }
+
+                settingsGroup("安全") {
+                    row("操作审批") {
+                        Picker("", selection: $approvalMode) {
+                            Text("关闭").tag("off")
+                            Text("仅高风险").tag("dangerous")
+                            Text("所有变更操作").tag("mutations")
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 390)
+                        .onChange(of: approvalMode) { _, _ in
+                            AgentBackendConfig.reconfigure()
+                        }
+                    }
+                    settingsDivider
+                    row("网络命令策略") {
+                        Picker("", selection: $networkPolicy) {
+                            Text("允许").tag("allow")
+                            Text("每次询问").tag("ask")
+                            Text("阻止").tag("block")
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 390)
+                        .onChange(of: networkPolicy) { _, _ in
+                                AgentBackendConfig.reconfigure()
+                        }
                     }
                 }
 

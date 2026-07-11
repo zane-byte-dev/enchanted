@@ -25,7 +25,8 @@ final actor SwiftDataService: ModelActor {
             let schema = Schema([
                 LanguageModelSD.self,
                 ConversationSD.self,
-                MessageSD.self
+                MessageSD.self,
+                ScheduledTaskSD.self
             ])
             let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
             
@@ -40,6 +41,29 @@ final actor SwiftDataService: ModelActor {
         self.modelContext.autosaveEnabled = false
         modelContainer = sharedModelContainer
         modelExecutor = DefaultSerialModelExecutor(modelContext: modelContext)
+    }
+}
+
+// MARK: - Scheduled Tasks
+
+extension SwiftDataService {
+    func fetchScheduledTasks() throws -> [ScheduledTaskSD] {
+        let sort = SortDescriptor(\ScheduledTaskSD.nextRunAt)
+        return try modelContext.fetch(FetchDescriptor<ScheduledTaskSD>(sortBy: [sort]))
+    }
+
+    func createScheduledTask(_ task: ScheduledTaskSD) throws {
+        modelContext.insert(task)
+        try modelContext.saveChanges()
+    }
+
+    func updateScheduledTask(_ task: ScheduledTaskSD) throws {
+        try modelContext.saveChanges()
+    }
+
+    func deleteScheduledTask(_ task: ScheduledTaskSD) throws {
+        modelContext.delete(task)
+        try modelContext.saveChanges()
     }
 }
 
@@ -230,6 +254,7 @@ extension SwiftDataService {
         try modelContext.delete(model: ConversationSD.self)
         try modelContext.delete(model: LanguageModelSD.self)
         try modelContext.delete(model: MessageSD.self)
+        try modelContext.delete(model: ScheduledTaskSD.self)
         try modelContext.saveChanges()
     }
 }

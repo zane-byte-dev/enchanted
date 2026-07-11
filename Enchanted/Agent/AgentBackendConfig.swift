@@ -10,6 +10,25 @@ import Foundation
 enum AgentBackendConfig {
     static let piExecutableDefaultsKey = "piExecutable"
     static let piDefaultProviderDefaultsKey = "piDefaultProvider"
+    static let piPermissionGateDefaultsKey = "piPermissionGate"
+    static let piApprovalModeDefaultsKey = "piApprovalMode"
+    static let piNetworkPolicyDefaultsKey = "piNetworkPolicy"
+
+    static var permissionGateEnabled: Bool {
+        if UserDefaults.standard.object(forKey: piPermissionGateDefaultsKey) == nil { return true }
+        return UserDefaults.standard.bool(forKey: piPermissionGateDefaultsKey)
+    }
+
+    static var approvalMode: String {
+        if let value = UserDefaults.standard.string(forKey: piApprovalModeDefaultsKey) {
+            return value
+        }
+        return permissionGateEnabled ? "dangerous" : "off"
+    }
+
+    static var networkPolicy: String {
+        UserDefaults.standard.string(forKey: piNetworkPolicyDefaultsKey) ?? "allow"
+    }
 
     static var piAgentDirectory: String {
         ProcessInfo.processInfo.environment["PI_CODING_AGENT_DIR"]
@@ -93,12 +112,98 @@ enum AgentBackendConfig {
         workingDirectory: String,
         resumeSessionPath: String? = nil
     ) -> PiConnector {
-        PiConnector(config: .init(
+        var command = "exec \(shellQuote(executable)) --mode rpc"
+        // Always load the app extension because it also supplies update_plan.
+        // Approval behavior itself can be disabled inside the extension.
+        if let extensionPath = ensurePermissionGateExtension() {
+            command += " --extension \(shellQuote(extensionPath))"
+        }
+        return PiConnector(config: .init(
             executable: "/bin/zsh",
-            arguments: ["-l", "-c", "exec \(shellQuote(executable)) --mode rpc"],
+            arguments: ["-l", "-c", command],
             workingDirectory: workingDirectory,
             resumeSessionPath: resumeSessionPath
         ))
+    }
+
+    /// A tiny bundled-at-runtime pi extension that asks the RPC client before
+    /// destructive shell commands or writes outside the active workspace.
+    /// Keeping it generated beside the app's debug log avoids adding a build
+    /// resource phase to the legacy Xcode project.
+    private static func ensurePermissionGateExtension() -> String? {
+        let directory = NSHomeDirectory() + "/.enchanted-pi"
+        let path = directory + "/permission-gate.ts"
+        let selectedApprovalMode = approvalMode
+        let selectedNetworkPolicy = networkPolicy
+        let source = #"""
+        import { Type } from "@sinclair/typebox";
+        import { StringEnum } from "@earendil-works/pi-ai";
+
+        export default function (pi) {
+          const approvalMode = "\#(selectedApprovalMode)";
+          const networkPolicy = "\#(selectedNetworkPolicy)";
+          const readOnlyTools = new Set(["read", "grep", "find", "ls", "search", "glob", "update_plan"]);
+          const destructive = [
+            /\brm\s+[^\n]*(?:-r|-f|--recursive|--force)/i,
+            /\bsudo\b/i,
+            /\b(?:chmod|chown)\b/i,
+            /\bgit\s+(?:reset\s+--hard|clean\s+-|push\s+[^\n]*--force)/i,
+            /\b(?:dd|mkfs|shutdown|reboot)\b/i,
+            /(?:curl|wget)[^\n|]*\|\s*(?:sh|bash|zsh)\b/i
+          ];
+          const networkCommand = /\b(?:curl|wget|ssh|scp|rsync|npm|pnpm|yarn|pip|pip3)\b|\bgit\s+(?:clone|fetch|pull|push)\b/i;
+          pi.on("tool_call", async (event, ctx) => {
+            let detail = JSON.stringify(event.input || {}, null, 2);
+            let title = "Allow operation?";
+            if (event.toolName === "bash") {
+              const command = String(event.input.command || "");
+              detail = command;
+              if (networkCommand.test(command)) {
+                if (networkPolicy === "block") return { block: true, reason: "Blocked by Enchanted network policy" };
+                if (networkPolicy === "ask") title = "Allow network command?";
+              }
+              if (title === "Allow operation?" && approvalMode === "dangerous" && !destructive.some((pattern) => pattern.test(command))) return;
+            } else if (event.toolName === "write" || event.toolName === "edit") {
+              const path = String(event.input.path || "");
+              detail = path;
+              if (approvalMode === "dangerous" && (!path.startsWith("/") || path === ctx.cwd || path.startsWith(ctx.cwd + "/"))) return;
+            } else {
+              if (approvalMode !== "mutations" || readOnlyTools.has(event.toolName)) return;
+            }
+            if (approvalMode === "off" && title === "Allow operation?") return;
+            const allowed = await ctx.ui.confirm(title, detail);
+            if (!allowed) return { block: true, reason: "Blocked by user" };
+          });
+
+          const PlanItem = Type.Object({
+            step: Type.String({ description: "Concrete task step" }),
+            status: StringEnum(["pending", "in_progress", "completed"])
+          });
+          pi.registerTool({
+            name: "update_plan",
+            label: "Update plan",
+            description: "Publish or update the task plan shown to the user. Keep exactly one item in_progress while work remains.",
+            parameters: Type.Object({
+              explanation: Type.Optional(Type.String()),
+              plan: Type.Array(PlanItem, { minItems: 1 })
+            }),
+            async execute(_toolCallId, params) {
+              return {
+                content: [{ type: "text", text: "Plan updated" }],
+                details: params
+              };
+            }
+          });
+        }
+        """#
+        do {
+            try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+            try source.write(toFile: path, atomically: true, encoding: .utf8)
+            return path
+        } catch {
+            debugLog("permission gate: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     private static func shellQuote(_ value: String) -> String {

@@ -320,7 +320,9 @@ struct ConversationSearchPanel: View {
 
         return Button(action: { onConversationTap(conversation) }) {
             HStack(spacing: 10) {
-                Image(systemName: conversation.isArchived ? "archivebox" : "bubble.left")
+                Image(systemName: conversation.goalStatus == "active"
+                    ? "target"
+                    : (conversation.isArchived ? "archivebox" : "bubble.left"))
                     .font(.system(size: 14))
                     .foregroundColor(CodexTheme.mutedText)
                     .frame(width: 18, height: 18)

@@ -30,12 +30,14 @@ struct ChatView: View {
     var copyChat: (_ json: Bool) -> ()
     var stats: PiSessionStats? = nil
     var onSteer: @MainActor (_ message: String) -> Void = { _ in }
+    var onFollowUp: @MainActor (_ message: String, _ images: [Image]) -> Void = { _, _ in }
     var onNewConversationInProject: (_ path: String) -> () = { _ in }
     var showSkills: Bool = false
     
     @State private var message = ""
     @State private var editMessage: MessageSD?
     @State private var appStore = AppStore.shared
+    @State private var sharedConversationStore = ConversationStore.shared
     @State private var inputFocusTrigger = 0
     @State private var composerResetGeneration = 0
     @FocusState private var isFocusedInput: Bool
@@ -43,6 +45,7 @@ struct ChatView: View {
     @State private var renamingCurrent: ConversationSD?
     @State private var renameText = ""
     @State private var selectedSkill: PiSkill?
+    @State private var conversationPendingDeletion: ConversationSD?
 #endif
 #if os(macOS)
     @State private var terminalStore = TerminalStore.shared
@@ -60,6 +63,7 @@ struct ChatView: View {
             onSendMessageTap: onSendMessageTap,
             stats: stats,
             onSteer: onSteer,
+            onFollowUp: onFollowUp,
             focusTrigger: inputFocusTrigger,
             slashPalettePlacement: slashPalettePlacement,
             editMessage: $editMessage
@@ -89,13 +93,21 @@ struct ChatView: View {
         onNewConversationTap()
     }
 
+    private func requestDelete(_ conversation: ConversationSD) {
+#if os(macOS)
+        conversationPendingDeletion = conversation
+#else
+        onConversationDelete(conversation)
+#endif
+    }
+
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(
                 selectedConversation: selectedConversation,
                 conversations: conversations,
                 onConversationTap: onConversationTap,
-                onConversationDelete: onConversationDelete,
+                onConversationDelete: requestDelete,
                 onDeleteDailyConversations: onDeleteDailyConversations,
                 onNewConversation: startNewConversation,
                 onNewConversationInProject: onNewConversationInProject
@@ -120,6 +132,29 @@ struct ChatView: View {
             detailContent
         }
         .navigationTitle("")
+#if os(macOS)
+        .overlay(alignment: .bottom) {
+            if sharedConversationStore.canUndoDeletion {
+                HStack(spacing: 12) {
+                    Text("Conversation deleted")
+                        .font(.system(size: 13, weight: .medium))
+                    Button("Undo") {
+                        Task { await sharedConversationStore.undoLastDeletion() }
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.system(size: 13, weight: .semibold))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(CodexTheme.border))
+                .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
+                .padding(.bottom, 18)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: sharedConversationStore.canUndoDeletion)
+#endif
         .overlay {
 #if os(macOS) || os(visionOS)
             if appStore.showConversationSearch {
@@ -177,6 +212,20 @@ struct ChatView: View {
                 if let c = renamingCurrent { ConversationStore.shared.rename(c, to: renameText) }
                 renamingCurrent = nil
             }
+        }
+        .alert("Delete Conversation?", isPresented: Binding(
+            get: { conversationPendingDeletion != nil },
+            set: { if !$0 { conversationPendingDeletion = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { conversationPendingDeletion = nil }
+            Button("Delete", role: .destructive) {
+                if let conversation = conversationPendingDeletion {
+                    onConversationDelete(conversation)
+                }
+                conversationPendingDeletion = nil
+            }
+        } message: {
+            Text("This removes the conversation and its local transcript. You can undo for 10 seconds.")
         }
 #endif
     }
@@ -395,7 +444,16 @@ struct ChatView: View {
                 .frame(maxWidth: 320, alignment: .leading)
 
             if shouldShowTitleMenu {
-                MoreOptionsMenuView(copyChat: copyChat)
+                MoreOptionsMenuView(
+                    conversation: selectedConversation,
+                    copyChat: copyChat,
+                    onRename: {
+                        guard let conversation = selectedConversation else { return }
+                        renameText = conversation.name
+                        renamingCurrent = conversation
+                    },
+                    onDelete: requestDelete
+                )
             }
         }
         .padding(.leading, 10)

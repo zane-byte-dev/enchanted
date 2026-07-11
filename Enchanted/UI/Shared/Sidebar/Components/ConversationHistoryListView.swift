@@ -194,6 +194,12 @@ struct ConversationHistoryList: View {
                     .font(.system(size: 13, weight: .regular))
                     .foregroundColor(CodexTheme.primaryText)
                 Spacer(minLength: 4)
+                if conversation.goalStatus == "active" || conversation.goalStatus == "paused" {
+                    Image(systemName: conversation.goalStatus == "active" ? "target" : "pause.circle")
+                        .font(.system(size: 10))
+                        .foregroundStyle(conversation.goalStatus == "active" ? Color.accentColor : Color.secondary)
+                        .help(conversation.goalStatus == "active" ? "Active long-running goal" : "Paused long-running goal")
+                }
                 ConversationStatusBadge(conversationID: conversation.id)
                 Text(conversation.updatedAt.shortAgoString())
                     .font(.system(size: 11))

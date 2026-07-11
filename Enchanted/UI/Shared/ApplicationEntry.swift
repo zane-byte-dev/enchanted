@@ -84,6 +84,7 @@ struct ApplicationEntry: View {
                     _ = try await loadConversations
                     // One-time: shorten pre-existing over-long titles.
                     await conversationStore.migrateLongTitlesIfNeeded()
+                    await MainActor.run { ScheduledTaskStore.shared.start() }
                 } catch {
                     print("Unexpected error: \(error).")
                 }

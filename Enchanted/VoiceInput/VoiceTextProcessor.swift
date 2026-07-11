@@ -158,7 +158,8 @@ private final class OneShotAgentRequest: @unchecked Sendable {
             lock.unlock()
         case .done:
             finish()
-        case .thinkingDelta, .toolStart, .toolEnd:
+        case .thinkingDelta, .toolStart, .toolEnd, .queueUpdate, .queuedTurnStarted,
+             .compactionStarted, .compactionFinished, .uiRequest, .planUpdate:
             break
         }
     }

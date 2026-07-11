@@ -29,6 +29,25 @@ struct AgentChatMessage: Sendable {
     }
 }
 
+struct AgentUIRequest: Identifiable, Sendable, Equatable {
+    let id: String
+    let method: String
+    let title: String
+    let message: String?
+    let options: [String]
+}
+
+struct AgentPlanItem: Codable, Sendable, Equatable, Identifiable {
+    let step: String
+    let status: String
+    var id: String { step }
+}
+
+struct AgentPlanSnapshot: Codable, Sendable, Equatable {
+    let explanation: String?
+    let items: [AgentPlanItem]
+}
+
 /// Unified streaming event emitted by every backend.
 /// This is the app-side mirror of pi's RPC event stream / ACP.
 enum AgentEvent: Sendable {
@@ -40,6 +59,17 @@ enum AgentEvent: Sendable {
     case toolStart(callId: String, name: String, args: String)
     /// A tool call finished.
     case toolEnd(callId: String, name: String, result: String, isError: Bool)
+    /// Pending steering/follow-up queues changed.
+    case queueUpdate(steering: [String], followUps: [String])
+    /// A queued follow-up user turn has begun and needs a new local message pair.
+    case queuedTurnStarted(String)
+    /// Context compaction lifecycle (manual, threshold, or overflow).
+    case compactionStarted(reason: String)
+    case compactionFinished(reason: String, tokensBefore: Int?, estimatedTokensAfter: Int?, error: String?)
+    /// An extension is waiting for an explicit user decision.
+    case uiRequest(AgentUIRequest)
+    /// Structured task plan supplied by an agent extension tool.
+    case planUpdate(explanation: String?, items: [AgentPlanItem])
     /// Generation completed successfully.
     case done
 }

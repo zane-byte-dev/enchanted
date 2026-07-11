@@ -33,12 +33,31 @@
 - [ ] 品牌轻量更名：用户可见名称从 `Enchanted` 改为 `Mox`（App 显示名称、窗口/About/设置文案、图标、README 与本地化）；第一阶段不改 Xcode 工程名、Target、Swift module、Bundle Identifier、源码目录和仓库名
 - [x] PiConnector 图片输入（支持多图、粘贴与历史展示）
 - [x] PiConnector steer + abort
-- [ ] PiConnector compact
+- [x] PiConnector compact（context stats 菜单手动触发，完成后刷新 token/context）
+- [x] Auto Compact（设置持久化并同步到当前 pi session）
+- [x] Follow-up Queue（客户端可查看、删除、调整顺序；当前任务结束后按独立 turn 自动续跑）
 - [x] 搜索快捷键（聊天 / 项目）
-- [ ] 会话内搜索
+- [x] 会话内搜索（⌘F，全量加载后高亮与上下跳转）
 - [ ] SwiftMath 渲染 `$...$` 公式（纯原生）
 - [ ] mermaid → 后端出 SVG/PNG，前端当图片
-- [ ] 右键菜单继续对齐 Codex（够用即停）
+- [x] 对话操作对齐：从消息处分支、Retry/Regenerate、消息复制、标题栏统一菜单、Markdown/JSON 导出
+- [x] 对话操作安全收口：消息链接精确定位、Retry 副作用确认、分支 loading/防重、删除确认与 10 秒 Undo
+- [x] Changes 侧栏：Git 状态、增删统计、Diff 着色、打开文件、Stage/Unstage 与确认式 Discard
+- [x] 高风险操作确认：pi Extension UI 请求在聊天内渲染确认卡，默认拦截危险命令和工作区外写入
+- [x] 新任务环境：发送前选择 Local / Worktree；Worktree 创建失败时不降级执行
+- [x] 独立 Code Review：从 Changes 一键创建只读审查任务
+- [x] Browser / Side Chat：内嵌网页调试与不污染主会话的临时 pi 对话
+- [x] 结构化 Plan/TODO：`update_plan` 扩展工具、会话持久化、分支与删除 Undo 保留
+- [x] 长期目标与后台续跑基础：目标/状态持久化、切任务继续运行、暂停/恢复、Plan 完成条件、最多 12 轮自动续跑
+- [x] 启动时恢复入口：侧栏标记 active/paused 目标，进入任务后由用户恢复；不自动重放工具
+- [x] 任务产物入口：write/edit 工具卡直接打开文件或在 Finder 定位
+- [x] 内嵌产物预览：工具卡内 Quick Look 检查图片、PDF、文档、表格与 HTML
+- [x] Scheduled Tasks：创建/编辑/启停/立即运行、小时/日/周周期、错过策略、最近 50 次运行历史
+- [x] pi Extensions：原生 package manager 的安装、更新、移除、用户/项目作用域与命令诊断
+- [ ] 统一 MCP 管理：等待 pi 暴露 server registry/授权/工具发现协议，当前由 extension package 自行提供
+- [x] Extension 审批策略：关闭/仅高风险/所有变更，严格档覆盖第三方非只读工具
+- [x] 命令级网络策略：常见下载、远程 Git、SSH 与包管理命令支持允许/询问/阻止
+- [ ] 进程级网络隔离与审计：依赖内置同签名 pi + macOS Sandbox
 
 ---
 
@@ -54,6 +73,8 @@
 - [ ] 定策略：本地 SwiftData 历史 ↔ pi 会话 transcript（谁是权威 / 如何对齐）
 - [x] 软件重启后恢复历史会话上下文
 - [x] 在途任务安全恢复（补拉 pi transcript；未完成时标记中断，不自动重跑工具）
+- [x] 历史漂移探测（比较本地与 pi 的 user turn 序列，任务结束后自动检查并支持手动复查）
+- [x] 历史漂移修复（逐轮差异预览；可用 pi 分支替换本地，或从本地可见对话重建 pi v3 session）
 
 ### 🟡 分发（路线已定：Developer ID 直分发，见 ADR-007）
 - [ ] pi 打包进 bundle：bundle node vs bun/SEA 编单体可执行体

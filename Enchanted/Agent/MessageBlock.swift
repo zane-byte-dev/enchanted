@@ -8,7 +8,7 @@
 
 import Foundation
 
-enum MessageBlock: Codable, Identifiable, Equatable {
+enum MessageBlock: Codable, Identifiable, Equatable, Sendable {
     case text(String)
     case thinking(String)
     case tool(ToolCall)
@@ -22,7 +22,7 @@ enum MessageBlock: Codable, Identifiable, Equatable {
     }
 }
 
-struct ToolCall: Codable, Equatable, Identifiable {
+struct ToolCall: Codable, Equatable, Identifiable, Sendable {
     var callId: String
     var name: String
     /// Raw JSON string of the tool arguments.
@@ -94,5 +94,13 @@ struct ToolCall: Codable, Equatable, Identifiable {
     var writeContent: String? {
         guard name == "write" else { return nil }
         return args["content"] as? String
+    }
+
+    /// A file produced or changed by this tool, suitable for an artifact action.
+    var artifactPath: String? {
+        guard name == "write" || name == "edit",
+              let path = args["path"] as? String,
+              !path.isEmpty else { return nil }
+        return path
     }
 }
