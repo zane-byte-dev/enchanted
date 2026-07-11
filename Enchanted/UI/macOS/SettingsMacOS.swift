@@ -28,14 +28,14 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .general:     return "常规"
+        case .general:     return String(localized: "常规")
         case .pi:          return "Pi"
-        case .automations: return "Scheduled Tasks"
-        case .extensions:  return "Extensions"
-        case .appearance:  return "外观"
-        case .voice:       return "语音"
-        case .shortcuts:   return "快捷键"
-        case .advanced:    return "高级"
+        case .automations: return String(localized: "Scheduled Tasks")
+        case .extensions:  return String(localized: "Extensions")
+        case .appearance:  return String(localized: "外观")
+        case .voice:       return String(localized: "语音")
+        case .shortcuts:   return String(localized: "快捷键")
+        case .advanced:    return String(localized: "高级")
         }
     }
 
@@ -238,6 +238,7 @@ struct SettingsMacOS: View {
         }
         .frame(minWidth: 740, minHeight: 520)
         .background(CodexTheme.appBackground)
+        .tint(CodexTheme.primaryText)
         .preferredColorScheme(colorScheme.toiOSFormat)
         .onChange(of: piDefaultModel) { _, name in
             languageModelStore.setModel(modelName: name)
@@ -396,10 +397,12 @@ private struct ScheduledTasksSettingsPane: View {
                 HStack {
                     paneTitle("Scheduled Tasks")
                     Spacer()
-                    Button(action: { openEditor(nil) }) {
-                        Label("New Schedule", systemImage: "plus")
+                    if store.isLoaded && !store.tasks.isEmpty {
+                        Button(action: { openEditor(nil) }) {
+                            Label("New Schedule", systemImage: "plus")
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
-                    .buttonStyle(.borderedProminent)
                 }
 
                 Text("Schedules run only while Enchanted is open. Each run creates a normal task with visible permissions, history, and notifications.")
@@ -409,12 +412,22 @@ private struct ScheduledTasksSettingsPane: View {
                 if !store.isLoaded {
                     ProgressView()
                 } else if store.tasks.isEmpty {
-                    ContentUnavailableView(
-                        "No Scheduled Tasks",
-                        systemImage: "calendar.badge.clock",
-                        description: Text("Create a recurring coding task such as a daily review or test run.")
-                    )
-                    .frame(maxWidth: .infinity, minHeight: 260)
+                    VStack(spacing: 12) {
+                        Image(systemName: "calendar.badge.clock")
+                            .font(.system(size: 34, weight: .light))
+                            .foregroundStyle(.tertiary)
+                        Text("No Scheduled Tasks")
+                            .font(.system(size: 20, weight: .semibold))
+                        Text("Create a recurring coding task such as a daily review or test run.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        Button(action: { openEditor(nil) }) {
+                            Label("New Schedule", systemImage: "plus")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .padding(.top, 4)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 300)
                 } else {
                     VStack(spacing: 10) {
                         ForEach(store.tasks) { task in
@@ -738,13 +751,15 @@ private struct PiExtensionsSettingsPane: View {
                 HStack {
                     paneTitle("Extensions")
                     Spacer()
-                    Button("Update All") { Task { await manager.updateAll() } }
-                        .disabled(manager.isBusy || manager.packages.isEmpty)
-                    Button(action: { showInstaller = true }) {
-                        Label("Install Extension", systemImage: "plus")
+                    if !manager.packages.isEmpty {
+                        Button("Update All") { Task { await manager.updateAll() } }
+                            .disabled(manager.isBusy)
+                        Button(action: { showInstaller = true }) {
+                            Label("Install Extension", systemImage: "plus")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(manager.isBusy)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(manager.isBusy)
                 }
 
                 Text("Uses pi's native package manager. Sources may be npm packages, Git repositories, URLs, or local paths. Changes apply to new agent processes.")
@@ -757,12 +772,22 @@ private struct PiExtensionsSettingsPane: View {
                 }
 
                 if manager.packages.isEmpty && !manager.isBusy {
-                    ContentUnavailableView(
-                        "No Extensions Installed",
-                        systemImage: "puzzlepiece.extension",
-                        description: Text("Install a pi package to add tools, commands, themes, or integrations.")
-                    )
-                    .frame(maxWidth: .infinity, minHeight: 240)
+                    VStack(spacing: 12) {
+                        Image(systemName: "puzzlepiece.extension")
+                            .font(.system(size: 34, weight: .light))
+                            .foregroundStyle(.tertiary)
+                        Text("No Extensions Installed")
+                            .font(.system(size: 20, weight: .semibold))
+                        Text("Install a pi package to add tools, commands, themes, or integrations.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        Button(action: { showInstaller = true }) {
+                            Label("Install Extension", systemImage: "plus")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .padding(.top, 4)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 300)
                 } else {
                     VStack(spacing: 8) {
                         ForEach(manager.packages) { package in
@@ -2358,14 +2383,14 @@ private struct AdvancedSettingsPane: View {
 // MARK: - Shared helpers (file-private)
 
 private func paneTitle(_ title: String) -> some View {
-    Text(title)
+    Text(localizedSettingsString(title))
         .font(.system(size: 25, weight: .semibold))
         .foregroundColor(CodexTheme.primaryText.opacity(0.92))
 }
 
 private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
     VStack(alignment: .leading, spacing: 0) {
-        Text(title)
+        Text(localizedSettingsString(title))
             .font(.system(size: 11, weight: .semibold))
             .foregroundColor(CodexTheme.mutedText)
             .textCase(.uppercase)
@@ -2402,7 +2427,7 @@ private var settingsDivider: some View {
 
 private func row<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
     HStack {
-        Text(label)
+        Text(localizedSettingsString(label))
             .font(.system(size: 13))
             .foregroundColor(CodexTheme.primaryText.opacity(0.86))
             .frame(width: 130, alignment: .leading)
@@ -2420,10 +2445,10 @@ private func row<Content: View>(
 ) -> some View {
     HStack(spacing: 16) {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label)
+            Text(localizedSettingsString(label))
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(CodexTheme.primaryText)
-            Text(detail)
+            Text(localizedSettingsString(detail))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
@@ -2432,6 +2457,10 @@ private func row<Content: View>(
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 12)
+}
+
+private func localizedSettingsString(_ key: String) -> String {
+    Bundle.main.localizedString(forKey: key, value: key, table: nil)
 }
 
 private struct SettingsSidebarRowStyle: ButtonStyle {

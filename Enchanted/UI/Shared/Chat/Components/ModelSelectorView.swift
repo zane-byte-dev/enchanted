@@ -12,6 +12,7 @@ struct ModelSelectorView: View {
     var selectedModel: LanguageModelSD?
     var onSelectModel: @MainActor (_ model: LanguageModelSD?) -> ()
     var showChevron = true
+    var compact = false
     
     var body: some View {
         Menu {
@@ -48,6 +49,8 @@ struct ModelSelectorView: View {
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(CodexTheme.primaryText)
                                 .lineLimit(1)
+                                .truncationMode(.middle)
+                                .frame(maxWidth: compact ? 116 : nil)
                         }
                         #elseif os(iOS)
                         Text(selectedModel.prettyName )
@@ -78,7 +81,7 @@ struct ModelSelectorView: View {
         .tint(CodexTheme.primaryText)
 #endif
         .menuIndicator(.hidden)
-        .fixedSize()
+        .fixedSize(horizontal: !compact, vertical: true)
     }
 }
 

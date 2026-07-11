@@ -10,17 +10,19 @@ import MarkdownUI
 
 struct CodeBlockView: View {
     var configuration: CodeBlockConfiguration
-    var language: String {
-        let language = configuration.language ?? "code"
-        return language != "" ? language : "code"
+    var language: String? {
+        let language = configuration.language?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return language?.isEmpty == false ? language : nil
     }
     
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text(language)
-                    .font(.system(size: max(10, ThemePreferences.codeFontSize - 1), design: .monospaced))
-                    .fontWeight(.semibold)
+                if let language {
+                    Text(language)
+                        .font(.system(size: max(10, ThemePreferences.codeFontSize - 1), design: .monospaced))
+                        .fontWeight(.semibold)
+                }
                 Spacer()
                 
                 Button(action: {

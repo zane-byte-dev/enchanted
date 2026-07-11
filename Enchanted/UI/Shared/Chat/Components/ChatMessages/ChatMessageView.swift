@@ -316,12 +316,12 @@ struct ChatMessageView: View {
                     v.padding(.horizontal, 12)
                         .padding(.vertical, 9)
                         .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(CodexTheme.surfaceSubtle)
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(CodexTheme.surfaceSubtle.opacity(0.72))
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .strokeBorder(CodexTheme.border.opacity(0.7), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(CodexTheme.border.opacity(0.45), lineWidth: 1)
                         )
                 })
                 

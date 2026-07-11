@@ -51,7 +51,9 @@ struct ApplicationEntry: View {
                 revision: themeRevision
             )
         )
-        .tint(CodexTheme.accent)
+        // Codex keeps window chrome and primary controls neutral; semantic
+        // accents (links, status, warnings) opt into their own colors.
+        .tint(CodexTheme.primaryText)
         .foregroundStyle(CodexTheme.primaryText)
 #endif
         .task {

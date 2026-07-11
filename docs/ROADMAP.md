@@ -28,6 +28,7 @@
 - [x] 快捷键自定义（录制/冲突/恢复默认）+ 第一批聊天快捷键
 - [x] 任务完成通知（`NotificationService`）
 - [x] 简中本地化（String Catalog）
+- [x] Codex 风格收口：中性窗口强调色、三栏紧凑输入区、中文工具导航与带主操作的空状态
 - [x] 语音输入（SenseVoice + Apple Speech 双引擎）
 - [x] 移除 Ollama 运行链路与 OllamaKit 依赖，当前直接使用 pi
 

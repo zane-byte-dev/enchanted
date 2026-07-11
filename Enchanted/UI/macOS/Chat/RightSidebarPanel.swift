@@ -30,10 +30,10 @@ enum RightSidebarTool: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .review:   return "Review"
-        case .terminal: return "Terminal"
-        case .browser:  return "Browser"
-        case .sideChat: return "Side Chat"
+        case .review:   return String(localized: "Review")
+        case .terminal: return String(localized: "Terminal")
+        case .browser:  return String(localized: "Browser")
+        case .sideChat: return String(localized: "Side Chat")
         }
     }
 
@@ -91,7 +91,7 @@ final class RightSidebarStore {
     static let shared = RightSidebarStore()
 
     /// Width bounds (shared) and per-conversation default.
-    static let defaultWidth: CGFloat = 300
+    static let defaultWidth: CGFloat = 280
     static let minWidth: CGFloat = 240
     static let maxWidth: CGFloat = 520
 
@@ -225,7 +225,7 @@ struct RightSidebarPanelView: View {
 
     private var listHeader: some View {
         HStack {
-            Text("Tools")
+            Text(String(localized: "Tools"))
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.secondary)
             Spacer()

@@ -24,6 +24,7 @@ struct InputFieldsView: View {
     var onFollowUp: @MainActor (_ message: String, _ images: [Image]) -> Void = { _, _ in }
     var focusTrigger: Int = 0
     var slashPalettePlacement: SlashPalettePlacement = .above
+    var compactControls = false
     @Binding var editMessage: MessageSD?
     @State private var selectedImages: [ComposerImageAttachment] = []
     @State private var fileDropActive: Bool = false
@@ -499,7 +500,7 @@ struct InputFieldsView: View {
             }
 
             // Bottom control row (Codex-style)
-            HStack(spacing: 10) {
+            HStack(spacing: compactControls ? 6 : 10) {
                 ComposerAddButton(
                     isPresented: $addMenuPresented,
                     addFilesAndFolders: openAttachmentPanel
@@ -508,7 +509,7 @@ struct InputFieldsView: View {
                 // Project / working-directory context badge
                 ComposerContextBadge()
 
-                if conversationStore.selectedConversation != nil {
+                if !compactControls, conversationStore.selectedConversation != nil {
                     Button(action: openGoalEditor) {
                         Image(systemName: "target")
                             .font(.system(size: 11))
@@ -547,16 +548,17 @@ struct InputFieldsView: View {
                     modelsList: modelsList,
                     selectedModel: selectedModel,
                     onSelectModel: onSelectModel,
-                    showChevron: false
+                    showChevron: false,
+                    compact: compactControls
                 )
                 .font(.system(size: 12))
-                .padding(.horizontal, 10)
+                .padding(.horizontal, compactControls ? 4 : 10)
                 .padding(.vertical, 5)
 
                 // Reasoning level
-                ThinkingLevelMenu()
+                ThinkingLevelMenu(compact: compactControls)
 
-                if let stats {
+                if !compactControls, let stats {
                     SessionStatsBadge(stats: stats)
                 }
 
@@ -1017,6 +1019,7 @@ private struct ComposerAddMenuRow: View {
 /// Codex-style reasoning-level selector (off → xhigh), wired to pi's
 /// `set_thinking_level` via UserDefaults("piThinkingLevel").
 struct ThinkingLevelMenu: View {
+    var compact = false
     @AppStorage("piThinkingLevel") private var level: String = "medium"
 
     private let levels: [(id: String, label: String)] = [
@@ -1046,13 +1049,15 @@ struct ThinkingLevelMenu: View {
             HStack(spacing: 3) {
                 Image(systemName: "brain")
                     .font(.system(size: 11))
-                Text(currentLabel)
-                    .font(.system(size: 12))
+                if !compact {
+                    Text(currentLabel)
+                        .font(.system(size: 12))
+                }
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .bold))
             }
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, compact ? 5 : 10)
             .padding(.vertical, 5)
         }
         .menuStyle(.borderlessButton)
@@ -1061,6 +1066,7 @@ struct ThinkingLevelMenu: View {
         // Override the app-wide accent tint that macOS Menu applies to labels.
         .tint(CodexTheme.mutedText)
         .fixedSize()
+        .help(String(localized: "Thinking Level") + " · " + currentLabel)
     }
 }
 
@@ -1501,7 +1507,7 @@ struct CustomPasteTextView: NSViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
     @Binding var calculatedHeight: CGFloat
-    var placeholder: String = "Message"
+    var placeholder: String = String(localized: "Message")
     var minHeight: CGFloat = 32
     var maxHeight: CGFloat = 240
     var onSubmit: () -> Void

@@ -38,7 +38,11 @@ struct SidebarToggleButton: View {
         }
         .buttonStyle(.plain)
         .help("Toggle tool sidebar (\u{2325}\u{2318}B)")
-        .foregroundStyle(store.isVisible ? Color.accentColor : CodexTheme.mutedText)
+        .foregroundStyle(store.isVisible ? CodexTheme.primaryText : CodexTheme.mutedText)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(store.isVisible ? CodexTheme.rowHover : Color.clear)
+        )
     }
 }
 
@@ -58,7 +62,11 @@ struct TerminalToggleButton: View {
         }
         .buttonStyle(.plain)
         .help("Toggle terminal")
-        .foregroundStyle(store.isVisible ? Color.accentColor : CodexTheme.mutedText)
+        .foregroundStyle(store.isVisible ? CodexTheme.primaryText : CodexTheme.mutedText)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(store.isVisible ? CodexTheme.rowHover : Color.clear)
+        )
     }
 }
 

@@ -1283,6 +1283,33 @@
     },
     "Done": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "完成" } } }
+    },
+    "Tools": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "工具" } } }
+    },
+    "Review": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "代码审查" } } }
+    },
+    "Terminal": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "终端" } } }
+    },
+    "Browser": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "浏览器" } } }
+    },
+    "Side Chat": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "临时对话" } } }
+    },
+    "Create a recurring coding task such as a daily review or test run.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "创建周期执行的编码任务，例如每日审查或测试。" } } }
+    },
+    "Uses pi's native package manager. Sources may be npm packages, Git repositories, URLs, or local paths. Changes apply to new agent processes.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "使用 pi 原生包管理器，支持 npm 包、Git 仓库、URL 或本地路径；变更会应用于新启动的 agent 进程。" } } }
+    },
+    "Install a pi package to add tools, commands, themes, or integrations.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "安装 pi package 以添加工具、命令、主题或集成。" } } }
+    },
+    "Thinking Level": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "推理等级" } } }
     }
   }
 }

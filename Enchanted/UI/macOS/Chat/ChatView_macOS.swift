@@ -52,7 +52,10 @@ struct ChatView: View {
     @State private var rightSidebarStore = RightSidebarStore.shared
 #endif
 
-    @ViewBuilder private func composer(slashPalettePlacement: SlashPalettePlacement = .above) -> some View {
+    @ViewBuilder private func composer(
+        slashPalettePlacement: SlashPalettePlacement = .above,
+        compactControls: Bool = false
+    ) -> some View {
         InputFieldsView(
             message: $message,
             conversationState: conversationState,
@@ -66,6 +69,7 @@ struct ChatView: View {
             onFollowUp: onFollowUp,
             focusTrigger: inputFocusTrigger,
             slashPalettePlacement: slashPalettePlacement,
+            compactControls: compactControls,
             editMessage: $editMessage
         )
         .id(composerIdentity)
@@ -337,9 +341,9 @@ struct ChatView: View {
                     }
 
                     VStack(spacing: 2) {
-                        composer()
+                        composer(compactControls: rightSidebarStore.isVisible)
                     }
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, rightSidebarStore.isVisible ? 12 : 24)
                     .padding(.top, 8)
                     .padding(.bottom, 16)
                     .frame(maxWidth: 820)
@@ -355,10 +359,13 @@ struct ChatView: View {
                     }
 
                     VStack(spacing: 2) {
-                        composer(slashPalettePlacement: .below)
+                        composer(
+                            slashPalettePlacement: .below,
+                            compactControls: rightSidebarStore.isVisible
+                        )
                     }
                     .frame(maxWidth: 760)
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, rightSidebarStore.isVisible ? 12 : 24)
 
                     Spacer()
                 }
