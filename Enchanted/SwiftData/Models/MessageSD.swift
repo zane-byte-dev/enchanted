@@ -44,6 +44,19 @@ final class MessageSD: Identifiable {
     var error: Bool = false
     var createdAt: Date = Date.now
     @Attribute(.externalStorage) var image: Data?
+
+    /// Backward-compatible image list. Older rows store one raw JPEG in
+    /// `image`; newer multi-image rows store a small versioned envelope in the
+    /// same column so no SwiftData schema migration is required.
+    @Transient var imageItems: [Data] {
+        guard let image else { return [] }
+        if let envelope = try? JSONDecoder().decode(StoredImages.self, from: image),
+           envelope.version == 1,
+           !envelope.items.isEmpty {
+            return envelope.items
+        }
+        return [image]
+    }
     
     @Relationship var conversation: ConversationSD?
         
@@ -55,6 +68,17 @@ final class MessageSD: Identifiable {
         self.error = error
         self.conversation = conversation
         self.image = image
+    }
+
+    static func storeImages(_ items: [Data]) -> Data? {
+        guard !items.isEmpty else { return nil }
+        if items.count == 1 { return items[0] }
+        return try? JSONEncoder().encode(StoredImages(version: 1, items: items))
+    }
+
+    private struct StoredImages: Codable {
+        let version: Int
+        let items: [Data]
     }
 
     @Transient var model: String {

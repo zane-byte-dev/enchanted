@@ -925,7 +925,20 @@ final class ConversationStore: @unchecked Sendable {
 
     @MainActor
     func sendPrompt(userPrompt: String, model: LanguageModelSD, image: Image? = nil, systemPrompt: String = "", trimmingMessageId: String? = nil) {
+        sendPrompt(
+            userPrompt: userPrompt,
+            model: model,
+            images: image.map { [$0] } ?? [],
+            systemPrompt: systemPrompt,
+            trimmingMessageId: trimmingMessageId
+        )
+    }
+
+    @MainActor
+    func sendPrompt(userPrompt: String, model: LanguageModelSD, images: [Image], systemPrompt: String = "", trimmingMessageId: String? = nil) {
         guard userPrompt.trimmingCharacters(in: .whitespacesAndNewlines).count > 0 else { return }
+
+        let renderedImages = images.compactMap { $0.render() }
 
         let isNewConversation = selectedConversation == nil
         let conversation = selectedConversation ?? ConversationSD(name: Self.title(from: userPrompt))
@@ -950,7 +963,12 @@ final class ConversationStore: @unchecked Sendable {
         }
 
         /// construct new user message
-        let userMessage = MessageSD(content: userPrompt, role: "user", image: image?.render()?.compressImageData())
+        let storedImageData = renderedImages.compactMap { $0.compressImageData() }
+        let userMessage = MessageSD(
+            content: userPrompt,
+            role: "user",
+            image: MessageSD.storeImages(storedImageData)
+        )
         userMessage.conversation = conversation
 
         /// prepare neutral message history for the active backend
@@ -959,9 +977,11 @@ final class ConversationStore: @unchecked Sendable {
             .map{AgentChatMessage(role: AgentChatMessage.Role(rawValue: $0.role) ?? .assistant, content: $0.content)}
 
         /// attach selected image to the last message
-        if let image = image?.render() {
+        if !renderedImages.isEmpty {
             if let lastMessage = messageHistory.popLast() {
-                let imagesBase64: [String] = [image.convertImageToBase64String()]
+                let imagesBase64 = renderedImages
+                    .map { $0.convertImageToBase64String() }
+                    .filter { !$0.isEmpty }
                 messageHistory.append(AgentChatMessage(role: lastMessage.role, content: lastMessage.content, imagesBase64: imagesBase64))
             }
         }

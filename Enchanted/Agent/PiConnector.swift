@@ -153,7 +153,18 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         lock.unlock()
 
         // pi keeps history itself → only forward the newest user turn.
-        let lastUser = messages.last(where: { $0.role == .user })?.content ?? ""
+        let lastUserMessage = messages.last(where: { $0.role == .user })
+        let lastUser = lastUserMessage?.content ?? ""
+        let images = (lastUserMessage?.imagesBase64 ?? [])
+            .filter { !$0.isEmpty }
+            .map { data in
+                [
+                    "type": "image",
+                    "data": data,
+                    // ConversationStore normalizes SwiftUI images to JPEG.
+                    "mimeType": "image/jpeg",
+                ]
+            }
 
         Task {
             do {
@@ -172,11 +183,15 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
                 if let level = UserDefaults.standard.string(forKey: "piThinkingLevel"), !level.isEmpty {
                     try? send(["id": nextId(), "type": "set_thinking_level", "level": level])
                 }
-                try send([
+                var promptCommand: [String: Any] = [
                     "id": nextId(),
                     "type": "prompt",
                     "message": lastUser,
-                ])
+                ]
+                if !images.isEmpty {
+                    promptCommand["images"] = images
+                }
+                try send(promptCommand)
             } catch {
                 subject.send(completion: .failure(error))
             }

@@ -108,9 +108,10 @@ struct ChatMessageView: View {
     @State private var isSpeaking = false
     @State private var showThink = false
     
-    var image: Image? {
-        guard let data = message.image else { return nil }
-        return Image.cached(data: data, key: message.id.uuidString)
+    var images: [Image] {
+        message.imageItems.enumerated().compactMap { index, data in
+            Image.cached(data: data, key: "\(message.id.uuidString)-\(index)")
+        }
     }
 
     /// Only show the standalone "waiting" spinner before any content has
@@ -294,13 +295,14 @@ struct ChatMessageView: View {
                     }
                     
                     }
-                    if let uiImage = image {
-                        uiImage
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 100)
-                            .clipShape(RoundedRectangle(cornerRadius: 5))
-                        
+                    if !images.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(Array(images.enumerated()), id: \.offset) { _, uiImage in
+                                    ImageThumbnail(image: uiImage, size: 100)
+                                }
+                            }
+                        }
                     }
                 }
                 .if(message.role == "user", transform: { v in

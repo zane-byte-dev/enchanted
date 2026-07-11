@@ -29,7 +29,8 @@
 - [x] 语音输入（SenseVoice + Apple Speech 双引擎）
 
 ### 待办
-- [ ] PiConnector 补齐：图片输入、steer、abort、compact
+- [x] PiConnector 图片输入（支持多图、粘贴与历史展示）
+- [ ] PiConnector 补齐：steer、abort、compact
 - [ ] 搜索快捷键 / 会话内搜索
 - [ ] SwiftMath 渲染 `$...$` 公式（纯原生）
 - [ ] mermaid → 后端出 SVG/PNG，前端当图片

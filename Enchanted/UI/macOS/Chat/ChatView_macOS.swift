@@ -16,7 +16,7 @@ struct ChatView: View {
     var modelsList: [LanguageModelSD]
     var onMenuTap: () -> ()
     var onNewConversationTap: () -> ()
-    var onSendMessageTap: @MainActor (_ prompt: String, _ model: LanguageModelSD, _ image: Image?, _ trimmingMessageId: String?) -> ()
+    var onSendMessageTap: @MainActor (_ prompt: String, _ model: LanguageModelSD, _ images: [Image], _ trimmingMessageId: String?) -> ()
     var onConversationTap: (_ conversation: ConversationSD) -> ()
     var conversationState: ConversationState
     var onStopGenerateTap: @MainActor () -> ()

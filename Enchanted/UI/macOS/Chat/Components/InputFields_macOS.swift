@@ -7,6 +7,9 @@
 
 #if os(macOS) || os(visionOS)
 import SwiftUI
+#if os(macOS)
+import UniformTypeIdentifiers
+#endif
 
 struct InputFieldsView: View {
     @Binding var message: String
@@ -15,15 +18,15 @@ struct InputFieldsView: View {
     var selectedModel: LanguageModelSD?
     var modelsList: [LanguageModelSD] = []
     var onSelectModel: @MainActor (_ model: LanguageModelSD?) -> () = { _ in }
-    var onSendMessageTap: @MainActor (_ prompt: String, _ model: LanguageModelSD, _ image: Image?, _ trimmingMessageId: String?) -> ()
+    var onSendMessageTap: @MainActor (_ prompt: String, _ model: LanguageModelSD, _ images: [Image], _ trimmingMessageId: String?) -> ()
     var stats: PiSessionStats? = nil
     var onSteer: @MainActor (_ message: String) -> Void = { _ in }
     var focusTrigger: Int = 0
     var slashPalettePlacement: SlashPalettePlacement = .above
     @Binding var editMessage: MessageSD?
-    @State private var selectedImage: Image?
+    @State private var selectedImages: [ComposerImageAttachment] = []
     @State private var fileDropActive: Bool = false
-    @State private var fileSelectingActive: Bool = false
+    @State private var addMenuPresented: Bool = false
     @State private var attachments: [TextAttachment] = []
     @State private var inputHeight: CGFloat = 32
     @State private var isInputFocused: Bool = false
@@ -168,9 +171,13 @@ struct InputFieldsView: View {
     /// the field into a single prompt, separated by blank lines.
     private func composedPrompt() -> String {
         let parts = attachments.map(\.rawContent) + [message]
-        return parts
+        let prompt = parts
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .joined(separator: "\n\n")
+        // The backend needs a textual turn even when the user pastes only an
+        // image. Keep the placeholder short and visible in conversation history.
+        if prompt.isEmpty, !selectedImages.isEmpty { return "请查看附件图片。" }
+        return prompt
     }
     
     @MainActor private func sendMessage() {
@@ -195,27 +202,29 @@ struct InputFieldsView: View {
         onSendMessageTap(
             prompt,
             selectedModel,
-            selectedImage,
+            selectedImages.map(\.image),
             editMessage?.id.uuidString
         )
         withAnimation {
             isFocusedInput = false
             isInputFocused = false
             editMessage = nil
-            selectedImage = nil
+            selectedImages = []
             attachments = []
             message = ""
         }
     }
     
     private func updateSelectedImage(_ image: Image) {
-        selectedImage = image
+        selectedImages.append(ComposerImageAttachment(image: image))
     }
 
     /// Whether there is something worth sending: a typed instruction or at
     /// least one large-text attachment.
     private var canSend: Bool {
-        !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
+        !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !attachments.isEmpty
+            || !selectedImages.isEmpty
     }
     
     @ViewBuilder
@@ -245,13 +254,21 @@ struct InputFieldsView: View {
 
     private func inputCard(framed: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let image = selectedImage {
-                RemovableImage(
-                    image: image,
-                    onClick: {selectedImage = nil},
-                    height: 70
-                )
-                .padding(.horizontal, 6)
+            if !selectedImages.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(selectedImages) { item in
+                            RemovableImage(
+                                image: item.image,
+                                onClick: {
+                                    selectedImages.removeAll { $0.id == item.id }
+                                },
+                                height: 84
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 6)
+                }
             }
 
             // Large-text attachment chips (Codex-style)
@@ -313,27 +330,10 @@ struct InputFieldsView: View {
 
             // Bottom control row (Codex-style)
             HStack(spacing: 10) {
-                // Attach image
-                SimpleFloatingButton(systemImage: "plus", onClick: { fileSelectingActive.toggle() })
-                    .disabled(!(selectedModel?.supportsImages ?? false))
-                    .opacity((selectedModel?.supportsImages ?? false) ? 1 : 0.35)
-                    .help((selectedModel?.supportsImages ?? false)
-                          ? "添加图片"
-                          : "当前模型不支持图片")
-                    .fileImporter(isPresented: $fileSelectingActive,
-                                  allowedContentTypes: [.png, .jpeg, .tiff],
-                                  onCompletion: { result in
-                        switch result {
-                        case .success(let url):
-                            guard url.startAccessingSecurityScopedResource() else { return }
-                            if let imageData = try? Data(contentsOf: url) {
-                                selectedImage = Image(data: imageData)
-                            }
-                            url.stopAccessingSecurityScopedResource()
-                        case .failure(let error):
-                            print(error)
-                        }
-                    })
+                ComposerAddButton(
+                    isPresented: $addMenuPresented,
+                    addFilesAndFolders: openAttachmentPanel
+                )
 
                 // Project / working-directory context badge
                 ComposerContextBadge()
@@ -401,7 +401,9 @@ struct InputFieldsView: View {
             guard let provider = providers.first else { return false }
             _ = provider.loadDataRepresentation(for: .image) { data, error in
                 if error == nil, let data {
-                    selectedImage = Image(data: data)
+                    if let image = Image(data: data) {
+                        DispatchQueue.main.async { updateSelectedImage(image) }
+                    }
                 }
             }
             
@@ -444,6 +446,57 @@ struct InputFieldsView: View {
         }
 #endif
     }
+
+    private func openAttachmentPanel() {
+#if os(macOS)
+        addMenuPresented = false
+        DispatchQueue.main.async {
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = true
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = true
+            panel.resolvesAliases = true
+            panel.prompt = "添加"
+            panel.message = "选择要提供给 Agent 的文件或文件夹"
+
+            guard panel.runModal() == .OK else { return }
+            for url in panel.urls {
+                attach(url)
+            }
+        }
+#endif
+    }
+
+#if os(macOS)
+    private func attach(_ url: URL) {
+        let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+        let isDirectory = values?.isDirectory == true
+        let isImage = UTType(filenameExtension: url.pathExtension)?.conforms(to: .image) == true
+
+        if isImage, selectedModel?.supportsImages == true {
+            let accessed = url.startAccessingSecurityScopedResource()
+            defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+            if let data = try? Data(contentsOf: url) {
+                if let image = Image(data: data) {
+                    updateSelectedImage(image)
+                    return
+                }
+            }
+        }
+
+        let kind = isDirectory ? "文件夹" : "文件"
+        let detail = isDirectory
+            ? "文件夹"
+            : (url.pathExtension.isEmpty ? "文件" : url.pathExtension.uppercased())
+        attachments.append(
+            TextAttachment(
+                rawContent: "用户附加了\(kind)：\(url.path)",
+                displayName: url.lastPathComponent,
+                detail: detail
+            )
+        )
+    }
+#endif
 
 #if os(macOS)
     private var belowSlashPalette: some View {
@@ -547,6 +600,84 @@ struct SessionStatsBadge: View {
         }
         if stats.cost > 0 { parts.append(String(format: "Cost: $%.4f", stats.cost)) }
         return parts.joined(separator: "\n")
+    }
+}
+
+/// Extensible composer add menu. New context providers can be added as rows
+/// without changing the compact control strip.
+struct ComposerAddButton: View {
+    @Binding var isPresented: Bool
+    let addFilesAndFolders: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            isPresented.toggle()
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(CodexTheme.primaryText.opacity(0.82))
+                .frame(width: 24, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isHovered ? CodexTheme.rowHover : Color.clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help("添加")
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("添加")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(CodexTheme.mutedText)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+                    .padding(.bottom, 2)
+
+                ComposerAddMenuRow(
+                    icon: "paperclip",
+                    title: "文件和文件夹",
+                    action: addFilesAndFolders
+                )
+            }
+            .padding(.horizontal, 6)
+            .padding(.bottom, 7)
+            .frame(width: 280, alignment: .leading)
+            .background(CodexTheme.surface)
+        }
+    }
+}
+
+private struct ComposerAddMenuRow: View {
+    let icon: String
+    let title: String
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(CodexTheme.mutedText)
+                    .frame(width: 22)
+                Text(title)
+                    .font(.system(size: 13))
+                    .foregroundStyle(CodexTheme.primaryText)
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 36)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(isHovered ? CodexTheme.rowHover : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -825,6 +956,11 @@ private struct SlashOutsideClickMonitor: NSViewRepresentable {
 
 // MARK: - Large-text paste → attachment
 
+struct ComposerImageAttachment: Identifiable {
+    let id = UUID()
+    let image: Image
+}
+
 /// Threshold used to decide whether pasted text should collapse into an
 /// attachment chip instead of flooding the input field.
 enum PasteThreshold {
@@ -842,6 +978,8 @@ enum PasteThreshold {
 struct TextAttachment: Identifiable, Equatable {
     let id = UUID()
     let rawContent: String
+    var displayName: String? = nil
+    var detail: String? = nil
 
     var lineCount: Int {
         rawContent.reduce(1) { $1 == "\n" ? $0 + 1 : $0 }
@@ -851,6 +989,7 @@ struct TextAttachment: Identifiable, Equatable {
 
     /// First non-empty line, trimmed and truncated, used as the chip title.
     var previewTitle: String {
+        if let displayName, !displayName.isEmpty { return displayName }
         let firstMeaningful = rawContent
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -859,6 +998,10 @@ struct TextAttachment: Identifiable, Equatable {
             ? rawContent.trimmingCharacters(in: .whitespacesAndNewlines)
             : firstMeaningful
         return String(base.prefix(24))
+    }
+
+    var previewDetail: String {
+        detail ?? "\(lineCount) lines · \(charCount) chars"
     }
 }
 
@@ -885,7 +1028,7 @@ struct AttachmentChipView: View {
                         .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
                         .foregroundStyle(CodexTheme.primaryText)
-                    Text("\(attachment.lineCount) lines · \(attachment.charCount) chars")
+                    Text(attachment.previewDetail)
                         .font(.system(size: 10))
                         .lineLimit(1)
                         .foregroundStyle(.secondary)
@@ -987,17 +1130,35 @@ final class PasteInterceptingTextView: NSTextView {
     }
 
     override func paste(_ sender: Any?) {
-        if let onPaste, onPaste(NSPasteboard.general) {
-            return
-        }
+        if handleInterceptedPaste() { return }
         super.paste(sender)
     }
 
     override func pasteAsPlainText(_ sender: Any?) {
-        if let onPaste, onPaste(NSPasteboard.general) {
-            return
-        }
+        if handleInterceptedPaste() { return }
         super.pasteAsPlainText(sender)
+    }
+
+    override func pasteAsRichText(_ sender: Any?) {
+        if handleInterceptedPaste() { return }
+        super.pasteAsRichText(sender)
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if event.type == .keyDown,
+           modifiers.contains(.command),
+           !modifiers.contains(.option),
+           !modifiers.contains(.control),
+           event.charactersIgnoringModifiers?.lowercased() == "v",
+           handleInterceptedPaste() {
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
+    private func handleInterceptedPaste() -> Bool {
+        onPaste?(NSPasteboard.general) == true
     }
 }
 
@@ -1083,11 +1244,10 @@ struct CustomPasteTextView: NSViewRepresentable {
         }
 
         func handlePaste(_ pasteboard: NSPasteboard) -> Bool {
-            // Images take priority (mirrors previous Cmd+V behaviour).
-            if pasteboard.canReadItem(withDataConformingToTypes: [
-                NSPasteboard.PasteboardType.tiff.rawValue,
-                NSPasteboard.PasteboardType.png.rawValue
-            ]), let image = NSImage(pasteboard: pasteboard) {
+            // Images take priority. `NSImage(pasteboard:)` alone misses some
+            // screenshot tools and Finder-copied image files, so decode all
+            // common AppKit pasteboard representations.
+            if let image = Self.image(from: pasteboard) {
                 DispatchQueue.main.async { self.parent.onImagePaste(image) }
                 return true
             }
@@ -1097,6 +1257,56 @@ struct CustomPasteTextView: NSViewRepresentable {
                 return true
             }
             return false
+        }
+
+        private static func image(from pasteboard: NSPasteboard) -> NSImage? {
+            if let image = NSImage(pasteboard: pasteboard) {
+                return image
+            }
+
+            let readableTypes: [NSPasteboard.PasteboardType] = [.png, .tiff]
+            for type in readableTypes {
+                if let data = pasteboard.data(forType: type),
+                   let image = NSImage(data: data) {
+                    return image
+                }
+            }
+
+            // Some apps publish only a concrete image UTI on each item (for
+            // example JPEG, HEIC, WebP or a screenshot-tool-specific type).
+            // Decode any representation that UniformTypeIdentifiers classifies
+            // as an image instead of maintaining a fragile allow-list.
+            for item in pasteboard.pasteboardItems ?? [] {
+                for type in item.types {
+                    guard let uniformType = UTType(type.rawValue),
+                          uniformType.conforms(to: .image),
+                          let data = item.data(forType: type),
+                          let image = NSImage(data: data) else { continue }
+                    return image
+                }
+            }
+
+            if let images = pasteboard.readObjects(
+                forClasses: [NSImage.self],
+                options: nil
+            ) as? [NSImage], let image = images.first {
+                return image
+            }
+
+            if let urls = pasteboard.readObjects(
+                forClasses: [NSURL.self],
+                options: [.urlReadingFileURLsOnly: true]
+            ) as? [URL] {
+                for url in urls {
+                    if let type = UTType(filenameExtension: url.pathExtension),
+                       type.conforms(to: .image),
+                       let image = NSImage(contentsOf: url) {
+                        return image
+                    }
+                }
+            }
+
+            return nil
         }
 
         func textDidChange(_ notification: Notification) {

@@ -58,6 +58,18 @@ struct Chat: View, Sendable {
             trimmingMessageId: trimmingMessageId
         )
     }
+
+    @MainActor
+    func sendMessage(prompt: String, model: LanguageModelSD, images: [Image], trimmingMessageId: String?) {
+        let currentModel = languageModelStore.selectedModel ?? model
+        conversationStore.sendPrompt(
+            userPrompt: prompt,
+            model: currentModel,
+            images: images,
+            systemPrompt: systemPrompt,
+            trimmingMessageId: trimmingMessageId
+        )
+    }
     
     func onConversationTap(_ conversation: ConversationSD) {
         appStore.showSkills = false

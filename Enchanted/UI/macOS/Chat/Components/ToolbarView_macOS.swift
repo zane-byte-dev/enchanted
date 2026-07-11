@@ -188,6 +188,7 @@ struct ChooseProjectRow: View {
 struct WorkingDirectoryButton: View {
     @Bindable var workspace: WorkspaceStore
     @State private var conversationStore = ConversationStore.shared
+    @State private var editorOpenError: String?
 
     private var currentPath: String {
         conversationStore.selectedConversation?.workingDirectory ?? workspace.currentDirectory
@@ -198,8 +199,8 @@ struct WorkingDirectoryButton: View {
             Button("在 Finder 中打开") {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: currentPath)])
             }
-            Button("在编辑器中打开") {
-                NSWorkspace.shared.open(URL(fileURLWithPath: currentPath))
+            Button("在 VS Code 中打开") {
+                openInVSCode()
             }
         } label: {
             HStack(spacing: 5) {
@@ -216,8 +217,43 @@ struct WorkingDirectoryButton: View {
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
+        // Working directory is neutral context, not an accent action.
+        .tint(CodexTheme.primaryText)
         .fixedSize()
         .help(currentPath)
+        .alert("无法打开 VS Code", isPresented: Binding(
+            get: { editorOpenError != nil },
+            set: { if !$0 { editorOpenError = nil } }
+        )) {
+            Button("好") { editorOpenError = nil }
+        } message: {
+            Text(editorOpenError ?? "未知错误")
+        }
+    }
+
+    private func openInVSCode() {
+        let workspace = NSWorkspace.shared
+        let bundleIdentifiers = ["com.microsoft.VSCode", "com.microsoft.VSCodeInsiders"]
+        guard let applicationURL = bundleIdentifiers.lazy.compactMap({
+            workspace.urlForApplication(withBundleIdentifier: $0)
+        }).first else {
+            editorOpenError = "未找到 Visual Studio Code，请先安装后再试。"
+            return
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        workspace.open(
+            [URL(fileURLWithPath: currentPath, isDirectory: true)],
+            withApplicationAt: applicationURL,
+            configuration: configuration
+        ) { _, error in
+            if let error {
+                DispatchQueue.main.async {
+                    editorOpenError = error.localizedDescription
+                }
+            }
+        }
     }
 }
 
