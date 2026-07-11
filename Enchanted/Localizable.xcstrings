@@ -1260,6 +1260,27 @@
     "每次询问": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "每次询问" } } }
     },
+    "External pi needs attention": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "外部 pi 需要处理" } } }
+    },
+    "Checking the external pi installation…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在检查外部 pi 安装…" } } }
+    },
+    "Install pi separately, then let Enchanted detect it or choose the executable manually.": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "请单独安装 pi，然后让 Enchanted 自动探测或手动选择可执行文件。" } } }
+    },
+    "Use Detected Pi": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "使用探测到的 pi" } } }
+    },
+    "Choose Pi…": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "选择 pi…" } } }
+    },
+    "Choose Pi": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "选择 pi" } } }
+    },
+    "Retry": {
+      "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "重试" } } }
+    },
     "Done": {
       "localizations": { "zh-Hans": { "stringUnit": { "state": "translated", "value": "完成" } } }
     }

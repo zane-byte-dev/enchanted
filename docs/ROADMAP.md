@@ -77,9 +77,13 @@
 - [x] 历史漂移修复（逐轮差异预览；可用 pi 分支替换本地，或从本地可见对话重建 pi v3 session）
 
 ### 🟡 分发（路线已定：Developer ID 直分发，见 ADR-007）
+- [x] 外部 pi 正式支持模式：自动探测/手选路径、最低 0.80.6、工作目录与 RPC/模型诊断
 - [ ] pi 打包进 bundle：bundle node vs bun/SEA 编单体可执行体
 - [ ] 内置 pi 同 Team 签名 + hardened runtime + 公证流程
 - [ ] 开沙盒：security-scoped bookmark 接用户选目录；pi 子进程受限验证
+
+> 内置 pi 不再是近期发布前置条件。面向技术用户可采用外部 pi + 非沙盒 Developer ID
+> 分发；内置同签名 pi 作为未来开箱即用和强沙盒模式。
 
 ---
 

@@ -66,6 +66,7 @@ struct ApplicationEntry: View {
             // next use via switch_session).
             conversationStore.startIdleReaper()
             NotificationService.shared.prepare()
+            Task { await appStore.refreshReachability() }
 
             // One-time migration: strip whole-file `read`/`grep` results from
             // existing message blocks so old conversations don't carry the

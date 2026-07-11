@@ -7,7 +7,18 @@
 
 import Foundation
 
+enum PiInstallationDiagnostic: Equatable, Sendable {
+    case checking
+    case executableMissing(String)
+    case workingDirectoryMissing(String)
+    case versionUnavailable(String)
+    case versionTooOld(found: String, required: String)
+    case rpcUnavailable(version: String)
+    case ready(version: String, modelCount: Int)
+}
+
 enum AgentBackendConfig {
+    static let minimumPiVersion = "0.80.6"
     static let piExecutableDefaultsKey = "piExecutable"
     static let piDefaultProviderDefaultsKey = "piDefaultProvider"
     static let piPermissionGateDefaultsKey = "piPermissionGate"
@@ -70,6 +81,90 @@ enum AgentBackendConfig {
             "/usr/bin/pi",
         ]
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+
+    static func diagnoseInstallation(
+        executable: String = piExecutable,
+        workingDirectory: String = piWorkingDirectory
+    ) async -> PiInstallationDiagnostic {
+        guard FileManager.default.isExecutableFile(atPath: executable) else {
+            return .executableMissing(executable)
+        }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: workingDirectory, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return .workingDirectoryMissing(workingDirectory)
+        }
+
+        let versionOutput = await Task.detached {
+            runVersionCommand(executable: executable, workingDirectory: workingDirectory)
+        }.value
+        guard let version = semanticVersion(in: versionOutput) else {
+            return .versionUnavailable(versionOutput)
+        }
+        guard compareVersions(version, minimumPiVersion) != .orderedAscending else {
+            return .versionTooOld(found: version, required: minimumPiVersion)
+        }
+
+        let connector = makePiConnector(
+            executable: executable,
+            workingDirectory: workingDirectory
+        )
+        guard await connector.reachable() else {
+            connector.terminate()
+            return .rpcUnavailable(version: version)
+        }
+        let models = await connector.diagnosticModels()
+        connector.terminate()
+        guard let models else { return .rpcUnavailable(version: version) }
+        return .ready(version: version, modelCount: models.count)
+    }
+
+    private static func runVersionCommand(executable: String, workingDirectory: String) -> String {
+        let process = Process()
+        let pipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = ["--version"]
+        process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
+        process.standardOutput = pipe
+        process.standardError = pipe
+        var environment = ProcessInfo.processInfo.environment
+        let usefulPath = [
+            NSHomeDirectory() + "/.local/bin",
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin"
+        ].joined(separator: ":")
+        environment["PATH"] = usefulPath + ":" + (environment["PATH"] ?? "")
+        process.environment = environment
+        do {
+            try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    private static func semanticVersion(in text: String) -> String? {
+        guard let range = text.range(of: #"\d+\.\d+\.\d+"#, options: .regularExpression) else {
+            return nil
+        }
+        return String(text[range])
+    }
+
+    private static func compareVersions(_ lhs: String, _ rhs: String) -> ComparisonResult {
+        let left = lhs.split(separator: ".").compactMap { Int($0) }
+        let right = rhs.split(separator: ".").compactMap { Int($0) }
+        for index in 0..<max(left.count, right.count) {
+            let l = left.indices.contains(index) ? left[index] : 0
+            let r = right.indices.contains(index) ? right[index] : 0
+            if l < r { return .orderedAscending }
+            if l > r { return .orderedDescending }
+        }
+        return .orderedSame
     }
     /// Fallback scratch root when the user hasn't picked a project dir yet.
     static var defaultWorkingDirectory: String {

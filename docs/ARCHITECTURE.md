@@ -73,6 +73,9 @@ enum AgentEvent {
 
 - spawn `pi --mode rpc`，通过**登录 shell** 拉起以继承 PATH（node）和 API key
   （如 `IDEALAB_API_KEY`）。可执行文件探测见 `AgentBackendConfig.detectedPiExecutable()`。
+- 外部 pi 是正式支持的运行模式。启动诊断依次检查可执行权限、工作目录、最低版本 0.80.6、
+  RPC 可达性和模型响应；失败页支持重新探测或手动选择。诊断结果缓存一分钟，普通 5 秒心跳
+  继续使用轻量 `reachable()`。内置 pi 仅是未来强沙盒/开箱即用方案，不是当前功能前置。
 - pi 会话有状态：`chat()` **只发最新一条 user turn**，历史由 pi 侧保存。
 - RPC 能力：`get_commands`（技能，`source=="skill"`）、`get_available_models`
   （`PiModelDescriptor`）、`get_session_stats`（`PiSessionStats`：token/cost/context）、

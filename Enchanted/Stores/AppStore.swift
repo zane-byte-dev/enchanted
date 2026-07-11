@@ -21,6 +21,9 @@ final class AppStore {
     private var cancellables = Set<AnyCancellable>()
     private var timer: Timer?
     private var pingInterval: TimeInterval = 5
+    private var lastInstallationDiagnosticAt = Date.distantPast
+    private var lastInstallationDiagnosticPassed = false
+    private var lastDiagnosticExecutable = ""
     @MainActor var isReachable: Bool = true
     @MainActor var notifications: [NotificationMessage] = []
     @MainActor var menuBarIcon: String? = nil
@@ -70,8 +73,26 @@ final class AppStore {
     }
 
     private func reachable() async -> Bool {
+        let executable = AgentBackendConfig.piExecutable
+        if executable != lastDiagnosticExecutable
+            || Date.now.timeIntervalSince(lastInstallationDiagnosticAt) > 60 {
+            let diagnostic = await AgentBackendConfig.diagnoseInstallation()
+            lastInstallationDiagnosticAt = .now
+            lastDiagnosticExecutable = executable
+            if case .ready = diagnostic {
+                lastInstallationDiagnosticPassed = true
+            } else {
+                lastInstallationDiagnosticPassed = false
+                return false
+            }
+        }
+        guard lastInstallationDiagnosticPassed else { return false }
         let status = await ConversationStore.shared.backend.reachable()
         return status
+    }
+
+    func refreshReachability() async {
+        updateReachable(await reachable())
     }
     
     @MainActor func uiLog(message: String, status: NotificationMessage.Status) {

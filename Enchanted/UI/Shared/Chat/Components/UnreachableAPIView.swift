@@ -10,22 +10,62 @@ import ActivityIndicatorView
 
 struct UnreachableAPIView: View {
     @State private var showSettings = false
+    @State private var diagnostic: PiInstallationDiagnostic = .checking
+    @State private var appStore = AppStore.shared
+
+    private var diagnosticMessage: String {
+        switch diagnostic {
+        case .checking:
+            return String(localized: "Checking the external pi installation…")
+        case .executableMissing(let path):
+            return String(localized: "Pi executable was not found or is not executable: \(path)")
+        case .workingDirectoryMissing(let path):
+            return String(localized: "The configured working directory does not exist: \(path)")
+        case .versionUnavailable(let output):
+            return String(localized: "Could not read the pi version. Output: \(output)")
+        case .versionTooOld(let found, let required):
+            return String(localized: "Pi \(found) is too old. Enchanted requires pi \(required) or newer.")
+        case .rpcUnavailable(let version):
+            return String(localized: "Pi \(version) was found, but its RPC service did not respond.")
+        case .ready(let version, let modelCount):
+            return String(localized: "Pi \(version) is ready with \(modelCount) available models.")
+        }
+    }
     
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Pi is unavailable. Go to Settings and check the Pi executable and working directory.")
+            VStack(alignment: .leading, spacing: 5) {
+                Text("External pi needs attention")
                     .lineLimit(nil)
                     .fontWeight(.medium)
                     .font(.system(size: 14))
                     .foregroundStyle(Color(.label))
+                Text(diagnosticMessage)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                Text("Install pi separately, then let Enchanted detect it or choose the executable manually.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
             }
             
             Spacer()
             
-            ActivityIndicatorView(isVisible: .constant(true), type: .growingCircle)
-                .frame(width: 21, height: 21)
-                .accessibilityLabel(Text("Checking Pi connection"))
+            if diagnostic == .checking {
+                ActivityIndicatorView(isVisible: .constant(true), type: .growingCircle)
+                    .frame(width: 21, height: 21)
+                    .accessibilityLabel(Text("Checking Pi connection"))
+            }
+
+#if os(macOS)
+            if let detected = AgentBackendConfig.detectedPiExecutable(),
+               detected != AgentBackendConfig.piExecutable {
+                Button("Use Detected Pi") { applyExecutable(detected) }
+            }
+            Button("Choose Pi…", action: chooseExecutable)
+#endif
+
+            Button("Retry") { Task { await diagnose() } }
             
             Button(action: { showSettings.toggle() }) {
                 Label("Settings", systemImage: "gearshape")
@@ -48,7 +88,38 @@ struct UnreachableAPIView: View {
         .sheet(isPresented: $showSettings) {
             Settings()
         }
+        .task { await diagnose() }
     }
+
+    @MainActor
+    private func diagnose() async {
+        diagnostic = .checking
+        diagnostic = await AgentBackendConfig.diagnoseInstallation()
+        if case .ready = diagnostic {
+            await appStore.refreshReachability()
+        }
+    }
+
+#if os(macOS)
+    private func chooseExecutable() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = String(localized: "Choose Pi")
+        if panel.runModal() == .OK, let path = panel.url?.path {
+            applyExecutable(path)
+        }
+    }
+
+    private func applyExecutable(_ path: String) {
+        AgentBackendConfig.applyPiSettings(
+            executable: path,
+            workingDirectory: AgentBackendConfig.piWorkingDirectory
+        )
+        Task { await diagnose() }
+    }
+#endif
 }
 
 #Preview {
