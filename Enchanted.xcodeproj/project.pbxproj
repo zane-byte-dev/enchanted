@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E10000000000000000000001 /* CoreWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000002 /* CoreWorkflowTests.swift */; };
 		3396E0762BD877D500213816 /* Menus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3396E0752BD877D500213816 /* Menus.swift */; };
 		FF0146CB2B3DA1DF00A2A9F6 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0146CA2B3DA1DF00A2A9F6 /* Settings.swift */; };
 		FF0146CD2B3DADCA00A2A9F6 /* HapticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0146CC2B3DADCA00A2A9F6 /* HapticsService.swift */; };
@@ -124,7 +125,19 @@
 		FFFD00C92B94CB5E00392AE6 /* AsyncAlgorithms in Frameworks */ = {isa = PBXBuildFile; productRef = FFFD00C82B94CB5E00392AE6 /* AsyncAlgorithms */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		E1000000000000000000000C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FFEC32852B24779A003E5C04 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FFEC328C2B24779A003E5C04;
+			remoteInfo = Enchanted;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		E10000000000000000000002 /* CoreWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreWorkflowTests.swift; sourceTree = "<group>"; };
+		E10000000000000000000003 /* EnchantedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchantedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3396E0752BD877D500213816 /* Menus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Menus.swift; sourceTree = "<group>"; };
 		FF0146CA2B3DA1DF00A2A9F6 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
 		FF0146CC2B3DADCA00A2A9F6 /* HapticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticsService.swift; sourceTree = "<group>"; };
@@ -237,6 +250,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		E10000000000000000000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		FFEC328A2B24779A003E5C04 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -257,6 +277,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		E10000000000000000000004 /* EnchantedTests */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000002 /* CoreWorkflowTests.swift */,
+			);
+			path = EnchantedTests;
+			sourceTree = "<group>";
+		};
 		FF10022C2B2481790011A4DC /* Components */ = {
 			isa = PBXGroup;
 			children = (
@@ -476,6 +504,7 @@
 			isa = PBXGroup;
 			children = (
 				FFEC328F2B24779A003E5C04 /* Enchanted */,
+				E10000000000000000000004 /* EnchantedTests */,
 				FFEC328E2B24779A003E5C04 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -484,6 +513,7 @@
 			isa = PBXGroup;
 			children = (
 				FFEC328D2B24779A003E5C04 /* Enchanted.app */,
+				E10000000000000000000003 /* EnchantedTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -623,6 +653,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		E10000000000000000000008 /* EnchantedTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E1000000000000000000000B /* Build configuration list for PBXNativeTarget "EnchantedTests" */;
+			buildPhases = (
+				E10000000000000000000005 /* Sources */,
+				E10000000000000000000006 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E1000000000000000000000D /* PBXTargetDependency */,
+			);
+			name = EnchantedTests;
+			productName = EnchantedTests;
+			productReference = E10000000000000000000003 /* EnchantedTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		FFEC328C2B24779A003E5C04 /* Enchanted */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = FFEC329E2B24779B003E5C04 /* Build configuration list for PBXNativeTarget "Enchanted" */;
@@ -662,6 +709,10 @@
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1510;
 				TargetAttributes = {
+					E10000000000000000000008 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = FFEC328C2B24779A003E5C04;
+					};
 					FFEC328C2B24779A003E5C04 = {
 						CreatedOnToolsVersion = 15.0.1;
 					};
@@ -694,6 +745,7 @@
 			projectRoot = "";
 			targets = (
 				FFEC328C2B24779A003E5C04 /* Enchanted */,
+				E10000000000000000000008 /* EnchantedTests */,
 			);
 		};
 /* End PBXProject section */
@@ -713,6 +765,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		E10000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E10000000000000000000001 /* CoreWorkflowTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		FFEC32892B24779A003E5C04 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -823,7 +883,49 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		E1000000000000000000000D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FFEC328C2B24779A003E5C04 /* Enchanted */;
+			targetProxy = E1000000000000000000000C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		E10000000000000000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C736377955;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = subj.EnchantedTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Enchanted.app/Contents/MacOS/Enchanted";
+			};
+			name = Debug;
+		};
+		E1000000000000000000000A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = C736377955;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = subj.EnchantedTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Enchanted.app/Contents/MacOS/Enchanted";
+			};
+			name = Release;
+		};
 		FFEC329C2B24779B003E5C04 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1048,6 +1150,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		E1000000000000000000000B /* Build configuration list for PBXNativeTarget "EnchantedTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E10000000000000000000009 /* Debug */,
+				E1000000000000000000000A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		FFEC32882B24779A003E5C04 /* Build configuration list for PBXProject "Enchanted" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

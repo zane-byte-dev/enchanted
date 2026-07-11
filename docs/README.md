@@ -11,6 +11,7 @@
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 分层架构、模块地图、数据流、后端抽象、沙盒约束 | 动代码前、接新后端 |
 | [ROADMAP.md](ROADMAP.md) | 分阶段完整计划 + 里程碑 + 待办 | 规划、决定下一步做什么 |
 | [CODEX_PARITY.md](CODEX_PARITY.md) | Codex 官方功能面逐项对齐矩阵 | 判断是否真正完成对齐 |
+| [TESTING.md](TESTING.md) | pi RPC、单元测试、构建与 macOS UI 冒烟 | 改完代码后验证、发版前回归 |
 | [PERFORMANCE.md](PERFORMANCE.md) | 卡顿/白屏/抖动/重复渲染的成因与对策 | 改聊天渲染、Store 前 |
 | [DECISIONS.md](DECISIONS.md) | 关键技术决策记录（ADR） | 想知道"为什么当初这么选" |
 | [../AGENTS.md](../AGENTS.md) | 给 AI agent 的速览 + 协作准则 | 每次开工 |

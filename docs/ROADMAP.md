@@ -17,6 +17,8 @@
 ## M1 · 单后端可用（当前）
 
 ### 已完成
+- [x] macOS 单元测试 Target：版本诊断、Plan、任务产物、Scheduled Task 持久化
+- [x] 冷启动 UI 冒烟：旧数据迁移、模型加载、设置/任务/扩展/Browser/Side Chat 导航
 - [x] `AgentBackend` 抽象 + `PiConnector`（流式文本/thinking/tool/恢复/stats）
 - [x] 技能管理页（`get_commands` → `PiSkill` → `SkillsMacOS`）
 - [x] 真实模型列表（`get_available_models` → `PiModelDescriptor`）+ 模型选择

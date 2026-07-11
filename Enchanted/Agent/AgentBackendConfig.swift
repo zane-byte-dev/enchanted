@@ -148,14 +148,14 @@ enum AgentBackendConfig {
         }
     }
 
-    private static func semanticVersion(in text: String) -> String? {
+    static func semanticVersion(in text: String) -> String? {
         guard let range = text.range(of: #"\d+\.\d+\.\d+"#, options: .regularExpression) else {
             return nil
         }
         return String(text[range])
     }
 
-    private static func compareVersions(_ lhs: String, _ rhs: String) -> ComparisonResult {
+    static func compareVersions(_ lhs: String, _ rhs: String) -> ComparisonResult {
         let left = lhs.split(separator: ".").compactMap { Int($0) }
         let right = rhs.split(separator: ".").compactMap { Int($0) }
         for index in 0..<max(left.count, right.count) {

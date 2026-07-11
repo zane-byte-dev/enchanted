@@ -66,7 +66,6 @@ struct ApplicationEntry: View {
             // next use via switch_session).
             conversationStore.startIdleReaper()
             NotificationService.shared.prepare()
-            Task { await appStore.refreshReachability() }
 
             // One-time migration: strip whole-file `read`/`grep` results from
             // existing message blocks so old conversations don't carry the
@@ -76,20 +75,33 @@ struct ApplicationEntry: View {
                 try? await SwiftDataService.shared.migrateReadOnlyToolResults()
             }
 
-            Task.detached {
-                async let loadModels: () = languageModelStore.loadModels()
-                async let loadConversations: () = conversationStore.loadConversations()
-                
+            // Installation diagnostics and model discovery both start a short-lived
+            // pi RPC process. Sequence them so a cold launch cannot leave the model
+            // picker empty because the two handshakes raced each other.
+            await appStore.refreshReachability()
+
+            do {
+                try await languageModelStore.loadModels()
+            } catch {
+                // pi can need a moment to release its startup/session resources after
+                // diagnostics. Retry once before surfacing an empty model list.
+                try? await Task.sleep(nanoseconds: 500_000_000)
                 do {
-                    _ = try await loadModels
-                    _ = try await loadConversations
-                    // One-time: shorten pre-existing over-long titles.
-                    await conversationStore.migrateLongTitlesIfNeeded()
-                    await MainActor.run { ScheduledTaskStore.shared.start() }
+                    try await languageModelStore.loadModels()
                 } catch {
-                    print("Unexpected error: \(error).")
+                    print("Unable to load models after retry: \(error).")
                 }
             }
+
+            do {
+                try await conversationStore.loadConversations()
+                // One-time: shorten pre-existing over-long titles.
+                await conversationStore.migrateLongTitlesIfNeeded()
+            } catch {
+                print("Unable to load conversations: \(error).")
+            }
+
+            ScheduledTaskStore.shared.start()
         }
         .preferredColorScheme(colorScheme.toiOSFormat)
     }
