@@ -76,6 +76,9 @@ enum AgentEvent {
 - RPC 能力：`get_commands`（技能，`source=="skill"`）、`get_available_models`
   （`PiModelDescriptor`）、`get_session_stats`（`PiSessionStats`：token/cost/context）、
   会话恢复。
+- prompt 提交前持久化 `sessionFile`。若应用在生成中退出，重启后扫描未完成的
+  assistant 占位消息，通过 `switch_session` + `get_messages` 补回 pi 已落盘的输出；
+  未完整落盘的任务标记为中断并保留上下文，不自动重跑可能产生副作用的工具。
 - ⚠️ **本地 SwiftData 历史 与 pi 会话历史是两份，可能漂移** —— 同步策略未定，见 ROADMAP。
 
 ## 数据流：一次发送

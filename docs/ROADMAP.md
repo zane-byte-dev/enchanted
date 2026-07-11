@@ -50,7 +50,8 @@
 
 ### 🔴 会话历史同步
 - [ ] 定策略：本地 SwiftData 历史 ↔ pi 会话 transcript（谁是权威 / 如何对齐）
-- [ ] 软件重启后恢复在途/历史任务（曾报"重启无法继续"）
+- [x] 软件重启后恢复历史会话上下文
+- [x] 在途任务安全恢复（补拉 pi transcript；未完成时标记中断，不自动重跑工具）
 
 ### 🟡 分发（路线已定：Developer ID 直分发，见 ADR-007）
 - [ ] pi 打包进 bundle：bundle node vs bun/SEA 编单体可执行体

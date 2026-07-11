@@ -40,6 +40,19 @@ struct PiSessionStats: Equatable {
     }
 }
 
+/// The last user turn reconstructed from pi's persisted transcript. Used when
+/// Enchanted restarts after creating a local assistant placeholder but before
+/// receiving the run's terminal event.
+struct PiRecoveredTurn {
+    let blocks: [MessageBlock]
+    let stopReason: String?
+    let errorMessage: String?
+
+    var completedSuccessfully: Bool {
+        stopReason == "stop" || stopReason == "length"
+    }
+}
+
 /// Full provider/model metadata returned by pi's `get_available_models` RPC.
 /// Settings uses this directly so custom provider ids and endpoints are not
 /// flattened into the app's small built-in provider enum.
@@ -536,6 +549,138 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         }
         let data = response?["data"] as? [String: Any]
         return data?["sessionFile"] as? String
+    }
+
+    /// Restore the configured session and reconstruct the most recent user
+    /// turn from pi's durable transcript. This deliberately does not submit a
+    /// new prompt: replaying an interrupted run could execute mutating tools a
+    /// second time.
+    func recoverLatestTurn() async -> PiRecoveredTurn? {
+        guard (try? ensureProcess()) != nil else { return nil }
+        await resumeSessionIfNeeded()
+
+        let id = nextId()
+        let response: [String: Any]? = await withCheckedContinuation { continuation in
+            var resumed = false
+            let finish: ([String: Any]?) -> Void = { obj in
+                if resumed { return }
+                resumed = true
+                continuation.resume(returning: obj)
+            }
+            lock.lock()
+            pending[id] = { obj in finish(obj) }
+            lock.unlock()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 12) {
+                self.lock.lock()
+                self.pending[id] = nil
+                self.lock.unlock()
+                finish(nil)
+            }
+            try? send(["id": id, "type": "get_messages"])
+        }
+
+        guard
+            let data = response?["data"] as? [String: Any],
+            let messages = data["messages"] as? [[String: Any]]
+        else { return nil }
+        return Self.recoveredTurn(from: messages)
+    }
+
+    private static func recoveredTurn(from messages: [[String: Any]]) -> PiRecoveredTurn? {
+        guard let lastUserIndex = messages.lastIndex(where: { $0["role"] as? String == "user" }) else {
+            return nil
+        }
+
+        var blocks: [MessageBlock] = []
+        var toolIndices: [String: Int] = [:]
+        var stopReason: String?
+        var errorMessage: String?
+
+        func appendText(_ text: String, thinking: Bool = false) {
+            guard !text.isEmpty else { return }
+            if thinking, case .thinking(let existing) = blocks.last {
+                blocks[blocks.count - 1] = .thinking(existing + text)
+            } else if !thinking, case .text(let existing) = blocks.last {
+                blocks[blocks.count - 1] = .text(existing + text)
+            } else {
+                blocks.append(thinking ? .thinking(text) : .text(text))
+            }
+        }
+
+        for message in messages.suffix(from: messages.index(after: lastUserIndex)) {
+            switch message["role"] as? String {
+            case "assistant":
+                stopReason = message["stopReason"] as? String ?? stopReason
+                errorMessage = message["errorMessage"] as? String ?? errorMessage
+                if let text = message["content"] as? String {
+                    appendText(text)
+                    continue
+                }
+                for item in message["content"] as? [[String: Any]] ?? [] {
+                    switch item["type"] as? String {
+                    case "text":
+                        appendText(item["text"] as? String ?? "")
+                    case "thinking":
+                        appendText(item["thinking"] as? String ?? "", thinking: true)
+                    case "toolCall":
+                        let callID = item["id"] as? String ?? UUID().uuidString
+                        let name = item["name"] as? String ?? "tool"
+                        let arguments = jsonStringForRecovery(item["arguments"])
+                        toolIndices[callID] = blocks.count
+                        blocks.append(.tool(ToolCall(
+                            callId: callID,
+                            name: name,
+                            argsJSON: arguments
+                        )))
+                    default:
+                        continue
+                    }
+                }
+
+            case "toolResult":
+                guard let callID = message["toolCallId"] as? String,
+                      let index = toolIndices[callID],
+                      case .tool(var tool) = blocks[index] else { continue }
+                tool.isError = message["isError"] as? Bool ?? false
+                tool.running = false
+                if !tool.isReadOnly {
+                    let text = (message["content"] as? [[String: Any]] ?? [])
+                        .compactMap { $0["text"] as? String }
+                        .joined(separator: "\n")
+                    tool.resultText = text.isEmpty ? nil : text
+                }
+                blocks[index] = .tool(tool)
+
+            default:
+                continue
+            }
+        }
+
+        guard !blocks.isEmpty else { return nil }
+        // A recovered process cannot still own these tool executions. Never
+        // leave a permanent spinner in history when a result was not flushed.
+        for index in blocks.indices {
+            if case .tool(var tool) = blocks[index], tool.running {
+                tool.running = false
+                blocks[index] = .tool(tool)
+            }
+        }
+        return PiRecoveredTurn(
+            blocks: blocks,
+            stopReason: stopReason,
+            errorMessage: errorMessage
+        )
+    }
+
+    private static func jsonStringForRecovery(_ value: Any?) -> String {
+        guard let value else { return "" }
+        if let string = value as? String { return string }
+        guard
+            JSONSerialization.isValidJSONObject(value),
+            let data = try? JSONSerialization.data(withJSONObject: value),
+            let string = String(data: data, encoding: .utf8)
+        else { return "" }
+        return string
     }
 
     private func nextId() -> String {

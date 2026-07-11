@@ -932,6 +932,16 @@
         }
       }
     },
+    "The previous task was interrupted when the app exited. Recovered output and session context were preserved; send a message to continue.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次任务因应用退出而中断。已保留恢复到的输出和会话上下文，可发送消息继续。"
+          }
+        }
+      }
+    },
     "Rename Conversation": {
       "localizations": {
         "zh-Hans": {

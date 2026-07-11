@@ -117,6 +117,7 @@ final class ConversationStore: @unchecked Sendable {
     /// is restored on next use via `switch_session`. Set 0 to disable.
     @MainActor private let idleTimeout: TimeInterval = 10 * 60
     @MainActor private var idleReaperStarted = false
+    @MainActor private var didRecoverInterruptedRuns = false
     /// Active generations, keyed by conversation id — enables parallel runs.
     @MainActor private var runs: [UUID: AgentRun] = [:]
     /// Per-conversation UI state.
@@ -202,12 +203,99 @@ final class ConversationStore: @unchecked Sendable {
 
     func loadConversations() async throws {
         let fetchedConversations = try await swiftDataService.fetchConversations()
-        await MainActor.run {
+        let shouldRecoverInterruptedRuns = await MainActor.run {
             self.conversations = fetchedConversations
+            guard !self.didRecoverInterruptedRuns else { return false }
+            self.didRecoverInterruptedRuns = true
+            return true
         }
         Task(priority: .utility) { [weak self] in
             await self?.prefetchRecentConversations(from: fetchedConversations)
         }
+        if shouldRecoverInterruptedRuns {
+            Task(priority: .utility) { [weak self] in
+                await self?.recoverInterruptedRuns(from: fetchedConversations)
+            }
+        }
+    }
+
+    /// Reconcile assistant placeholders left behind by an app/process exit.
+    /// Pi's persisted transcript is authoritative only for that unfinished
+    /// final turn. We never re-submit the prompt because doing so could repeat
+    /// shell commands, edits, or other mutating tools.
+    private func recoverInterruptedRuns(from conversations: [ConversationSD]) async {
+        guard let interrupted = try? await swiftDataService.fetchInterruptedAssistantMessages(),
+              !interrupted.isEmpty else { return }
+
+        var recoveredConversationIDs = Set<UUID>()
+        for message in interrupted {
+            guard let conversationID = message.conversation?.id,
+                  !recoveredConversationIDs.contains(conversationID),
+                  let conversation = conversations.first(where: { $0.id == conversationID })
+            else { continue }
+            recoveredConversationIDs.insert(conversationID)
+
+            let connector: PiConnector? = await MainActor.run {
+                guard self.runs[conversationID] == nil,
+                      let sessionPath = conversation.piSessionPath,
+                      !sessionPath.isEmpty else { return nil }
+                return self.connector(for: conversation) as? PiConnector
+            }
+            let recoveredTurn = await connector?.recoverLatestTurn()
+            await applyRecoveredTurn(
+                recoveredTurn,
+                to: message,
+                conversation: conversation
+            )
+        }
+    }
+
+    private func applyRecoveredTurn(
+        _ recoveredTurn: PiRecoveredTurn?,
+        to message: MessageSD,
+        conversation: ConversationSD
+    ) async {
+        let interruptedNotice = String(localized:
+            "The previous task was interrupted when the app exited. Recovered output and session context were preserved; send a message to continue."
+        )
+        let completedSuccessfully = recoveredTurn?.completedSuccessfully == true
+
+        await MainActor.run {
+            var blocks = recoveredTurn?.blocks ?? message.renderBlocks
+            if completedSuccessfully {
+                message.error = false
+            } else {
+                if !blocks.contains(where: {
+                    if case .text(let text) = $0 { return text.contains(interruptedNotice) }
+                    return false
+                }) {
+                    blocks.append(.text("\n\n> \(interruptedNotice)"))
+                }
+                message.error = true
+            }
+
+            if let data = try? JSONEncoder().encode(blocks),
+               let json = String(data: data, encoding: .utf8) {
+                message.blocksJSON = json
+            }
+            message.content = blocks.compactMap {
+                if case .text(let text) = $0 { return text }
+                return nil
+            }.joined()
+            // There is no live publisher after relaunch. Mark rendering as
+            // terminal even when the recovered turn itself was interrupted.
+            message.done = true
+            self.states[conversation.id] = completedSuccessfully
+                ? .completed
+                : .error(message: interruptedNotice)
+        }
+
+        try? await swiftDataService.updateMessage(message)
+        try? await reloadConversation(conversation)
+        AgentBackendConfig.debugLog(
+            "recoverInterruptedRuns: \(conversation.id) " +
+            (completedSuccessfully ? "completed from pi transcript" : "marked interrupted")
+        )
     }
 
     /// Warm the last page of the two most recent active conversations. This is
@@ -1030,6 +1118,13 @@ final class ConversationStore: @unchecked Sendable {
                 return
             }
 
+            // Persist the session identity before submitting the prompt. If the
+            // app exits during this very first turn, startup recovery can still
+            // reopen the correct pi transcript.
+            if let connector = backend as? PiConnector {
+                await persistSessionPath(for: conversation, using: connector)
+            }
+
             await MainActor.run {
                 run.cancellable = backend.chat(model: model.name, messages: messageHistory)
                     .receive(on: DispatchQueue.main)
@@ -1133,14 +1228,30 @@ final class ConversationStore: @unchecked Sendable {
     private func persistSessionPath(_ convID: UUID) {
         guard
             let connector = connectors[convID] as? PiConnector,
-            let conversation = conversations.first(where: { $0.id == convID }),
-            conversation.piSessionPath == nil
+            let conversation = conversations.first(where: { $0.id == convID })
         else { return }
         Task {
-            guard let path = await connector.currentSessionPath() else { return }
-            await MainActor.run {
-                conversation.piSessionPath = path
-            }
+            await persistSessionPath(for: conversation, using: connector)
+        }
+    }
+
+    private func persistSessionPath(
+        for conversation: ConversationSD,
+        using connector: PiConnector
+    ) async {
+        let alreadyPersisted = await MainActor.run {
+            !(conversation.piSessionPath?.isEmpty ?? true)
+        }
+        guard !alreadyPersisted,
+              let path = await connector.currentSessionPath(),
+              !path.isEmpty else { return }
+
+        let shouldSave = await MainActor.run {
+            guard conversation.piSessionPath?.isEmpty ?? true else { return false }
+            conversation.piSessionPath = path
+            return true
+        }
+        if shouldSave {
             try? await swiftDataService.updateConversation(conversation)
         }
     }

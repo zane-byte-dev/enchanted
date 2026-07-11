@@ -127,6 +127,19 @@ extension SwiftDataService {
         return try modelContext.fetch(fetchDescriptor)
     }
 
+    /// Assistant placeholders that were persisted before a run completed.
+    /// A clean run always flips either `done` or `error`; rows with neither set
+    /// therefore represent an app/process exit during generation.
+    func fetchInterruptedAssistantMessages() throws -> [MessageSD] {
+        let predicate = #Predicate<MessageSD> {
+            $0.role == "assistant" && !$0.done && !$0.error
+        }
+        let sortDescriptor = SortDescriptor(\MessageSD.createdAt, order: .reverse)
+        return try modelContext.fetch(
+            FetchDescriptor<MessageSD>(predicate: predicate, sortBy: [sortDescriptor])
+        )
+    }
+
     /// Fetch one transcript page, newest-first in the store but returned in
     /// chronological order for display. The extra record tells the caller
     /// whether an older page exists without requiring a separate count query.
