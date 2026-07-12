@@ -212,6 +212,26 @@ extension SwiftDataService {
         try modelContext.delete(model: MessageSD.self, where: predicate)
         try modelContext.saveChanges()
     }
+
+    /// Atomically replace a conversation projection after validating pi's
+    /// durable active branch. A failed save rolls back instead of leaving a
+    /// partially rebuilt transcript.
+    func replaceMessages(
+        forConversation conversationId: UUID,
+        with replacement: [MessageSD]
+    ) throws {
+        let predicate = #Predicate<MessageSD>{ $0.conversation?.id == conversationId }
+        do {
+            try modelContext.delete(model: MessageSD.self, where: predicate)
+            for message in replacement {
+                modelContext.insert(message)
+            }
+            try modelContext.saveChanges()
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+    }
 }
 
 // MARK: - Read-only tool result migration

@@ -30,9 +30,9 @@ enum SpeechTranscriberError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .microphoneDenied:
-            return "没有麦克风权限，请在系统设置中允许 Enchanted 使用麦克风。"
+            return "没有麦克风权限，请在系统设置中允许 Mox 使用麦克风。"
         case .speechRecognitionDenied:
-            return "没有语音识别权限，请在系统设置中允许 Enchanted 使用语音识别。"
+            return "没有语音识别权限，请在系统设置中允许 Mox 使用语音识别。"
         case .recognizerUnavailable:
             return "系统语音识别当前不可用。"
         case .onDeviceRecognitionUnavailable:

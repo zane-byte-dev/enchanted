@@ -16,7 +16,7 @@ struct UnreachableAPIView: View {
     private var diagnosticMessage: String {
         switch diagnostic {
         case .checking:
-            return String(localized: "Checking the external pi installation…")
+            return String(localized: "Checking the pi runtime…")
         case .executableMissing(let path):
             return String(localized: "Pi executable was not found or is not executable: \(path)")
         case .workingDirectoryMissing(let path):
@@ -24,18 +24,22 @@ struct UnreachableAPIView: View {
         case .versionUnavailable(let output):
             return String(localized: "Could not read the pi version. Output: \(output)")
         case .versionTooOld(let found, let required):
-            return String(localized: "Pi \(found) is too old. Enchanted requires pi \(required) or newer.")
+            return String(localized: "Pi \(found) is too old. Mox requires pi \(required) or newer.")
         case .rpcUnavailable(let version):
             return String(localized: "Pi \(version) was found, but its RPC service did not respond.")
         case .ready(let version, let modelCount):
             return String(localized: "Pi \(version) is ready with \(modelCount) available models.")
         }
     }
+
+    private var usesBundledRuntime: Bool {
+        AgentBackendConfig.isBundledPiExecutable(AgentBackendConfig.piExecutable)
+    }
     
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("External pi needs attention")
+                Text(usesBundledRuntime ? "Built-in pi needs attention" : "External pi needs attention")
                     .lineLimit(nil)
                     .fontWeight(.medium)
                     .font(.system(size: 14))
@@ -44,7 +48,11 @@ struct UnreachableAPIView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
-                Text("Install pi separately, then let Enchanted detect it or choose the executable manually.")
+                Text(
+                    usesBundledRuntime
+                        ? "Retry the bundled runtime first. You can still choose an external pi as a fallback."
+                        : "Let Mox detect pi or choose the executable manually. Release builds include a bundled runtime."
+                )
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
             }

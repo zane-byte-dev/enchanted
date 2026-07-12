@@ -34,9 +34,11 @@ Agent/{PiConnector, NeoConnector*, WandaConnector*}
 
 1. **沙盒 & 分发**：本项目**走 Developer ID 直分发**（官网/DMG 下载 + 公证），
    **不上 App Store**。沙盒**不禁止** spawn 子进程——参考 Codex（`ChatGPT.app`
-   实测：开沙盒 + 内置同 Team 签名的 `codex` 二进制 + 直分发）。当前 `PiConnector`
-   调系统 PATH 里的外部 pi（非同签名）→ Debug 暂时关了 `app-sandbox`；目标形态是
-   把 pi 打进 bundle 同 Team 签名后开启沙盒。详见 `docs/DECISIONS.md` ADR-003/007。
+   实测：开沙盒 + 内置同 Team 签名的 `codex` 二进制 + 直分发）。Mox Release 已把
+   精简 Node + pi 打进 `Contents/Helpers/pi-node` 和 `Contents/Resources/pi-runtime`，
+   Xcode 会用 App 身份签嵌套 Node；
+   Debug 仍可 fallback 到外部 pi。App Sandbox/bookmark 尚待完成。详见 ADR-003/007
+   和 `docs/DISTRIBUTION.md`。
 2. **新增 .swift 文件不会自动进 Xcode 工程**（objectVersion 56）。加文件后
    需在 Xcode 里 Add Files 并勾 Target Enchanted，否则编译不到。
 3. **性能是老大难**：流式 markdown + SwiftData 会抖动/白屏/重复渲染。改
@@ -56,7 +58,7 @@ Agent/{PiConnector, NeoConnector*, WandaConnector*}
 
 ```bash
 # 指定 pi / 项目目录（env 覆盖 Settings）
-PI_EXECUTABLE=~/.local/bin/pi PI_CWD=/path/to/proj open Enchanted.app
+PI_EXECUTABLE=~/.local/bin/pi PI_CWD=/path/to/proj open Mox.app
 # 看这个项目的 AI 会话历史
 atm session list --days 14 | grep -i enchant
 ```

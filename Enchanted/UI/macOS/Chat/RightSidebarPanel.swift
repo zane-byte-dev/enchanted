@@ -566,35 +566,50 @@ private final class GitChangesStore {
     var root: String?
     var changes: [GitChange] = []
     var selected: GitChange?
-    var diff = ""
+    var diffSections: [GitDiffSection] = []
+    var diffStatus = ""
     var isLoading = false
     var error: String?
+    var repositoryInfo: GitRepositoryInfo?
+    var gitActionResult: GitActionResult?
+    var isGitActionRunning = false
 
     func refresh() async {
         guard let conversation = ConversationStore.shared.selectedConversation else {
-            root = nil; changes = []; error = "No conversation selected"
+            root = nil; changes = []; repositoryInfo = nil; error = "No conversation selected"
             return
         }
         let directory = ConversationStore.shared.workingDirectory(for: conversation)
         isLoading = true
         selected = nil
-        diff = ""
-        let snapshot = await Task.detached {
-            GitChangesReader.snapshot(at: directory)
+        diffSections = []
+        diffStatus = ""
+        let loaded = await Task.detached {
+            (
+                GitChangesReader.snapshot(at: directory),
+                GitRepositoryActions.inspect(at: directory)
+            )
         }.value
+        let snapshot = loaded.0
         root = snapshot.root
         changes = snapshot.changes
         error = snapshot.error
+        if case .success(let info) = loaded.1 { repositoryInfo = info } else { repositoryInfo = nil }
         isLoading = false
     }
 
     func select(_ change: GitChange) async {
         guard let root else { return }
         selected = change
-        diff = "Loading diff…"
-        diff = await Task.detached {
-            GitChangesReader.diff(at: root, path: change.path, isUntracked: change.status.contains("?"))
+        diffStatus = "Loading diff…"
+        diffSections = await Task.detached {
+            GitChangesReader.diffSections(
+                at: root,
+                path: change.path,
+                isUntracked: change.status.contains("?")
+            )
         }.value
+        diffStatus = diffSections.isEmpty ? "No textual diff available" : ""
     }
 
     func stage(_ change: GitChange) async {
@@ -607,6 +622,84 @@ private final class GitChangesStore {
 
     func discard(_ change: GitChange) async {
         await mutate(.discard, change: change)
+    }
+
+    func mutateHunk(
+        _ operation: GitHunkOperation,
+        hunk: UnifiedDiffHunk,
+        change: GitChange
+    ) async {
+        guard let root else { return }
+        isLoading = true
+        let mutationError = await Task.detached {
+            GitChangesReader.mutateHunk(operation, at: root, patch: hunk.patch)
+        }.value
+        if let mutationError {
+            error = mutationError
+            isLoading = false
+            return
+        }
+
+        let snapshot = await Task.detached { GitChangesReader.snapshot(at: root) }.value
+        self.root = snapshot.root
+        changes = snapshot.changes
+        error = snapshot.error
+        if case .success(let info) = await Task.detached(operation: {
+            GitRepositoryActions.inspect(at: root)
+        }).value {
+            repositoryInfo = info
+        }
+        if let updated = changes.first(where: { $0.path == change.path }) {
+            selected = updated
+            diffSections = await Task.detached {
+                GitChangesReader.diffSections(
+                    at: root,
+                    path: updated.path,
+                    isUntracked: updated.isUntracked
+                )
+            }.value
+            diffStatus = diffSections.isEmpty ? "No textual diff available" : ""
+        } else {
+            selected = nil
+            diffSections = []
+            diffStatus = ""
+        }
+        isLoading = false
+    }
+
+    func commit(message: String) async {
+        guard let root else { return }
+        await performGitAction {
+            GitRepositoryActions.commit(at: root, message: message)
+        }
+    }
+
+    func push() async {
+        guard let root else { return }
+        await performGitAction { GitRepositoryActions.push(at: root) }
+    }
+
+    func createPullRequest(title: String, body: String, isDraft: Bool) async {
+        guard let root else { return }
+        await performGitAction {
+            GitRepositoryActions.createPullRequest(
+                at: root,
+                title: title,
+                body: body,
+                isDraft: isDraft
+            )
+        }
+    }
+
+    private func performGitAction(
+        _ action: @escaping @Sendable () -> GitActionResult
+    ) async {
+        guard !isGitActionRunning else { return }
+        isGitActionRunning = true
+        let result = await Task.detached(operation: action).value
+        gitActionResult = result
+        isGitActionRunning = false
+        await refresh()
     }
 
     private func mutate(_ operation: GitChangesReader.Operation, change: GitChange) async {
@@ -660,15 +753,18 @@ private enum GitChangesReader {
         return GitChangesSnapshot(root: root, changes: changes, error: nil)
     }
 
-    static func diff(at root: String, path: String, isUntracked: Bool) -> String {
+    static func diffSections(at root: String, path: String, isUntracked: Bool) -> [GitDiffSection] {
         if isUntracked {
             let url = URL(fileURLWithPath: root).appendingPathComponent(path)
-            return (try? String(contentsOf: url, encoding: .utf8)) ?? "Binary or unreadable untracked file"
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+            return [GitDiffSection(kind: .untracked, text: text)]
         }
         let unstaged = run(["-C", root, "diff", "--no-ext-diff", "--unified=3", "--", path]).output
         let staged = run(["-C", root, "diff", "--cached", "--no-ext-diff", "--unified=3", "--", path]).output
-        let value = [staged, unstaged].filter { !$0.isEmpty }.joined(separator: "\n")
-        return value.isEmpty ? "No textual diff available" : value
+        var sections: [GitDiffSection] = []
+        if !staged.isEmpty { sections.append(.init(kind: .staged, text: staged)) }
+        if !unstaged.isEmpty { sections.append(.init(kind: .unstaged, text: unstaged)) }
+        return sections
     }
 
     /// Returns an error message, or nil on success.
@@ -696,6 +792,10 @@ private enum GitChangesReader {
         return result.status == 0 ? nil : (result.output.isEmpty ? "Git operation failed" : result.output)
     }
 
+    static func mutateHunk(_ operation: GitHunkOperation, at root: String, patch: String) -> String? {
+        GitHunkMutator.apply(operation, repositoryRoot: root, patch: patch)
+    }
+
     private static func run(_ arguments: [String]) -> (status: Int32, output: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
@@ -717,10 +817,35 @@ private enum GitChangesReader {
 private struct GitChangesView: View {
     @State private var store = GitChangesStore()
     @State private var conversationStore = ConversationStore.shared
+    @State private var reviewDrafts = GitReviewDraftStore.shared
     @State private var discardCandidate: GitChange?
+    @State private var commentingLineID: Int?
+    @State private var commentText = ""
+    @State private var submissionError: String?
+    @State private var confirmClearComments = false
+    @State private var revertHunkCandidate: UnifiedDiffHunk?
+    @State private var showCommitSheet = false
+    @State private var showPullRequestSheet = false
+    @State private var confirmPush = false
+    @State private var commitMessage = ""
+    @State private var pullRequestTitle = ""
+    @State private var pullRequestBody = ""
+    @State private var pullRequestIsDraft = false
+
+    private var conversationID: UUID? {
+        conversationStore.selectedConversation?.id
+    }
+
+    private var draftComments: [DiffReviewComment] {
+        reviewDrafts.comments(for: conversationID)
+    }
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            if let result = store.gitActionResult {
+                gitActionFeedback(result)
+                Divider()
+            }
             if let selected = store.selected {
                 diffView(selected)
             } else {
@@ -729,6 +854,8 @@ private struct GitChangesView: View {
         }
         .task { await store.refresh() }
         .onChange(of: conversationStore.selectedConversation?.id) {
+            commentingLineID = nil
+            commentText = ""
             Task { await store.refresh() }
         }
         .confirmationDialog(
@@ -749,6 +876,89 @@ private struct GitChangesView: View {
                  ? "This permanently deletes the untracked file."
                  : "This permanently discards working tree changes in this file. Staged changes are preserved.")
         }
+        .alert("无法发送评审意见", isPresented: Binding(
+            get: { submissionError != nil },
+            set: { if !$0 { submissionError = nil } }
+        )) {
+            Button("好") { submissionError = nil }
+        } message: {
+            Text(submissionError ?? "未知错误")
+        }
+        .confirmationDialog(
+            "清空所有行内意见？",
+            isPresented: $confirmClearComments
+        ) {
+            Button("清空 \(draftComments.count) 条意见", role: .destructive) {
+                if let conversationID { reviewDrafts.clear(conversationID) }
+                cancelCommenting()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("这些尚未发送给 Agent 的评审草稿将被删除。")
+        }
+        .confirmationDialog(
+            "Revert this hunk?",
+            isPresented: Binding(
+                get: { revertHunkCandidate != nil },
+                set: { if !$0 { revertHunkCandidate = nil } }
+            ),
+            presenting: revertHunkCandidate
+        ) { hunk in
+            Button("Revert hunk", role: .destructive) {
+                if let change = store.selected {
+                    Task { await store.mutateHunk(.revert, hunk: hunk, change: change) }
+                }
+                revertHunkCandidate = nil
+            }
+            Button("Cancel", role: .cancel) { revertHunkCandidate = nil }
+        } message: { _ in
+            Text("This permanently discards the working-tree changes in this hunk.")
+        }
+        .confirmationDialog(
+            "Push \(store.repositoryInfo?.branch ?? "current branch")?",
+            isPresented: $confirmPush
+        ) {
+            Button("Push") {
+                Task { await store.push() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if let info = store.repositoryInfo, info.upstream == nil {
+                Text("The first available remote will be set as this branch's upstream.")
+            } else {
+                Text("Local commits will be sent to the configured upstream remote.")
+            }
+        }
+        .sheet(isPresented: $showCommitSheet) {
+            GitCommitSheet(
+                branch: store.repositoryInfo?.branch ?? "",
+                message: $commitMessage,
+                onCancel: { showCommitSheet = false },
+                onCommit: {
+                    let message = commitMessage
+                    showCommitSheet = false
+                    Task { await store.commit(message: message) }
+                }
+            )
+        }
+        .sheet(isPresented: $showPullRequestSheet) {
+            GitPullRequestSheet(
+                branch: store.repositoryInfo?.branch ?? "",
+                title: $pullRequestTitle,
+                descriptionText: $pullRequestBody,
+                isDraft: $pullRequestIsDraft,
+                onCancel: { showPullRequestSheet = false },
+                onCreate: {
+                    let title = pullRequestTitle
+                    let body = pullRequestBody
+                    let draft = pullRequestIsDraft
+                    showPullRequestSheet = false
+                    Task {
+                        await store.createPullRequest(title: title, body: body, isDraft: draft)
+                    }
+                }
+            )
+        }
     }
 
     private var changesList: some View {
@@ -762,8 +972,56 @@ private struct GitChangesView: View {
                     }
                 }
                 .font(.system(size: 12, weight: .semibold))
+                if !draftComments.isEmpty {
+                    Label("\(draftComments.count)", systemImage: "text.bubble")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(CodexTheme.mutedText)
+                }
                 Spacer()
-                if store.isLoading { ProgressView().controlSize(.small) }
+                if store.isLoading || store.isGitActionRunning {
+                    ProgressView().controlSize(.small)
+                }
+                if let info = store.repositoryInfo {
+                    Menu {
+                        Section {
+                            Label(info.branch, systemImage: "arrow.triangle.branch")
+                            if let upstream = info.upstream {
+                                Text("\(upstream) · ↑\(info.ahead) ↓\(info.behind)")
+                            } else {
+                                Text("No upstream")
+                            }
+                        }
+                        Divider()
+                        Button {
+                            commitMessage = ""
+                            showCommitSheet = true
+                        } label: {
+                            Label("Commit staged changes…", systemImage: "checkmark.circle")
+                        }
+                        .disabled(!info.hasStagedChanges || store.isGitActionRunning)
+                        Button {
+                            confirmPush = true
+                        } label: {
+                            Label("Push…", systemImage: "arrow.up.circle")
+                        }
+                        .disabled(store.isGitActionRunning || info.remotes.isEmpty)
+                        Button {
+                            pullRequestTitle = conversationStore.selectedConversation?.name ?? info.branch
+                            pullRequestBody = ""
+                            pullRequestIsDraft = false
+                            showPullRequestSheet = true
+                        } label: {
+                            Label("Create pull request…", systemImage: "arrow.triangle.pull")
+                        }
+                        .disabled(store.isGitActionRunning || info.remotes.isEmpty)
+                    } label: {
+                        Image(systemName: "arrow.triangle.branch")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("\(info.branch) · Git actions")
+                }
                 if !store.changes.isEmpty {
                     Button(action: { conversationStore.startCodeReview() }) {
                         Image(systemName: "checklist.checked")
@@ -817,10 +1075,38 @@ private struct GitChangesView: View {
         }
     }
 
+    private func gitActionFeedback(_ result: GitActionResult) -> some View {
+        HStack(alignment: .top, spacing: 7) {
+            Image(systemName: result.success ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(result.success ? .green : .orange)
+            Text(result.message)
+                .font(.system(size: 10))
+                .foregroundStyle(CodexTheme.mutedText)
+                .lineLimit(4)
+            Spacer(minLength: 4)
+            if let url = result.url {
+                Button("Open") { NSWorkspace.shared.open(url) }
+                    .buttonStyle(.plain)
+            }
+            Button {
+                store.gitActionResult = nil
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(8)
+        .background(CodexTheme.surfaceSubtle)
+    }
+
     private func diffView(_ change: GitChange) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Button(action: { store.selected = nil; store.diff = "" }) {
+                Button(action: {
+                    store.selected = nil
+                    store.diffSections = []
+                    store.diffStatus = ""
+                }) {
                     Image(systemName: "chevron.left")
                 }
                 .buttonStyle(.plain)
@@ -829,6 +1115,10 @@ private struct GitChangesView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer()
+                if store.isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                }
                 if let root = store.root {
                     Button(action: {
                         NSWorkspace.shared.open(URL(fileURLWithPath: root).appendingPathComponent(change.path))
@@ -861,20 +1151,160 @@ private struct GitChangesView: View {
             }
             .padding(12)
             Divider()
+            if let error = store.error {
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text(error)
+                        .font(.system(size: 11))
+                        .foregroundStyle(CodexTheme.mutedText)
+                    Spacer(minLength: 4)
+                    Button {
+                        store.error = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(8)
+                .background(CodexTheme.surfaceSubtle)
+                Divider()
+            }
             ScrollView([.horizontal, .vertical]) {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(store.diff.split(separator: "\n", omittingEmptySubsequences: false).enumerated()), id: \.offset) { _, raw in
-                        let line = String(raw)
-                        Text(line.isEmpty ? " " : line)
-                            .foregroundStyle(diffColor(for: line))
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    if !store.diffStatus.isEmpty {
+                        Text(store.diffStatus)
+                            .font(.system(size: 11))
+                            .foregroundStyle(CodexTheme.mutedText)
+                            .padding(10)
+                    }
+                    ForEach(store.diffSections) { section in
+                        let lines = UnifiedDiffParser.parse(
+                            section.text,
+                            isUntracked: section.kind == .untracked
+                        )
+                        let hunks = UnifiedDiffParser.hunks(in: section.text)
+                        HStack {
+                            Text(section.kind.label)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(CodexTheme.mutedText)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(CodexTheme.surfaceSubtle)
+
+                        ForEach(lines) { line in
+                            let hunk = hunks.first(where: { $0.id == line.id })
+                            DiffReviewLineRow(
+                                line: line,
+                                comment: comment(for: line, change: change),
+                                isEditing: commentingLineID == line.id,
+                                commentText: $commentText,
+                                color: diffColor(for: line.text),
+                                hunkKind: hunk == nil ? nil : section.kind,
+                                onStartComment: { startCommenting(line, change: change) },
+                                onSaveComment: { saveComment(line, change: change) },
+                                onCancelComment: cancelCommenting,
+                                onRemoveComment: { comment in removeComment(comment) },
+                                onPrimaryHunk: {
+                                    guard let hunk else { return }
+                                    let operation: GitHunkOperation = section.kind == .staged
+                                        ? .unstage
+                                        : .stage
+                                    Task { await store.mutateHunk(operation, hunk: hunk, change: change) }
+                                },
+                                onRevertHunk: { revertHunkCandidate = hunk }
+                            )
+                        }
                     }
                 }
-                .font(.system(size: 11, design: .monospaced))
                 .textSelection(.enabled)
+                .padding(.vertical, 8)
+            }
+
+            if !draftComments.isEmpty {
+                Divider()
+                HStack(spacing: 8) {
+                    Label("\(draftComments.count) 条行内意见", systemImage: "text.bubble")
+                        .font(.system(size: 11, weight: .medium))
+                    Spacer()
+                    Button("清空") {
+                        confirmClearComments = true
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(CodexTheme.mutedText)
+                    Button("发送给 Agent") {
+                        submitReviewComments()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(conversationStore.conversationState == .loading)
+                }
                 .padding(10)
             }
         }
+    }
+
+    private func comment(for line: DiffDisplayLine, change: GitChange) -> DiffReviewComment? {
+        guard let reference = line.reference else { return nil }
+        return reviewDrafts.comment(
+            for: conversationID,
+            filePath: change.path,
+            reference: reference
+        )
+    }
+
+    private func startCommenting(_ line: DiffDisplayLine, change: GitChange) {
+        guard line.reference != nil else { return }
+        commentingLineID = line.id
+        commentText = comment(for: line, change: change)?.body ?? ""
+    }
+
+    private func saveComment(_ line: DiffDisplayLine, change: GitChange) {
+        guard let conversationID,
+              let reference = line.reference else { return }
+        let body = commentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty else { return }
+        let existingID = comment(for: line, change: change)?.id ?? UUID()
+        reviewDrafts.save(
+            DiffReviewComment(
+                id: existingID,
+                filePath: change.path,
+                reference: reference,
+                sourceLine: line.text,
+                body: body
+            ),
+            for: conversationID
+        )
+        cancelCommenting()
+    }
+
+    private func cancelCommenting() {
+        commentingLineID = nil
+        commentText = ""
+    }
+
+    private func removeComment(_ comment: DiffReviewComment) {
+        guard let conversationID else { return }
+        reviewDrafts.remove(comment, from: conversationID)
+        if commentingLineID != nil { cancelCommenting() }
+    }
+
+    private func submitReviewComments() {
+        guard let conversation = conversationStore.selectedConversation,
+              let model = LanguageModelStore.shared.selectedModel ?? conversation.model else {
+            submissionError = "当前任务没有可用模型。"
+            return
+        }
+        let comments = reviewDrafts.comments(for: conversation.id)
+        guard !comments.isEmpty else { return }
+        conversationStore.sendPrompt(
+            userPrompt: DiffReviewPrompt.make(comments: comments),
+            model: model
+        )
+        reviewDrafts.clear(conversation.id)
+        cancelCommenting()
     }
 
     private func diffColor(for line: String) -> Color {
@@ -883,6 +1313,227 @@ private struct GitChangesView: View {
         if line.hasPrefix("@@") { return .blue }
         if line.hasPrefix("diff ") || line.hasPrefix("index ") { return .secondary }
         return .primary
+    }
+}
+
+private struct DiffReviewLineRow: View {
+    let line: DiffDisplayLine
+    let comment: DiffReviewComment?
+    let isEditing: Bool
+    @Binding var commentText: String
+    let color: Color
+    let hunkKind: GitDiffSectionKind?
+    let onStartComment: () -> Void
+    let onSaveComment: () -> Void
+    let onCancelComment: () -> Void
+    let onRemoveComment: (DiffReviewComment) -> Void
+    let onPrimaryHunk: () -> Void
+    let onRevertHunk: () -> Void
+    @State private var hovering = false
+
+    private var oldLine: String {
+        line.reference?.oldLine.map(String.init) ?? ""
+    }
+
+    private var newLine: String {
+        line.reference?.newLine.map(String.init) ?? ""
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 0) {
+                Text(oldLine)
+                    .frame(width: 34, alignment: .trailing)
+                Text(newLine)
+                    .frame(width: 34, alignment: .trailing)
+                Text(line.text.isEmpty ? " " : line.text)
+                    .foregroundStyle(color)
+                    .padding(.leading, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if hunkKind == .staged {
+                    Button(action: onPrimaryHunk) {
+                        Image(systemName: "minus.circle")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Unstage hunk")
+                    .padding(.horizontal, 3)
+                } else if hunkKind == .unstaged {
+                    Button(action: onPrimaryHunk) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Stage hunk")
+                    .padding(.horizontal, 3)
+                    Button(action: onRevertHunk) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.red)
+                    .help("Revert hunk")
+                    .padding(.horizontal, 3)
+                }
+                if line.reference != nil {
+                    Button(action: onStartComment) {
+                        Image(systemName: comment == nil ? "text.bubble" : "text.bubble.fill")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .help(comment == nil ? "添加行内意见" : "编辑行内意见")
+                    .opacity(hovering || comment != nil || isEditing ? 1 : 0.35)
+                    .padding(.horizontal, 6)
+                }
+            }
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(line.reference == nil ? CodexTheme.mutedText : CodexTheme.faintText)
+            .padding(.vertical, 2)
+            .background(rowBackground)
+            .onHover { hovering = $0 }
+
+            if let comment, !isEditing {
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: "text.bubble.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(CodexTheme.accent)
+                    Text(comment.body)
+                        .font(.system(size: 11))
+                        .foregroundStyle(CodexTheme.primaryText)
+                    Spacer(minLength: 8)
+                    Button(action: { onRemoveComment(comment) }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .help("删除意见")
+                }
+                .padding(8)
+                .background(CodexTheme.surfaceSubtle, in: RoundedRectangle(cornerRadius: 6))
+                .padding(.leading, 76)
+                .padding(.trailing, 8)
+                .padding(.vertical, 3)
+            }
+
+            if isEditing {
+                VStack(alignment: .trailing, spacing: 7) {
+                    TextField("添加行内意见", text: $commentText, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .lineLimit(2...6)
+                        .padding(7)
+                        .background(CodexTheme.surface, in: RoundedRectangle(cornerRadius: 6))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(CodexTheme.border, lineWidth: 1)
+                        }
+                        .onSubmit(onSaveComment)
+                    HStack(spacing: 8) {
+                        Button("取消", action: onCancelComment)
+                            .buttonStyle(.plain)
+                        Button(comment == nil ? "添加" : "更新", action: onSaveComment)
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+                .padding(.leading, 76)
+                .padding(.trailing, 8)
+                .padding(.vertical, 5)
+            }
+        }
+    }
+
+    private var rowBackground: Color {
+        switch line.kind {
+        case .addition: return .green.opacity(0.07)
+        case .deletion: return .red.opacity(0.07)
+        case .hunk: return .blue.opacity(0.06)
+        default: return .clear
+        }
+    }
+}
+
+private struct GitCommitSheet: View {
+    let branch: String
+    @Binding var message: String
+    let onCancel: () -> Void
+    let onCommit: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Commit staged changes")
+                .font(.headline)
+            Label(branch, systemImage: "arrow.triangle.branch")
+                .font(.system(size: 11))
+                .foregroundStyle(CodexTheme.mutedText)
+            TextField("Commit message", text: $message, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(2...5)
+                .onSubmit(onCommit)
+            Text("Only staged changes will be included.")
+                .font(.caption)
+                .foregroundStyle(CodexTheme.mutedText)
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("Commit", action: onCommit)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 420)
+    }
+}
+
+private struct GitPullRequestSheet: View {
+    let branch: String
+    @Binding var title: String
+    @Binding var descriptionText: String
+    @Binding var isDraft: Bool
+    let onCancel: () -> Void
+    let onCreate: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Create pull request")
+                .font(.headline)
+            Label(branch, systemImage: "arrow.triangle.branch")
+                .font(.system(size: 11))
+                .foregroundStyle(CodexTheme.mutedText)
+            TextField("Title", text: $title)
+                .textFieldStyle(.roundedBorder)
+            Text("Description")
+                .font(.system(size: 11, weight: .medium))
+            TextEditor(text: $descriptionText)
+                .font(.system(size: 12))
+                .scrollContentBackground(.hidden)
+                .padding(6)
+                .frame(height: 130)
+                .background(CodexTheme.surface, in: RoundedRectangle(cornerRadius: 6))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(CodexTheme.border, lineWidth: 1)
+                }
+            Toggle("Create as draft", isOn: $isDraft)
+                .toggleStyle(.checkbox)
+            Text("Uses GitHub CLI (`gh`) and its current authentication.")
+                .font(.caption)
+                .foregroundStyle(CodexTheme.mutedText)
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("Create", action: onCreate)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 460)
     }
 }
 #endif

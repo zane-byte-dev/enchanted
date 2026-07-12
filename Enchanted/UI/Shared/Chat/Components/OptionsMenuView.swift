@@ -200,7 +200,7 @@ private struct HistorySyncReportView: View {
                 Spacer()
                 Button("Done") { dismiss() }
             }
-            Text("Local and pi user turns differ. Review the mismatched turns, then choose which history should become authoritative.")
+            Text("pi owns the active agent branch and model context. Review the mismatch, then sync the local view from pi. Local recovery is reserved for a missing or damaged pi session.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
@@ -224,8 +224,10 @@ private struct HistorySyncReportView: View {
 
             Divider()
             HStack {
-                Button("Use pi History…", role: .destructive) { resolution = .pi }
-                Button("Use Local History…") { resolution = .local }
+                Button("Sync Local View from pi…", role: .destructive) { resolution = .pi }
+                Menu("Recovery Options") {
+                    Button("Rebuild pi from Local Transcript…") { resolution = .local }
+                }
                 Spacer()
                 if isResolving { ProgressView().controlSize(.small) }
             }
@@ -241,16 +243,16 @@ private struct HistorySyncReportView: View {
             )
         ) {
             if resolution == .pi {
-                Button("Replace Local History", role: .destructive) { resolve(.pi) }
+                Button("Sync from pi", role: .destructive) { resolve(.pi) }
             } else {
-                Button("Rebuild pi from Local History") { resolve(.local) }
+                Button("Rebuild pi Session") { resolve(.local) }
             }
             Button("Cancel", role: .cancel) { resolution = nil }
         } message: {
             if resolution == .pi {
-                Text("The local transcript will be replaced by the active pi branch. This cannot be undone.")
+                Text("The local display transcript will be atomically replaced by pi's active branch. Task metadata, drafts, and review comments are preserved.")
             } else {
-                Text("A new pi session will be created from visible user and assistant text. Tool traces and hidden thinking are not copied into model context.")
+                Text("Emergency recovery creates a new pi session from visible user and assistant text. Tool traces, hidden thinking, compaction state, and the original branch graph cannot be recovered.")
             }
         }
     }

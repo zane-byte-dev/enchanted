@@ -405,7 +405,7 @@ private struct ScheduledTasksSettingsPane: View {
                     }
                 }
 
-                Text("Schedules run only while Enchanted is open. Each run creates a normal task with visible permissions, history, and notifications.")
+                Text("Schedules run only while Mox is open. Each run creates a normal task with visible permissions, history, and notifications.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
 
@@ -979,6 +979,14 @@ private struct PiSettingsPane: View {
                     }
                     if executableIsOverridden {
                         overrideNotice("PI_EXECUTABLE")
+                    } else if AgentBackendConfig.isBundledPiExecutable(executable) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "shippingbox.fill")
+                            Text("内置 pi · 随 Mox 签名和更新")
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.green)
+                        .padding(.horizontal, 16)
                     }
 
                     settingsDivider
@@ -1511,7 +1519,7 @@ private struct AppearanceSettingsPane: View {
     private func exportTheme() {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "Enchanted Theme.json"
+        panel.nameFieldStringValue = "Mox Theme.json"
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {

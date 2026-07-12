@@ -45,18 +45,20 @@ ConversationStore.shared.backend = PiConnector(
 ### 注意：pi 是有状态会话
 
 pi 的 RPC 进程自己维护整段对话历史。所以 `PiConnector.chat()` **只发最新一条
-user 消息**，历史由 pi 侧保存。Enchanted 自己的 SwiftData 历史与 pi 会话历史
-目前是两份、可能漂移——先跑通 spike，双向同步是后续步骤。
+user 消息**，历史由 pi 侧保存。pi active branch 是 agent 上下文权威，SwiftData
+是可原子重建的显示投影；漂移会暂停发送和自动续跑，详见 ADR-008。
 
 ## ⚠️ 沙盒约束（重要）
 
 沙盒 app 可以 spawn 子进程，但子进程会继承父进程沙盒；hardened runtime 下，
-内置可执行体还需要同 Team 签名。当前 Debug 调用系统 PATH 中的外部 pi，因此暂时
-关闭 `com.apple.security.app-sandbox`。目标分发形态是把 pi 打入 bundle、同 Team
-签名，并通过 security-scoped bookmark 授权项目目录。详见 `docs/ARCHITECTURE.md`。
+内置可执行体还需要同 Team 签名。Release 通过 `Scripts/prepare-pi-runtime.sh` 生成精简
+Node runtime，Xcode 把 Node 放进 `Contents/Helpers/pi-node`、JS 放进 Resources，
+并用 App 的签名身份签 Node；
+Debug 缺 runtime 时仍可调用外部 pi。当前尚未开启 App Sandbox，下一步是用
+security-scoped bookmark 授权项目目录。详见 `docs/DISTRIBUTION.md`。
 
-启动时通过登录 shell 拉起 pi，以继承用户的 PATH（node）和 API key
-（如 `IDEALAB_API_KEY`）——见 `AgentBackendConfig.swift`。
+内置 runtime 自带 Node，不依赖登录 shell 或系统 PATH；API key 与 provider 配置仍从
+Mox 进程环境和 `~/.pi/agent` 读取。外部 pi 模式继续补全常用 GUI PATH。
 
 ## 技能管理页（Skills）
 
@@ -68,12 +70,9 @@ user 消息**，历史由 pi 侧保存。Enchanted 自己的 SwiftData 历史与
 
 ## 待办（下一步）
 
-- [ ] SwiftMath 接入 `ChatMessageView`，渲染 `$...$` 公式（纯原生）
-- [ ] mermaid → 后端出 SVG/PNG，前端当图片
-- [ ] PiConnector：`get_available_models` 真实模型列表；图片/steer/abort/compact
+- [ ] security-scoped bookmark + App Sandbox 子进程验证
 - [ ] NeoConnector（HTTP+SSE）/ WandaConnector（WS）
 - [ ] 事件模型对齐 ACP schema
-- [ ] pi/neo 会话历史与本地 SwiftData 的同步策略
 
 ## ⚠️ 加入 Xcode 工程
 

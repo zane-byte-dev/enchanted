@@ -106,6 +106,23 @@ final class MessageSD: Identifiable {
         )
         return blocks
     }
+
+    /// Update the persisted representation and the render cache together.
+    ///
+    /// Streaming already owns the typed blocks, so decoding the JSON it just
+    /// encoded on every UI flush is pure overhead on the main render path.
+    /// Callers that have `[MessageBlock]` should use this method instead of
+    /// assigning `blocksJSON` directly. Historical rows still decode lazily.
+    func setRenderBlocks(_ blocks: [MessageBlock]) {
+        guard let data = try? JSONEncoder().encode(blocks),
+              let json = String(data: data, encoding: .utf8) else { return }
+        blocksJSON = json
+        let key = id.uuidString as NSString
+        MessageSD.cacheStorage.renderBlocks.setObject(
+            MessageSD.CachedBlocks(json: json, blocks: blocks),
+            forKey: key
+        )
+    }
 }
 
 extension MessageSD {

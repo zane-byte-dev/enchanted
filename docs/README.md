@@ -1,6 +1,6 @@
-# Enchanted 知识库
+# Mox 知识库
 
-> Enchanted（本 fork）= 一套原生 macOS GUI，驱动多个 coding agent CLI（pi / neo / wanda），
+> Mox（基于 Enchanted 的 fork）= 一套原生 macOS GUI，驱动多个 coding agent CLI（pi / neo / wanda），
 > 体验对标 Codex Mac App。这里是项目的单一事实来源（single source of truth）。
 
 ## 导航
@@ -12,6 +12,7 @@
 | [ROADMAP.md](ROADMAP.md) | 分阶段完整计划 + 里程碑 + 待办 | 规划、决定下一步做什么 |
 | [CODEX_PARITY.md](CODEX_PARITY.md) | Codex 官方功能面逐项对齐矩阵 | 判断是否真正完成对齐 |
 | [TESTING.md](TESTING.md) | pi RPC、单元测试、构建与 macOS UI 冒烟 | 改完代码后验证、发版前回归 |
+| [DISTRIBUTION.md](DISTRIBUTION.md) | 内置 pi runtime、嵌入签名与发布检查 | 准备 Release、签名、公证前 |
 | [PERFORMANCE.md](PERFORMANCE.md) | 卡顿/白屏/抖动/重复渲染的成因与对策 | 改聊天渲染、Store 前 |
 | [DECISIONS.md](DECISIONS.md) | 关键技术决策记录（ADR） | 想知道"为什么当初这么选" |
 | [../AGENTS.md](../AGENTS.md) | 给 AI agent 的速览 + 协作准则 | 每次开工 |
@@ -34,8 +35,8 @@
 - ✅ SenseVoice / Apple Speech 语音输入
 - 🚧 性能（流式渲染抖动/白屏）
 - ⬜ NeoConnector / WandaConnector（抽象层已留位，未实现）
-- ⬜ 本地 SwiftData 历史 ↔ pi 会话历史 的同步策略
-- ⬜ 分发路径（非沙盒 vs App Store / XPC helper）
+- ✅ pi active branch 权威、SwiftData 显示投影与漂移修复策略
+- 🚧 Developer ID 直分发 + 内置 pi 已落地；App Sandbox/bookmark 待完成
 
 ## 维护约定
 

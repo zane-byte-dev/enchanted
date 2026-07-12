@@ -30,11 +30,22 @@ enum ConversationHistorySyncStatus: Equatable {
     case inSync(turns: Int)
     case drift(localTurns: Int, piTurns: Int)
     case unavailable
+
+    var permitsAutomaticContinuation: Bool {
+        if case .inSync = self { return true }
+        return false
+    }
 }
 
 struct ConversationHistorySyncReport: Equatable {
     let localTurns: [String]
     let piTurns: [String]
+
+    var status: ConversationHistorySyncStatus {
+        localTurns == piTurns
+            ? .inSync(turns: localTurns.count)
+            : .drift(localTurns: localTurns.count, piTurns: piTurns.count)
+    }
 
     var rows: [Row] {
         let count = max(localTurns.count, piTurns.count)
@@ -56,7 +67,7 @@ struct ConversationHistorySyncReport: Equatable {
     }
 }
 
-private struct PiTranscriptMessage: Sendable {
+struct PiTranscriptMessage: Sendable {
     var role: String
     var content: String
     var blocks: [MessageBlock]
@@ -145,10 +156,7 @@ final class AgentRun: @unchecked Sendable {
 
     /// Serialize blocks + plain-text mirror into the message for rendering/persist.
     func flush() {
-        if let data = try? JSONEncoder().encode(blocks),
-           let json = String(data: data, encoding: .utf8) {
-            assistantMessage.blocksJSON = json
-        }
+        assistantMessage.setRenderBlocks(blocks)
         // Keep `content` as a plain-text mirror for copy / TTS / legacy views.
         assistantMessage.content = blocks.compactMap {
             if case .text(let s) = $0 { return s } else { return nil }
@@ -199,6 +207,8 @@ final class ConversationStore: @unchecked Sendable {
         let isPinned: Bool
         let isArchived: Bool
         let workingDirectory: String?
+        let localCheckoutPath: String?
+        let managedWorktreePath: String?
         let piSessionPath: String?
         let planJSON: String?
         let goalText: String?
@@ -275,6 +285,7 @@ final class ConversationStore: @unchecked Sendable {
     /// duplicate actions and show progress.
     @MainActor private(set) var branchingMessageIDs: Set<UUID> = []
     @MainActor private(set) var isPreparingNewTaskEnvironment = false
+    @MainActor private(set) var handingOffConversationIDs: Set<UUID> = []
 
     /// State of the currently selected conversation (for existing UI bindings).
     @MainActor var conversationState: ConversationState {
@@ -288,6 +299,9 @@ final class ConversationStore: @unchecked Sendable {
     }
 
     @MainActor var isRunning: Bool { !runs.isEmpty }
+    @MainActor func isHandingOff(_ conversation: ConversationSD) -> Bool {
+        handingOffConversationIDs.contains(conversation.id)
+    }
     @MainActor var canUndoDeletion: Bool { lastDeletedConversation != nil }
     @MainActor var isCompactingSelectedConversation: Bool {
         guard let id = selectedConversation?.id else { return false }
@@ -507,6 +521,18 @@ final class ConversationStore: @unchecked Sendable {
     @MainActor
     func checkSelectedHistorySync(notify: Bool = true) async {
         guard let conversation = selectedConversation else { return }
+        _ = await checkHistorySync(for: conversation, notify: notify)
+    }
+
+    /// Pi owns the branch and model context; SwiftData is its UI projection.
+    /// Return the verified state so automatic continuations can fail closed
+    /// instead of extending an already-diverged branch.
+    @MainActor
+    @discardableResult
+    private func checkHistorySync(
+        for conversation: ConversationSD,
+        notify: Bool
+    ) async -> ConversationHistorySyncStatus {
         let id = conversation.id
         historySyncStatuses[id] = .checking
         let connector = connector(for: conversation) as? PiConnector
@@ -515,19 +541,23 @@ final class ConversationStore: @unchecked Sendable {
         guard let piMessages else {
             historySyncStatuses[id] = .unavailable
             if notify { AppStore.shared.uiLog(message: "Could not read pi history", status: .error) }
-            return
+            return .unavailable
         }
         let local = ((try? await localMessages) ?? []).filter { $0.role == "user" }.map(\.content)
-        historySyncReports[id] = ConversationHistorySyncReport(localTurns: local, piTurns: piMessages)
-        if local == piMessages {
-            historySyncStatuses[id] = .inSync(turns: local.count)
+        let report = ConversationHistorySyncReport(localTurns: local, piTurns: piMessages)
+        historySyncReports[id] = report
+        let status = report.status
+        if status.permitsAutomaticContinuation {
+            historySyncStatuses[id] = status
             if notify { AppStore.shared.uiLog(message: "Local and pi history are in sync", status: .info) }
+            return status
         } else {
-            historySyncStatuses[id] = .drift(localTurns: local.count, piTurns: piMessages.count)
+            historySyncStatuses[id] = status
             AppStore.shared.uiLog(
                 message: "History drift detected: local \(local.count) turns, pi \(piMessages.count) turns",
                 status: .error
             )
+            return status
         }
     }
 
@@ -544,18 +574,21 @@ final class ConversationStore: @unchecked Sendable {
             return
         }
         do {
-            try await swiftDataService.deleteMessages(forConversation: conversation.id)
+            var replacement: [MessageSD] = []
             for snapshot in transcript {
                 let message = MessageSD(content: snapshot.content, role: snapshot.role, done: true)
                 message.error = snapshot.errorMessage != nil
-                if !snapshot.blocks.isEmpty,
-                   let data = try? JSONEncoder().encode(snapshot.blocks) {
-                    message.blocksJSON = String(data: data, encoding: .utf8)
+                if !snapshot.blocks.isEmpty {
+                    message.setRenderBlocks(snapshot.blocks)
                 }
                 message.createdAt = snapshot.createdAt
                 message.conversation = conversation
-                try await swiftDataService.createMessage(message)
+                replacement.append(message)
             }
+            try await swiftDataService.replaceMessages(
+                forConversation: conversation.id,
+                with: replacement
+            )
             try await reloadConversation(conversation)
             await checkSelectedHistorySync()
             AppStore.shared.uiLog(message: "Local history replaced from pi", status: .info)
@@ -599,6 +632,13 @@ final class ConversationStore: @unchecked Sendable {
 
     nonisolated private static func readPiTranscript(at path: String) -> [PiTranscriptMessage]? {
         guard let source = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+        return parsePiTranscript(source)
+    }
+
+    /// Rebuild only the active pi branch from JSONL. Entry ids are canonical:
+    /// repeated lines overwrite the same entry and walking the parent chain
+    /// visits each id once, so importing the same history is idempotent.
+    nonisolated static func parsePiTranscript(_ source: String) -> [PiTranscriptMessage] {
         var entries: [String: [String: Any]] = [:]
         var orderedIDs: [String] = []
         for line in source.split(separator: "\n") {
@@ -873,10 +913,7 @@ final class ConversationStore: @unchecked Sendable {
                 message.error = true
             }
 
-            if let data = try? JSONEncoder().encode(blocks),
-               let json = String(data: data, encoding: .utf8) {
-                message.blocksJSON = json
-            }
+            message.setRenderBlocks(blocks)
             message.content = blocks.compactMap {
                 if case .text(let text) = $0 { return text }
                 return nil
@@ -1050,6 +1087,7 @@ final class ConversationStore: @unchecked Sendable {
                 markConversationRendered(conversationID)
             }
             scheduleMissingErrorRepair(for: conversation)
+            scheduleHistorySyncCheckIfNeeded(for: conversation)
             // Critical fast path: let the selection task return so SwiftUI can
             // commit the cached transcript before any database refresh.
             return
@@ -1096,6 +1134,20 @@ final class ConversationStore: @unchecked Sendable {
             markConversationRendered(conversationID)
         }
         scheduleMissingErrorRepair(for: conversation)
+        scheduleHistorySyncCheckIfNeeded(for: conversation)
+    }
+
+    /// Validate resumed sessions after the cached transcript has painted, so
+    /// startup remains fast while drift is discovered before the next turn.
+    @MainActor
+    private func scheduleHistorySyncCheckIfNeeded(for conversation: ConversationSD) {
+        guard runs[conversation.id] == nil,
+              conversation.piSessionPath?.isEmpty == false,
+              historySyncStatuses[conversation.id] == nil else { return }
+        Task(priority: .utility) { @MainActor [weak self] in
+            guard let self, self.selectedConversation?.id == conversation.id else { return }
+            _ = await self.checkHistorySync(for: conversation, notify: false)
+        }
     }
 
     /// Backfill errors lost by older builds that treated pi's terminal
@@ -1137,9 +1189,7 @@ final class ConversationStore: @unchecked Sendable {
                   let errorMessage = snapshot.errorMessage,
                   !errorMessage.isEmpty else { continue }
             message.content = snapshot.content
-            if let data = try? JSONEncoder().encode(snapshot.blocks) {
-                message.blocksJSON = String(data: data, encoding: .utf8)
-            }
+            message.setRenderBlocks(snapshot.blocks)
             message.error = true
             message.done = true
             try? await swiftDataService.updateMessage(message)
@@ -1300,6 +1350,8 @@ final class ConversationStore: @unchecked Sendable {
             isPinned: conversation.isPinned,
             isArchived: conversation.isArchived,
             workingDirectory: conversation.workingDirectory,
+            localCheckoutPath: conversation.localCheckoutPath,
+            managedWorktreePath: conversation.managedWorktreePath,
             piSessionPath: conversation.piSessionPath,
             planJSON: conversation.planJSON,
             goalText: conversation.goalText,
@@ -1358,6 +1410,8 @@ final class ConversationStore: @unchecked Sendable {
         restored.isPinned = snapshot.isPinned
         restored.isArchived = snapshot.isArchived
         restored.workingDirectory = snapshot.workingDirectory
+        restored.localCheckoutPath = snapshot.localCheckoutPath
+        restored.managedWorktreePath = snapshot.managedWorktreePath
         restored.piSessionPath = snapshot.piSessionPath
         restored.planJSON = snapshot.planJSON
         restored.goalText = snapshot.goalText
@@ -1534,6 +1588,11 @@ final class ConversationStore: @unchecked Sendable {
         destination.goalContinuationCount = 0
     }
 
+    private func copyEnvironment(from source: ConversationSD, to destination: ConversationSD) {
+        destination.localCheckoutPath = source.localCheckoutPath
+        destination.managedWorktreePath = source.managedWorktreePath
+    }
+
     /// Duplicate a conversation (transcript + pi session context) into a new
     /// conversation that runs in the same working directory.
     @MainActor
@@ -1552,19 +1611,38 @@ final class ConversationStore: @unchecked Sendable {
         let cwd = workingDirectory(for: conversation)
         let name = conversation.name
         // Run git off the main actor so `worktree add` never freezes the UI.
-        let worktreePath = await Task.detached { GitWorktree.create(from: cwd, name: name) }.value
+        let created = await Task.detached {
+            (
+                GitWorktree.create(from: cwd, name: name),
+                GitWorktree.mainWorktree(from: cwd)
+            )
+        }.value
+        let worktreePath = created.0
         guard let worktreePath else {
             AgentBackendConfig.debugLog("forkToWorktree: failed to create worktree from \(cwd)")
             return nil
         }
-        await fork(conversation, workingDirectory: worktreePath, nameSuffix: "(worktree)")
+        let localPath = created.1 ?? cwd
+        await fork(
+            conversation,
+            workingDirectory: worktreePath,
+            nameSuffix: "(worktree)",
+            localCheckoutPath: localPath,
+            managedWorktreePath: worktreePath
+        )
         return worktreePath
     }
 
     /// Shared fork implementation: clones the pi session (when present), copies
     /// the transcript, then selects the new conversation.
     @MainActor
-    private func fork(_ source: ConversationSD, workingDirectory: String, nameSuffix: String) async {
+    private func fork(
+        _ source: ConversationSD,
+        workingDirectory: String,
+        nameSuffix: String,
+        localCheckoutPath: String? = nil,
+        managedWorktreePath: String? = nil
+    ) async {
         // Clone the pi session so the fork carries the original context but
         // writes to its own independent session file.
         var newSessionPath: String? = nil
@@ -1578,6 +1656,8 @@ final class ConversationStore: @unchecked Sendable {
 
         let forked = ConversationSD(name: "\(source.name) \(nameSuffix)")
         forked.workingDirectory = workingDirectory
+        forked.localCheckoutPath = localCheckoutPath ?? source.localCheckoutPath
+        forked.managedWorktreePath = managedWorktreePath ?? source.managedWorktreePath
         forked.piSessionPath = newSessionPath
         forked.planJSON = source.planJSON
         copyGoal(from: source, to: forked)
@@ -1648,6 +1728,7 @@ final class ConversationStore: @unchecked Sendable {
 
         let forked = ConversationSD(name: "\(source.name) (fork)")
         forked.workingDirectory = workingDirectory(for: source)
+        copyEnvironment(from: source, to: forked)
         forked.piSessionPath = newSessionPath
         forked.planJSON = source.planJSON
         copyGoal(from: source, to: forked)
@@ -1718,6 +1799,7 @@ final class ConversationStore: @unchecked Sendable {
 
         let forked = ConversationSD(name: "\(source.name) (fork)")
         forked.workingDirectory = workingDirectory(for: source)
+        copyEnvironment(from: source, to: forked)
         forked.piSessionPath = newSessionPath
         forked.planJSON = source.planJSON
         copyGoal(from: source, to: forked)
@@ -1843,6 +1925,7 @@ final class ConversationStore: @unchecked Sendable {
               let model = source.model ?? LanguageModelStore.shared.selectedModel else { return }
         let review = ConversationSD(name: "Review: \(source.name)")
         review.workingDirectory = workingDirectory(for: source)
+        copyEnvironment(from: source, to: review)
         review.model = model
         let prompt = """
         Review the current uncommitted changes in this Git working tree. This is a read-only review: do not edit files, run formatters, stage changes, or create commits. Inspect both staged and unstaged changes and relevant surrounding code. Report only actionable correctness, security, regression, or test-coverage findings, ordered by severity. For every finding include an exact file path and line number. If there are no actionable findings, say so clearly.
@@ -1901,6 +1984,94 @@ final class ConversationStore: @unchecked Sendable {
         connectors[conversation.id] = nil
         connectorGenerations[conversation.id] = nil
     }
+
+    /// Move one task and its pi transcript between the main checkout and its
+    /// stable managed worktree. Git state is moved first only after a target-cwd
+    /// pi session fork has succeeded; failures leave the conversation binding
+    /// and source checkout untouched.
+#if os(macOS)
+    @MainActor
+    func handoff(_ conversation: ConversationSD) async -> GitHandoffResult {
+        guard runs[conversation.id] == nil else {
+            return .init(success: false, message: "Stop the active turn before handing off this task.")
+        }
+        guard handingOffConversationIDs.insert(conversation.id).inserted else {
+            return .init(success: false, message: "This task is already being handed off.")
+        }
+        defer { handingOffConversationIDs.remove(conversation.id) }
+
+        let source = workingDirectory(for: conversation)
+        let sourceSession = conversation.piSessionPath
+        guard let sourceSession, !sourceSession.isEmpty else {
+            return .init(success: false, message: "The task has no pi session to move.")
+        }
+
+        let location = await Task.detached {
+            (
+                GitWorktree.isMainWorktree(source),
+                GitWorktree.mainWorktree(from: source)
+            )
+        }.value
+        let sourceIsLocal = location.0
+        let mainPath = conversation.localCheckoutPath ?? location.1
+        var createdDestination = false
+        let destination: String
+
+        if sourceIsLocal {
+            if let existing = conversation.managedWorktreePath,
+               FileManager.default.fileExists(atPath: existing) {
+                destination = existing
+            } else {
+                let created = await Task.detached {
+                    GitWorktree.createForHandoff(from: source, name: conversation.name)
+                }.value
+                guard let created else {
+                    return .init(success: false, message: "Could not create a managed worktree.")
+                }
+                destination = created
+                createdDestination = true
+            }
+        } else {
+            guard let mainPath, FileManager.default.fileExists(atPath: mainPath) else {
+                return .init(success: false, message: "The Local checkout is unavailable.")
+            }
+            destination = mainPath
+        }
+
+        let sessionConnector = AgentBackendConfig.makeForkedChatBackend(
+            workingDirectory: destination,
+            sourceSessionPath: sourceSession
+        )
+        let targetSession = await sessionConnector.currentSessionPath()
+        sessionConnector.terminate()
+        guard let targetSession, !targetSession.isEmpty else {
+            if createdDestination {
+                await Task.detached { GitWorktree.removeManaged(destination, from: source) }.value
+            }
+            return .init(success: false, message: "pi could not fork the task context into the destination.")
+        }
+
+        let result = await Task.detached {
+            GitWorktree.handoff(from: source, to: destination)
+        }.value
+        guard result.success else {
+            try? FileManager.default.removeItem(atPath: targetSession)
+            if createdDestination {
+                await Task.detached { GitWorktree.removeManaged(destination, from: source) }.value
+            }
+            return result
+        }
+
+        conversation.localCheckoutPath = mainPath ?? (sourceIsLocal ? source : destination)
+        conversation.managedWorktreePath = sourceIsLocal ? destination : source
+        conversation.workingDirectory = destination
+        conversation.piSessionPath = targetSession
+        try? await swiftDataService.updateConversation(conversation)
+        await teardownConnector(conversation.id)
+        AppStore.shared.uiLog(message: result.message, status: .info)
+        return result
+    }
+#endif
 
     /// Invalidate all per-conversation agent processes after a Settings change.
     /// Idle connectors are reclaimed immediately. Running turns are deliberately
@@ -2016,6 +2187,15 @@ final class ConversationStore: @unchecked Sendable {
     func sendPrompt(userPrompt: String, model: LanguageModelSD, images: [Image], systemPrompt: String = "", trimmingMessageId: String? = nil) {
         guard userPrompt.trimmingCharacters(in: .whitespacesAndNewlines).count > 0 else { return }
 
+        if let id = selectedConversation?.id,
+           case .drift = historySyncStatuses[id] {
+            AppStore.shared.uiLog(
+                message: "Resolve history drift before sending another turn. pi remains the agent-context authority.",
+                status: .error
+            )
+            return
+        }
+
 #if os(macOS)
         if selectedConversation == nil,
            UserDefaults.standard.string(forKey: "newTaskEnvironment") == "worktree" {
@@ -2024,7 +2204,13 @@ final class ConversationStore: @unchecked Sendable {
             let base = WorkspaceStore.shared.currentDirectory
             let name = Self.title(from: userPrompt)
             Task { @MainActor in
-                let path = await Task.detached { GitWorktree.create(from: base, name: name) }.value
+                let created = await Task.detached {
+                    (
+                        GitWorktree.create(from: base, name: name),
+                        GitWorktree.mainWorktree(from: base)
+                    )
+                }.value
+                let path = created.0
                 isPreparingNewTaskEnvironment = false
                 guard let path else {
                     AppStore.shared.uiLog(
@@ -2035,6 +2221,8 @@ final class ConversationStore: @unchecked Sendable {
                 }
                 let conversation = ConversationSD(name: name)
                 conversation.workingDirectory = path
+                conversation.localCheckoutPath = created.1 ?? base
+                conversation.managedWorktreePath = path
                 beginPrompt(
                     userPrompt: userPrompt,
                     model: model,
@@ -2376,10 +2564,8 @@ final class ConversationStore: @unchecked Sendable {
         withAnimation { states[convID] = .completed }
         persistSessionPath(convID)
         refreshStats(for: convID)
-        if dispatchNextFollowUp(for: convID) {
-            return
-        }
-        if dispatchGoalContinuation(for: convID) {
+        if hasPendingAutomaticContinuation(for: convID) {
+            verifyHistoryThenContinue(convID, notify: notify)
             return
         }
         Task { @MainActor [weak self] in
@@ -2392,6 +2578,45 @@ final class ConversationStore: @unchecked Sendable {
             AppStore.shared.uiLog(message: "\(title) completed", status: .info)
             NotificationService.shared.notifyConversationFinished(conversationID: convID, title: title, failed: false)
             ScheduledTaskStore.shared.recordCompletion(conversationID: convID, failed: false)
+        }
+    }
+
+    @MainActor
+    private func hasPendingAutomaticContinuation(for convID: UUID) -> Bool {
+        if followUps[convID]?.isEmpty == false { return true }
+        guard let conversation = (selectedConversation?.id == convID
+            ? selectedConversation
+            : conversations.first(where: { $0.id == convID })) else { return false }
+        return conversation.goalStatus == "active" && conversation.goalAutoContinue
+    }
+
+    @MainActor
+    private func verifyHistoryThenContinue(_ convID: UUID, notify: Bool) {
+        guard let conversation = (selectedConversation?.id == convID
+            ? selectedConversation
+            : conversations.first(where: { $0.id == convID })) else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let status = await self.checkHistorySync(for: conversation, notify: false)
+            if status.permitsAutomaticContinuation {
+                if self.dispatchNextFollowUp(for: convID) { return }
+                if self.dispatchGoalContinuation(for: convID) { return }
+            } else {
+                AppStore.shared.uiLog(
+                    message: "Automatic continuation paused because agent history could not be verified. Review History Drift before continuing.",
+                    status: .error
+                )
+            }
+            if notify {
+                let title = self.conversationTitle(for: convID)
+                AppStore.shared.uiLog(message: "\(title) completed", status: .info)
+                NotificationService.shared.notifyConversationFinished(
+                    conversationID: convID,
+                    title: title,
+                    failed: false
+                )
+                ScheduledTaskStore.shared.recordCompletion(conversationID: convID, failed: false)
+            }
         }
     }
 

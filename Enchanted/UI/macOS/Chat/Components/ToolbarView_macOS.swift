@@ -196,10 +196,18 @@ struct ChooseProjectRow: View {
 struct WorkingDirectoryButton: View {
     @Bindable var workspace: WorkspaceStore
     @State private var conversationStore = ConversationStore.shared
-    @State private var editorOpenError: String?
+    @State private var operationError: String?
+    @State private var guidanceSnapshot = AgentGuidanceSnapshot.empty
+    @State private var guidanceReloaded = false
+    @State private var isLocalCheckout = true
+    @State private var confirmHandoff = false
 
     private var currentPath: String {
         conversationStore.selectedConversation?.workingDirectory ?? workspace.currentDirectory
+    }
+
+    private var hasCurrentDirectoryGuidance: Bool {
+        guidanceSnapshot.files.contains { $0.scope == .workingDirectory }
     }
 
     var body: some View {
@@ -210,6 +218,65 @@ struct WorkingDirectoryButton: View {
             Button("在 VS Code 中打开") {
                 openInVSCode()
             }
+
+            if let conversation = conversationStore.selectedConversation {
+                Divider()
+                Button {
+                    confirmHandoff = true
+                } label: {
+                    Label(
+                        isLocalCheckout ? "Hand off to Worktree…" : "Hand off to Local…",
+                        systemImage: isLocalCheckout ? "arrow.triangle.branch" : "laptopcomputer"
+                    )
+                }
+                .disabled(
+                    conversationStore.conversationState == .loading
+                    || conversationStore.isHandingOff(conversation)
+                )
+            }
+
+            Divider()
+
+            Section("Agent 指引") {
+                ForEach(guidanceSnapshot.files) { file in
+                    Button {
+                        openGuidance(file.url)
+                    } label: {
+                        Label(guidanceLabel(for: file), systemImage: "doc.text")
+                    }
+                }
+
+                if !hasCurrentDirectoryGuidance {
+                    Button {
+                        createCurrentGuidance()
+                    } label: {
+                        Label("创建当前目录 AGENTS.md…", systemImage: "doc.badge.plus")
+                    }
+                }
+
+                if !guidanceSnapshot.unreadablePaths.isEmpty {
+                    Label(
+                        "有 \(guidanceSnapshot.unreadablePaths.count) 个指引文件不可读",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                }
+
+                Button {
+                    AgentBackendConfig.reconfigure()
+                    guidanceReloaded = true
+                    refreshGuidance()
+                } label: {
+                    Label(
+                        guidanceReloaded ? "已重新加载到 pi" : "重新加载到 pi",
+                        systemImage: guidanceReloaded ? "checkmark" : "arrow.clockwise"
+                    )
+                }
+                .disabled(guidanceSnapshot.files.isEmpty)
+
+                Button("重新扫描", systemImage: "magnifyingglass") {
+                    refreshGuidance()
+                }
+            }
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: "folder")
@@ -218,6 +285,11 @@ struct WorkingDirectoryButton: View {
                     .font(.system(size: 12))
                     .lineLimit(1)
                     .truncationMode(.middle)
+                if !guidanceSnapshot.files.isEmpty {
+                    Image(systemName: "doc.badge.gearshape")
+                        .font(.system(size: 10))
+                        .foregroundStyle(CodexTheme.mutedText)
+                }
             }
             .foregroundStyle(Color.secondary)
             .padding(.horizontal, 10)
@@ -228,14 +300,42 @@ struct WorkingDirectoryButton: View {
         // Working directory is neutral context, not an accent action.
         .tint(CodexTheme.primaryText)
         .fixedSize()
-        .help(currentPath)
-        .alert("无法打开 VS Code", isPresented: Binding(
-            get: { editorOpenError != nil },
-            set: { if !$0 { editorOpenError = nil } }
+        .help(guidanceSnapshot.files.isEmpty
+              ? currentPath
+              : "\(currentPath)\n\(guidanceSnapshot.files.count) 个有效 Agent 指引")
+        .task(id: currentPath) {
+            guidanceReloaded = false
+            refreshGuidance()
+            let path = currentPath
+            isLocalCheckout = await Task.detached {
+                GitWorktree.isMainWorktree(path)
+            }.value
+        }
+        .alert("操作失败", isPresented: Binding(
+            get: { operationError != nil },
+            set: { if !$0 { operationError = nil } }
         )) {
-            Button("好") { editorOpenError = nil }
+            Button("好") { operationError = nil }
         } message: {
-            Text(editorOpenError ?? "未知错误")
+            Text(operationError ?? "未知错误")
+        }
+        .confirmationDialog(
+            isLocalCheckout ? "Hand off this task to Worktree?" : "Hand off this task to Local?",
+            isPresented: $confirmHandoff
+        ) {
+            Button(isLocalCheckout ? "Hand off to Worktree" : "Hand off to Local") {
+                guard let conversation = conversationStore.selectedConversation else { return }
+                Task {
+                    let result = await conversationStore.handoff(conversation)
+                    if !result.success { operationError = result.message }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(
+                "Mox will merge staged, unstaged, and untracked task changes into the destination. "
+                + "Non-conflicting destination changes are preserved; conflicts restore both checkouts unchanged."
+            )
         }
     }
 
@@ -245,7 +345,7 @@ struct WorkingDirectoryButton: View {
         guard let applicationURL = bundleIdentifiers.lazy.compactMap({
             workspace.urlForApplication(withBundleIdentifier: $0)
         }).first else {
-            editorOpenError = "未找到 Visual Studio Code，请先安装后再试。"
+            operationError = "未找到 Visual Studio Code，请先安装后再试。"
             return
         }
 
@@ -258,9 +358,56 @@ struct WorkingDirectoryButton: View {
         ) { _, error in
             if let error {
                 DispatchQueue.main.async {
-                    editorOpenError = error.localizedDescription
+                    operationError = error.localizedDescription
                 }
             }
+        }
+    }
+
+    private func refreshGuidance() {
+        guidanceSnapshot = AgentGuidanceScanner.scan(workingDirectory: currentPath)
+    }
+
+    private func guidanceLabel(for file: AgentGuidanceFile) -> String {
+        switch file.scope {
+        case .global:
+            return "全局 · \(file.url.lastPathComponent)"
+        case .workingDirectory:
+            return "当前目录 · \(file.url.lastPathComponent)"
+        case .ancestor:
+            return "\(file.url.deletingLastPathComponent().lastPathComponent) · \(file.url.lastPathComponent)"
+        }
+    }
+
+    private func openGuidance(_ url: URL) {
+        guard NSWorkspace.shared.open(url) else {
+            operationError = "无法打开 \(url.path)"
+            return
+        }
+    }
+
+    private func createCurrentGuidance() {
+        let url = URL(fileURLWithPath: currentPath, isDirectory: true)
+            .appendingPathComponent("AGENTS.md")
+        if FileManager.default.fileExists(atPath: url.path) {
+            refreshGuidance()
+            openGuidance(url)
+            return
+        }
+
+        let template = """
+        # Project guidance
+
+        <!-- Keep this file concise. Add durable commands, conventions, safety rules, and verification steps. -->
+        """
+        do {
+            try Data(template.utf8).write(to: url, options: [.atomic, .withoutOverwriting])
+            refreshGuidance()
+            AgentBackendConfig.reconfigure()
+            guidanceReloaded = true
+            openGuidance(url)
+        } catch {
+            operationError = error.localizedDescription
         }
     }
 }

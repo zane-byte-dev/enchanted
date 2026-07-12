@@ -7,6 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C8D400000000000000000001 /* GitRepositoryActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D400000000000000000011 /* GitRepositoryActions.swift */; };
+		C8D300000000000000000001 /* DiffReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D300000000000000000011 /* DiffReview.swift */; };
+		C8D200000000000000000001 /* AgentGuidanceScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D200000000000000000011 /* AgentGuidanceScanner.swift */; };
+		C8D100000000000000000001 /* MermaidRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D100000000000000000011 /* MermaidRenderer.swift */; };
+		C8D100000000000000000002 /* mermaid.min.js in Resources */ = {isa = PBXBuildFile; fileRef = C8D100000000000000000012 /* mermaid.min.js */; };
+		C8D100000000000000000003 /* mermaid-renderer.html in Resources */ = {isa = PBXBuildFile; fileRef = C8D100000000000000000013 /* mermaid-renderer.html */; };
+		C8D100000000000000000004 /* MERMAID-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = C8D100000000000000000014 /* MERMAID-LICENSE.txt */; };
+		B7F2A0000000000000000003 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = B7F2A0000000000000000002 /* SwiftMath */; };
 		E10000000000000000000001 /* CoreWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000002 /* CoreWorkflowTests.swift */; };
 		3396E0762BD877D500213816 /* Menus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3396E0752BD877D500213816 /* Menus.swift */; };
 		FF0146CB2B3DA1DF00A2A9F6 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0146CA2B3DA1DF00A2A9F6 /* Settings.swift */; };
@@ -136,6 +144,13 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		C8D400000000000000000011 /* GitRepositoryActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRepositoryActions.swift; sourceTree = "<group>"; };
+		C8D300000000000000000011 /* DiffReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffReview.swift; sourceTree = "<group>"; };
+		C8D200000000000000000011 /* AgentGuidanceScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentGuidanceScanner.swift; sourceTree = "<group>"; };
+		C8D100000000000000000011 /* MermaidRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MermaidRenderer.swift; sourceTree = "<group>"; };
+		C8D100000000000000000012 /* mermaid.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = mermaid.min.js; sourceTree = "<group>"; };
+		C8D100000000000000000013 /* mermaid-renderer.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "mermaid-renderer.html"; sourceTree = "<group>"; };
+		C8D100000000000000000014 /* MERMAID-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "MERMAID-LICENSE.txt"; sourceTree = "<group>"; };
 		E10000000000000000000002 /* CoreWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreWorkflowTests.swift; sourceTree = "<group>"; };
 		E10000000000000000000003 /* EnchantedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchantedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3396E0752BD877D500213816 /* Menus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Menus.swift; sourceTree = "<group>"; };
@@ -236,7 +251,7 @@
 		FFE21C772B82353A00A69B9C /* SleepTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTest.swift; sourceTree = "<group>"; };
 		FFE2C8222B9A657A00BD82F3 /* Accessibility.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Accessibility.plist; sourceTree = "<group>"; };
 		FFEB9CA72BA04304004B1F3D /* NotificationMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationMessage.swift; sourceTree = "<group>"; };
-		FFEC328D2B24779A003E5C04 /* Enchanted.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Enchanted.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FFEC328D2B24779A003E5C04 /* Mox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FFEC32902B24779A003E5C04 /* EnchantedApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnchantedApp.swift; sourceTree = "<group>"; };
 		FFEC32962B24779B003E5C04 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C80100000000000000000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
@@ -261,6 +276,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B7F2A0000000000000000003 /* SwiftMath in Frameworks */,
 				C92000000000000000000003 /* SherpaOnnx in Frameworks */,
 				FFD5FAD22B8130490055AB51 /* Vortex in Frameworks */,
 				FF0611F12C04A2FB00443B33 /* Splash in Frameworks */,
@@ -512,7 +528,7 @@
 		FFEC328E2B24779A003E5C04 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				FFEC328D2B24779A003E5C04 /* Enchanted.app */,
+				FFEC328D2B24779A003E5C04 /* Mox.app */,
 				E10000000000000000000003 /* EnchantedTests.xctest */,
 			);
 			name = Products;
@@ -527,6 +543,7 @@
 				FFBBF4822B348345008D611C /* Info.plist */,
 				C80100000000000000000001 /* Localizable.xcstrings */,
 				FFEC32962B24779B003E5C04 /* Assets.xcassets */,
+				C8D100000000000000000020 /* Resources */,
 				FFEC32A12B24783B003E5C04 /* Application */,
 				FFEC32A22B247858003E5C04 /* Extensions */,
 				FF464B142B80BB9C008E5130 /* Helpers */,
@@ -605,16 +622,38 @@
 		FFEC32A42B247874003E5C04 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				C8D200000000000000000011 /* AgentGuidanceScanner.swift */,
+				C8D300000000000000000011 /* DiffReview.swift */,
+				C8D400000000000000000011 /* GitRepositoryActions.swift */,
 				FF2F03412B795E0B00349855 /* Clipboard.swift */,
 				FFA1DE00000000000000F001 /* GitWorktree.swift */,
 				FF0146CC2B3DADCA00A2A9F6 /* HapticsService.swift */,
 				FF2F03482B796A6500349855 /* HotkeyService.swift */,
+				C8D100000000000000000011 /* MermaidRenderer.swift */,
 				FF10023B2E1F00000011A4DC /* NotificationService.swift */,
 				FF10024F2B25C79F0011A4DC /* SwiftDataService.swift */,
 				FF6B7B122B3EE7AC00E8FEA3 /* Throttler.swift */,
 				FFCF00F02C03209A00590E79 /* SpeechService.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		C8D100000000000000000020 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				C8D100000000000000000021 /* Mermaid */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		C8D100000000000000000021 /* Mermaid */ = {
+			isa = PBXGroup;
+			children = (
+				C8D100000000000000000014 /* MERMAID-LICENSE.txt */,
+				C8D100000000000000000013 /* mermaid-renderer.html */,
+				C8D100000000000000000012 /* mermaid.min.js */,
+			);
+			path = Mermaid;
 			sourceTree = "<group>";
 		};
 		FFEC32A52B247879003E5C04 /* UI */ = {
@@ -677,6 +716,7 @@
 				FFEC32892B24779A003E5C04 /* Sources */,
 				FFEC328A2B24779A003E5C04 /* Frameworks */,
 				FFEC328B2B24779A003E5C04 /* Resources */,
+				C8D500000000000000000001 /* Embed Bundled Pi */,
 			);
 			buildRules = (
 			);
@@ -684,6 +724,7 @@
 			);
 			name = Enchanted;
 			packageProductDependencies = (
+				B7F2A0000000000000000002 /* SwiftMath */,
 				C92000000000000000000002 /* SherpaOnnx */,
 				FF1002652B2653EE0011A4DC /* ActivityIndicatorView */,
 				FF464B122B8026DA008E5130 /* Vortex */,
@@ -696,7 +737,7 @@
 				FFA0000000000000000000A2 /* SwiftTerm */,
 			);
 			productName = Enchanted;
-			productReference = FFEC328D2B24779A003E5C04 /* Enchanted.app */;
+			productReference = FFEC328D2B24779A003E5C04 /* Mox.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -729,6 +770,7 @@
 			);
 			mainGroup = FFEC32842B24779A003E5C04;
 			packageReferences = (
+				B7F2A0000000000000000001 /* XCRemoteSwiftPackageReference "SwiftMath" */,
 				C92000000000000000000001 /* XCRemoteSwiftPackageReference "sherpa-onnx-spm" */,
 				FF1002642B2653EE0011A4DC /* XCRemoteSwiftPackageReference "ActivityIndicatorView" */,
 				FF464B112B8026DA008E5130 /* XCRemoteSwiftPackageReference "Vortex" */,
@@ -755,6 +797,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C8D100000000000000000004 /* MERMAID-LICENSE.txt in Resources */,
+				C8D100000000000000000003 /* mermaid-renderer.html in Resources */,
+				C8D100000000000000000002 /* mermaid.min.js in Resources */,
 				FFEC329B2B24779B003E5C04 /* Preview Assets.xcassets in Resources */,
 				FFE2C8232B9A657A00BD82F3 /* Accessibility.plist in Resources */,
 				FFEC32972B24779B003E5C04 /* Assets.xcassets in Resources */,
@@ -763,6 +808,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		C8D500000000000000000001 /* Embed Bundled Pi */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Scripts/embed-pi-runtime.sh",
+				"$(SRCROOT)/Enchanted/PiNode.entitlements",
+				"$(SRCROOT)/Vendor/PiRuntime.zip",
+			);
+			name = "Embed Bundled Pi";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/pi-node",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/pi-runtime",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/Scripts/embed-pi-runtime.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		E10000000000000000000005 /* Sources */ = {
@@ -777,6 +845,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C8D200000000000000000001 /* AgentGuidanceScanner.swift in Sources */,
+				C8D300000000000000000001 /* DiffReview.swift in Sources */,
+				C8D400000000000000000001 /* GitRepositoryActions.swift in Sources */,
+				C8D100000000000000000001 /* MermaidRenderer.swift in Sources */,
 				C90000000000000000000002 /* AppleSpeechTranscriber.swift in Sources */,
 				C91000000000000000000006 /* SpeechTranscriberRouter.swift in Sources */,
 				C91000000000000000000002 /* SenseVoiceModelManager.swift in Sources */,
@@ -905,7 +977,7 @@
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Enchanted.app/Contents/MacOS/Enchanted";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Mox.app/Contents/MacOS/Mox";
 			};
 			name = Debug;
 		};
@@ -922,7 +994,7 @@
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = minimal;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Enchanted.app/Contents/MacOS/Enchanted";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Mox.app/Contents/MacOS/Mox";
 			};
 			name = Release;
 		};
@@ -1059,12 +1131,13 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Enchanted/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Enchanted by Freysa";
+				INFOPLIST_KEY_CFBundleDisplayName = Mox;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchanted records audio only while voice input is active and discards it after transcription.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Enchanted converts your speech to text while you use voice input.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mox records audio only while voice input is active and discards it after transcription.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Mox converts your speech to text while you use voice input.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -1080,8 +1153,10 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.8.2;
+				MOX_REQUIRE_BUNDLED_PI = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = subj.Enchanted;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = Enchanted;
+				PRODUCT_NAME = Mox;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
@@ -1111,12 +1186,13 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Enchanted/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Enchanted by Freysa";
+				INFOPLIST_KEY_CFBundleDisplayName = Mox;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Enchanted records audio only while voice input is active and discards it after transcription.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Enchanted converts your speech to text while you use voice input.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mox records audio only while voice input is active and discards it after transcription.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Mox converts your speech to text while you use voice input.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -1132,8 +1208,10 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.8.2;
+				MOX_REQUIRE_BUNDLED_PI = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = subj.Enchanted;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = Enchanted;
+				PRODUCT_NAME = Mox;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
@@ -1180,6 +1258,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		B7F2A0000000000000000001 /* XCRemoteSwiftPackageReference "SwiftMath" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mgriebling/SwiftMath.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.7.3;
+			};
+		};
 		C92000000000000000000001 /* XCRemoteSwiftPackageReference "sherpa-onnx-spm" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/willwade/sherpa-onnx-spm.git";
@@ -1263,6 +1349,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		B7F2A0000000000000000002 /* SwiftMath */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B7F2A0000000000000000001 /* XCRemoteSwiftPackageReference "SwiftMath" */;
+			productName = SwiftMath;
+		};
 		C92000000000000000000002 /* SherpaOnnx */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = C92000000000000000000001 /* XCRemoteSwiftPackageReference "sherpa-onnx-spm" */;

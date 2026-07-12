@@ -15,7 +15,7 @@
                   <BuildableReference
                      BuildableIdentifier = "primary"
                      BlueprintIdentifier = "FFEC328C2B24779A003E5C04"
-                     BuildableName = "Enchanted.app"
+                     BuildableName = "Mox.app"
                      BlueprintName = "Enchanted"
                      ReferencedContainer = "container:Enchanted.xcodeproj">
                   </BuildableReference>
@@ -33,7 +33,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "FFEC328C2B24779A003E5C04"
-               BuildableName = "Enchanted.app"
+               BuildableName = "Mox.app"
                BlueprintName = "Enchanted"
                ReferencedContainer = "container:Enchanted.xcodeproj">
             </BuildableReference>
@@ -89,7 +89,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "FFEC328C2B24779A003E5C04"
-            BuildableName = "Enchanted.app"
+            BuildableName = "Mox.app"
             BlueprintName = "Enchanted"
             ReferencedContainer = "container:Enchanted.xcodeproj">
          </BuildableReference>
@@ -116,7 +116,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "FFEC328C2B24779A003E5C04"
-            BuildableName = "Enchanted.app"
+            BuildableName = "Mox.app"
             BlueprintName = "Enchanted"
             ReferencedContainer = "container:Enchanted.xcodeproj">
          </BuildableReference>

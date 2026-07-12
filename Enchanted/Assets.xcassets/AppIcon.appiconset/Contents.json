@@ -1,67 +1,67 @@
 {
   "images" : [
     {
-      "filename" : "ios 1.png",
+      "filename" : "mox-ios-1024.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
     },
     {
-      "filename" : "latest-16.png",
+      "filename" : "mox-16.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "16x16"
     },
     {
-      "filename" : "latest-32.png",
+      "filename" : "mox-32.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "16x16"
     },
     {
-      "filename" : "latest-32.png",
+      "filename" : "mox-32.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "32x32"
     },
     {
-      "filename" : "latest-64.png",
+      "filename" : "mox-64.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "32x32"
     },
     {
-      "filename" : "latest-128.png",
+      "filename" : "mox-128.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "128x128"
     },
     {
-      "filename" : "latest-256.png",
+      "filename" : "mox-256.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "128x128"
     },
     {
-      "filename" : "latest-256.png",
+      "filename" : "mox-256.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "256x256"
     },
     {
-      "filename" : "latest-512.png",
+      "filename" : "mox-512.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "256x256"
     },
     {
-      "filename" : "latest-512.png",
+      "filename" : "mox-512.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "512x512"
     },
     {
-      "filename" : "latest-1024.png",
+      "filename" : "mox-1024.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "512x512"

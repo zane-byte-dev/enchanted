@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 struct SidebarView: View {
     var selectedConversation: ConversationSD?
@@ -40,6 +43,34 @@ struct SidebarView: View {
     private var initialsLabel: String {
         let s = appUserInitials.trimmingCharacters(in: .whitespaces)
         return s.isEmpty ? "?" : String(s.prefix(2)).uppercased()
+    }
+
+    private var initialsAvatar: some View {
+        ZStack {
+            Circle()
+                .fill(Color.accentColor.opacity(0.12))
+            Text(initialsLabel)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.accentColor)
+        }
+        .frame(width: 28, height: 28)
+    }
+
+    @ViewBuilder
+    private var settingsAvatar: some View {
+#if os(macOS)
+        if appUserInitials.trimmingCharacters(in: .whitespaces).isEmpty {
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
+        } else {
+            initialsAvatar
+        }
+#else
+        initialsAvatar
+#endif
     }
     
     var body: some View {
@@ -84,15 +115,8 @@ struct SidebarView: View {
                 onSettingsTap()
             } label: {
                 HStack(spacing: 10) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.accentColor.opacity(0.12))
-                            .frame(width: 28, height: 28)
-                        Text(initialsLabel)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.accentColor)
-                    }
-                    Text("Enchanted")
+                    settingsAvatar
+                    Text("Mox")
                         .font(.system(size: 13))
                         .foregroundColor(CodexTheme.primaryText.opacity(0.86))
                     Spacer()

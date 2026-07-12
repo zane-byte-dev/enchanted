@@ -2,3 +2,5 @@
 xcuserdata/
 *.xcuserstate
 build/
+Vendor/PiRuntime/
+Vendor/PiRuntime.zip

@@ -385,7 +385,7 @@ struct ChatView: View {
                     .buttonStyle(PlainButtonStyle())
                     .showIf(columnVisibility == .detailOnly)
                     
-                    Text("Enchanted")
+                    Text("Mox")
                 }
                 #else
                 if #available(macOS 26.0, *) {

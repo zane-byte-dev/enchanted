@@ -8,9 +8,9 @@
 //
 //  NOTE: pi's RPC session is *stateful* — one process owns the whole
 //  conversation and its own transcript. PiConnector therefore forwards only
-//  the latest user turn on each `chat()`
-//  call and lets pi keep history. (For a first spike that's fine; syncing the
-//  two transcripts is a later step.)
+//  the latest user turn on each `chat()` call and lets pi keep authoritative
+//  agent history. SwiftData stores a rebuildable UI projection; drift checks
+//  gate automatic continuation before another turn can extend the branch.
 //
 
 import Foundation
@@ -149,19 +149,24 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         var environment: [String: String]?
         /// If set, `switch_session` to this pi session file on spawn to restore context.
         var resumeSessionPath: String?
+        /// Large freshly-signed helpers can take longer to clear macOS code
+        /// validation on their first response. Later RPCs keep normal limits.
+        var startupTimeout: TimeInterval
 
         init(
             executable: String,
             arguments: [String] = ["--mode", "rpc"],
             workingDirectory: String,
             environment: [String: String]? = nil,
-            resumeSessionPath: String? = nil
+            resumeSessionPath: String? = nil,
+            startupTimeout: TimeInterval = 12
         ) {
             self.executable = executable
             self.arguments = arguments
             self.workingDirectory = workingDirectory
             self.environment = environment
             self.resumeSessionPath = resumeSessionPath
+            self.startupTimeout = startupTimeout
         }
     }
 
@@ -189,6 +194,7 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
     /// after a respawn (reset to nil in `ensureProcess`).
     private var appliedModelId: String?
     private var queuedInjectedTexts: [String] = []
+    private var receivedAnyResponse = false
 
     init(config: Config) {
         self.config = config
@@ -200,10 +206,13 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         timeout: TimeInterval,
         errorCode: Bool = false
     ) async -> [String: Any]? {
+        let effectiveTimeout = lock.withLock {
+            receivedAnyResponse ? timeout : max(timeout, config.startupTimeout)
+        }
         let response = await withCheckedContinuation { continuation in
             let latch = ResponseLatch(continuation)
             lock.withLock { pending[id] = { latch.finish($0) } }
-            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { [self, latch] in
+            DispatchQueue.global().asyncAfter(deadline: .now() + effectiveTimeout) { [self, latch] in
                 lock.withLock { pending[id] = nil }
                 latch.finish(nil)
             }
@@ -573,6 +582,7 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         self.process = proc
         self.stdinPipe = inPipe
         self.stdoutBuffer.removeAll()
+        self.receivedAnyResponse = false
 
         // Mark that context must be restored before the first prompt. The actual
         // (awaited) `switch_session` happens in `resumeSessionIfNeeded()` so it
@@ -960,7 +970,10 @@ final class PiConnector: AgentBackend, @unchecked Sendable {
         case "response":
             // Fulfil any awaiting request/reply continuation first.
             if let id = obj["id"] as? String {
-                let cont = lock.withLock { pending.removeValue(forKey: id) }
+                let cont = lock.withLock {
+                    receivedAnyResponse = true
+                    return pending.removeValue(forKey: id)
+                }
                 cont?(obj)
             }
             if let success = obj["success"] as? Bool, success == false {

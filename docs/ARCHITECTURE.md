@@ -75,7 +75,11 @@ enum AgentEvent {
   （如 `IDEALAB_API_KEY`）。可执行文件探测见 `AgentBackendConfig.detectedPiExecutable()`。
 - 外部 pi 是正式支持的运行模式。启动诊断依次检查可执行权限、工作目录、最低版本 0.80.6、
   RPC 可达性和模型响应；失败页支持重新探测或手动选择。诊断结果缓存一分钟，普通 5 秒心跳
-  继续使用轻量 `reachable()`。内置 pi 仅是未来强沙盒/开箱即用方案，不是当前功能前置。
+  继续使用轻量 `reachable()`。Release 默认使用内置 pi，外部模式仍是正式支持的 fallback。
+- macOS Release 优先探测 `Contents/Helpers/pi-node`，并自动在参数前加入 Resources 中的
+  coding-agent entrypoint。runtime 由离线依赖闭包裁剪的
+  Node + 编译后 pi packages 组成，Xcode 从单一 archive 解包并用 App 身份签嵌套 Node；
+  Debug 缺 archive 时保留外部 pi fallback。构建与验收见 `docs/DISTRIBUTION.md`。
 - pi 会话有状态：`chat()` **只发最新一条 user turn**，历史由 pi 侧保存。
 - RPC 能力：`get_commands`（技能，`source=="skill"`）、`get_available_models`
   （`PiModelDescriptor`）、`get_session_stats`（`PiSessionStats`：token/cost/context）、
@@ -101,8 +105,11 @@ enum AgentEvent {
 - Changes 侧栏读取 Git status/numstat/diff，并提供打开文件、Stage、Unstage；Discard 必须二次
   确认，未跟踪文件删除前还会校验规范化路径没有逃出仓库根目录。
 - 每次任务结束后比较本地 SwiftData 与 pi `get_fork_messages` 返回的 user turn 序列；
-  发现数量或内容不一致时标记 history drift。差异页可选择用 pi 活跃 JSONL 分支重建本地，
-  或把本地可见 user/assistant 文本写成新的 pi v3 session（明确不复制隐藏 thinking/tool traces）。
+  pi active branch 是 agent 上下文、entry id、工具轨迹和分支图的权威，SwiftData 是显示投影并
+  独立持有草稿、Plan、评审意见等 UI 元数据。发现 drift 后阻止普通发送并暂停 Queue/Goal 自动
+  续跑；默认以一次 SwiftData 事务从 pi JSONL 原子重建显示历史。仅当 pi session 丢失或损坏时，
+  才允许从本地可见 user/assistant 文本创建新的 pi v3 session；该应急路径明确不复制隐藏
+  thinking、tool traces、compact 状态或原分支图。详见 ADR-008。
 - 启动 pi 时始终加载运行时生成的 Enchanted extension（因为它同时提供 Plan）。审批策略可选关闭、
   仅高风险或所有变更；严格档会确认 bash/write/edit 及第三方非只读工具。常见网络命令另有
   allow/ask/block 策略。确认通过 `extension_ui_request` / `extension_ui_response` 在输入区完成。
@@ -113,6 +120,12 @@ enum AgentEvent {
 - 新任务可在首发前选 Local 或 Git Worktree；Worktree 准备完成后才创建 pi 任务。Changes 侧栏可
   创建独立只读 Code Review。Browser 使用任务侧栏 WKWebView；Side Chat 使用独立临时 connector，
   不写入主任务 SwiftData/pi session。
+- `GitWorktree` 以 detached HEAD 创建托管工作树，复制 staged、unstaged、untracked 及
+  `.worktreeinclude` 命中的 ignored 文件。已有任务 handoff 分别快照 source/destination 的 index、
+  working tree 与 untracked 文件，按 staged → working 的顺序事务式重放；非重叠改动合并保留，
+  重叠 hunk 或路径冲突由 Git 拒绝后精确恢复目标。应用前后还会复核双方快照，只有验证完成才
+  清理源端。任务模型保存 Local 与托管 Worktree 的关联路径；切换目录时以 `pi --fork` 创建目标
+  cwd 的新 session，从而延续同一对话上下文。ignored setup 文件只在目标缺失时复制，不覆盖密钥。
 - 长期目标保存在会话模型中。切到别的任务不会停止当前 connector；目标可暂停/恢复。开启自动续跑后，
   普通用户 Queue 总是优先，随后仅在结构化 Plan 仍有未完成步骤时发起下一轮；最多连续 12 轮，全部
   Plan 完成时自动完成目标。应用重启只恢复目标状态，不自动重放可能有副作用的工具。
@@ -125,9 +138,29 @@ enum AgentEvent {
   pi 0.80.6 没有统一 MCP registry API，因此 MCP server 的配置仍属于具体 extension package。
 - write/edit 工具块从参数解析产物路径；成功后提供内嵌 `QLPreviewView`、默认应用打开和 Finder 定位。
   Quick Look 复用系统对图片、PDF、Office/iWork 文档、表格和 HTML 等类型的预览能力。
+- 完成段落先经 `FormulaMarkdownParser` 保守识别 `$...$` / `$$...$$`；代码围栏、inline code、
+  转义美元、未闭合或 SwiftMath 无法解析的表达式继续作为普通 Markdown。行内公式通过 wrapping
+  layout 与富文本混排，块公式原生居中并支持横向滚动；解析结果与 Markdown 一样按源文本缓存。
+- 完整的 `mermaid` 围栏由同一解析层拆成图表段；`MermaidRenderer` 通过进程级隐藏
+  `WKWebView` 调用随包内置的 Mermaid 11.15.0，严格模式 + CSP 禁止外部资源，串行生成 SVG
+  并按源码/深浅色缓存。SwiftUI 只展示解码后的原生图片；未闭合围栏或渲染错误回退源码。
+- `AgentGuidanceScanner` 镜像当前 pi `DefaultResourceLoader` 的上下文文件顺序：先
+  `~/.pi/agent`，再从文件系统根到工作目录逐层选择首个 AGENTS.md/CLAUDE.md 变体。
+  项目菜单展示的因此是后端实际会加载的文件，而不是照搬 Codex 的 override/32 KiB 规则；
+  “重新加载到 pi”递增 backend generation，活动 turn 完成后、下一 turn 自动换新 connector。
+- Changes 侧栏通过 `UnifiedDiffParser` 把 unified diff 转为带新旧行号的稳定行模型；
+  `GitReviewDraftStore` 按 conversation id 保留未发送的行内意见。提交时 `DiffReviewPrompt`
+  汇总精确文件/行号/源码与评论，作为普通 user turn 发送，继续复用 Queue、审批和历史链路。
+  staged/working-tree diff 分区保留完整文件头和 hunk 上下文，`GitHunkMutator` 通过 stdin
+  调用 `git apply` 完成 cached/反向操作；上下文过期时 Git 原子拒绝，工作区 Revert 必须二次确认。
+- `GitRepositoryActions` 不经 shell 读取 branch/upstream/ahead/behind/staged 状态；Commit
+  只消费 index，Push 在无 upstream 时选择 origin/首个 remote 并执行 `--set-upstream`。
+  Create PR 显式搜索 GUI PATH、Homebrew、`/usr/local` 与 `~/.local/bin` 中的 `gh`，关闭交互式
+  认证提示，成功后把 PR URL 回传 Changes 状态条；所有写操作都由用户的最终按钮触发。
 - `PiConnector` 的共享状态统一经 `NSLock.withLock` 访问，避免在 async context 直接调用
   `lock()` / `unlock()`；真实 RPC 集成检查见 `Scripts/verify-pi-rpc.mjs`。
-- ⚠️ **本地 SwiftData 历史 与 pi 会话历史是两份，可能漂移** —— 同步策略未定，见 ROADMAP。
+- ⚠️ **本地 SwiftData 历史与 pi 会话历史是两份**：pi active branch 为 agent 权威，
+  SwiftData 为显示投影；漂移 fail closed 并按 ADR-008 收敛。
 
 ## 数据流：一次发送
 
@@ -153,7 +186,7 @@ enum AgentEvent {
 |------|------|
 | `Agent/` | 后端抽象、pi 连接器、技能模型、渲染块模型、后端配置 |
 | `Stores/` | `@Observable` 状态中枢，桥接 UI ↔ Agent ↔ SwiftData |
-| `Services/` | 无状态系统能力：Git worktree、通知、全局热键、剪贴板、语音、持久化 |
+| `Services/` | 系统能力：Git worktree、diff 评审、通知、热键、剪贴板、语音、持久化、Agent 指引、Mermaid |
 | `VoiceInput/` | SenseVoice + Apple Speech 双引擎、录音协调、文本注入、悬浮层 |
 | `UI/macOS/` | macOS 专属：聊天、终端面板、右侧栏、设置页、技能页、菜单/命令 |
 | `UI/Shared/` | 跨平台组件：聊天消息、侧边栏、语音、设置 |
@@ -171,9 +204,9 @@ enum AgentEvent {
    **Codex 实测参考**（`ChatGPT.app`）：开沙盒 + 把 260MB 单体 `codex`（Rust）二进制
    内置 bundle 并同 Team 签名 + node-pty spawn + **Developer ID 直分发（非 App Store）**。
 
-   本项目结论：**走 Developer ID 直分发**。目标形态是把 pi（含 node runtime 或
-   SEA 单体）打进 bundle、同 Team 签名后**开启沙盒**。当前 Debug 因为调外部 PATH 里的
-   pi（非同签名），暂在 `EnchantedDebug.entitlements` 关了 `app-sandbox`。
+   本项目结论：**走 Developer ID 直分发**。Release 已把精简 Node + pi packages 打进
+   bundle，并在嵌入阶段以 App 身份签 Node；Debug 可 fallback 到外部 pi。当前 entitlements
+   仍关闭 `app-sandbox`，待 security-scoped bookmark 和子进程能力验证完成后开启。
 2. **Xcode 老工程（objectVersion 56）**：新增 `.swift` 不自动纳入 target，需手动
    Add Files 勾 Enchanted。
 3. **只读工具结果不落库**：`AgentRun.endTool` 丢弃 read/grep/glob 的大 payload，

@@ -74,13 +74,37 @@ enum AgentBackendConfig {
     /// process PATH is usually much smaller than an interactive shell's PATH.
     static func detectedPiExecutable() -> String? {
         let home = NSHomeDirectory()
-        let candidates = [
+        let candidates: [String?] = [
+            bundledPiExecutable(),
             home + "/.local/bin/pi",
             "/opt/homebrew/bin/pi",
             "/usr/local/bin/pi",
             "/usr/bin/pi",
         ]
-        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+        return candidates.compactMap { $0 }.first {
+            FileManager.default.isExecutableFile(atPath: $0)
+        }
+    }
+
+    /// The embedded Bun executable lives in Contents/Helpers so Xcode can sign
+    /// it as nested code before signing the outer app bundle.
+    static func bundledPiExecutable(
+        in bundleURL: URL = Bundle.main.bundleURL
+    ) -> String? {
+#if os(macOS)
+        let path = bundleURL
+            .appendingPathComponent("Contents/Helpers/pi-node")
+            .path
+        return FileManager.default.isExecutableFile(atPath: path) ? path : nil
+#else
+        return nil
+#endif
+    }
+
+    static func isBundledPiExecutable(_ path: String) -> Bool {
+        guard let bundled = bundledPiExecutable() else { return false }
+        return URL(fileURLWithPath: path).standardizedFileURL
+            == URL(fileURLWithPath: bundled).standardizedFileURL
     }
 
     static func diagnoseInstallation(
@@ -124,7 +148,7 @@ enum AgentBackendConfig {
         let process = Process()
         let pipe = Pipe()
         process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = ["--version"]
+        process.arguments = piArgumentPrefix(for: executable) + ["--version"]
         process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
         process.standardOutput = pipe
         process.standardError = pipe
@@ -200,14 +224,35 @@ enum AgentBackendConfig {
         )
     }
 
+    /// Fork an existing pi transcript into a new session whose header is bound
+    /// to `workingDirectory`. Handoff must use this instead of switch_session,
+    /// because switch_session intentionally restores the source header's cwd.
+    static func makeForkedChatBackend(
+        workingDirectory: String,
+        sourceSessionPath: String
+    ) -> PiConnector {
+        makePiConnector(
+            executable: piExecutable,
+            workingDirectory: workingDirectory,
+            forkSessionPath: sourceSessionPath
+        )
+    }
+
     /// Build a temporary or conversation-scoped connector from explicit
     /// settings. Used by the Settings connection test without persisting drafts.
     static func makePiConnector(
         executable: String,
         workingDirectory: String,
-        resumeSessionPath: String? = nil
+        resumeSessionPath: String? = nil,
+        forkSessionPath: String? = nil
     ) -> PiConnector {
-        var command = "exec \(shellQuote(executable)) --mode rpc"
+        let prefix = piArgumentPrefix(for: executable)
+            .map { " \(shellQuote($0))" }
+            .joined()
+        var command = "exec \(shellQuote(executable))\(prefix) --mode rpc"
+        if let forkSessionPath, !forkSessionPath.isEmpty {
+            command += " --fork \(shellQuote(forkSessionPath))"
+        }
         // Always load the app extension because it also supplies update_plan.
         // Approval behavior itself can be disabled inside the extension.
         if let extensionPath = ensurePermissionGateExtension() {
@@ -217,8 +262,23 @@ enum AgentBackendConfig {
             executable: "/bin/zsh",
             arguments: ["-l", "-c", command],
             workingDirectory: workingDirectory,
-            resumeSessionPath: resumeSessionPath
+            resumeSessionPath: resumeSessionPath,
+            startupTimeout: isBundledPiExecutable(executable) ? 30 : 12
         ))
+    }
+
+    static func piArgumentPrefix(
+        for executable: String,
+        in bundleURL: URL = Bundle.main.bundleURL
+    ) -> [String] {
+        guard bundledPiExecutable(in: bundleURL).map({
+            URL(fileURLWithPath: $0).standardizedFileURL
+                == URL(fileURLWithPath: executable).standardizedFileURL
+        }) == true else { return [] }
+        let entrypoint = bundleURL
+            .appendingPathComponent("Contents/Resources/pi-runtime/packages/coding-agent/dist/cli.js")
+            .path
+        return [entrypoint]
     }
 
     /// A tiny bundled-at-runtime pi extension that asks the RPC client before
@@ -254,7 +314,7 @@ enum AgentBackendConfig {
               const command = String(event.input.command || "");
               detail = command;
               if (networkCommand.test(command)) {
-                if (networkPolicy === "block") return { block: true, reason: "Blocked by Enchanted network policy" };
+                if (networkPolicy === "block") return { block: true, reason: "Blocked by Mox network policy" };
                 if (networkPolicy === "ask") title = "Allow network command?";
               }
               if (title === "Allow operation?" && approvalMode === "dangerous" && !destructive.some((pattern) => pattern.test(command))) return;

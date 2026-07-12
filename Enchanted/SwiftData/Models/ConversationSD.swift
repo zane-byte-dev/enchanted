@@ -22,6 +22,9 @@ final class ConversationSD: Identifiable {
     /// Per-conversation working directory the agent operates in.
     /// nil → fall back to the global default.
     var workingDirectory: String?
+    /// Stable Local ↔ managed Worktree association for task handoff.
+    var localCheckoutPath: String?
+    var managedWorktreePath: String?
 
     /// Absolute path of the pi session file backing this conversation, so pi's
     /// context can be restored (`switch_session`) after the app/process restarts.

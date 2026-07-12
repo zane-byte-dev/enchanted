@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 
 const executable = process.env.PI_EXECUTABLE || `${process.env.HOME}/.local/bin/pi`;
+const executableArguments = process.env.PI_ENTRYPOINT ? [process.env.PI_ENTRYPOINT] : [];
 const cwd = process.cwd();
 const temporaryDirectory = await mkdtemp(join(tmpdir(), "enchanted-pi-rpc-"));
 const sessionPath = join(temporaryDirectory, "history-sync.jsonl");
@@ -28,7 +29,7 @@ const records = [
 ];
 await writeFile(sessionPath, `${records.map((record) => JSON.stringify(record)).join("\n")}\n`);
 
-const child = spawn(executable, ["--mode", "rpc", "--extension", extensionPath], { cwd, stdio: ["pipe", "pipe", "inherit"] });
+const child = spawn(executable, [...executableArguments, "--mode", "rpc", "--extension", extensionPath], { cwd, stdio: ["pipe", "pipe", "inherit"] });
 const lines = createInterface({ input: child.stdout });
 const pending = new Map();
 lines.on("line", (line) => {
@@ -41,7 +42,7 @@ lines.on("line", (line) => {
 });
 
 let commandID = 0;
-function request(command, timeout = 10_000) {
+function request(command, timeout = 30_000) {
   const id = `test-${++commandID}`;
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
