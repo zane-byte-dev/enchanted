@@ -45,6 +45,8 @@ struct InputFieldsView: View {
     @State private var appStore = AppStore.shared
     @State private var slashSelection = 0
     @State private var slashDismissedText: String?
+    @State private var slashSubmenu: ComposerSlashSubmenu?
+    @State private var showStatusPanel = false
     @State private var inputFocusGeneration = 0
 #endif
     @FocusState private var isFocusedInput: Bool
@@ -62,7 +64,104 @@ struct InputFieldsView: View {
         guard let slashQuery else { return [] }
         let query = slashQuery.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        if slashSubmenu == .models {
+            let items = modelsList.map { model in
+                ComposerSlashCommandItem(
+                    id: "model-\(model.name)",
+                    title: model.name,
+                    detail: model.name == selectedModel?.name ? "当前模型" : model.providerDisplayName,
+                    icon: model.modelProvider?.iconName ?? "cpu",
+                    keywords: ["model", "模型", model.name, model.providerDisplayName],
+                    kind: .selectModel(model)
+                )
+            }
+            return Array(items.filter { $0.matches(query) }.prefix(14))
+        }
+
+        if slashSubmenu == .thinking {
+            let current = UserDefaults.standard.string(forKey: "piThinkingLevel") ?? "medium"
+            let levels = [
+                ("off", "关闭"), ("minimal", "最少"), ("low", "低"),
+                ("medium", "中"), ("high", "高"), ("xhigh", "最高"),
+            ]
+            let items = levels.map { id, label in
+                ComposerSlashCommandItem(
+                    id: "thinking-\(id)",
+                    title: label,
+                    detail: id == current ? "当前推理强度" : "设置后续请求的推理强度",
+                    icon: "brain",
+                    keywords: ["reasoning", "thinking", "推理", id, label],
+                    kind: .setThinkingLevel(id)
+                )
+            }
+            return Array(items.filter { $0.matches(query) }.prefix(14))
+        }
+
         var items: [ComposerSlashCommandItem] = [
+            .init(
+                id: "initialize",
+                title: "初始化",
+                detail: "准备创建项目 AGENTS.md 的提示",
+                icon: "doc.badge.plus",
+                keywords: ["init", "initialize", "agents", "初始化"],
+                kind: .insertText("分析当前项目并创建或完善 AGENTS.md，记录架构、常用命令和协作约束。")
+            ),
+            .init(
+                id: "side-task",
+                title: "副任务",
+                detail: "打开不污染主会话的临时侧边对话",
+                icon: "bubble.left.and.bubble.right",
+                keywords: ["side", "subtask", "副任务"],
+                kind: .sideTask
+            ),
+            .init(
+                id: "compact",
+                title: "压缩",
+                detail: stats.flatMap { $0.contextPercent }.map { "压缩当前上下文（已占用 \(Int($0.rounded()))%）" } ?? "压缩当前任务的上下文",
+                icon: "arrow.down.right.and.arrow.up.left",
+                keywords: ["compact", "compress", "压缩"],
+                kind: .compact
+            ),
+            .init(
+                id: "continue-task",
+                title: "在新任务中继续",
+                detail: "复制上下文并在当前工作目录创建新任务",
+                icon: "arrow.triangle.branch",
+                keywords: ["continue", "fork", "new task", "继续", "新任务"],
+                kind: .continueInNewTask
+            ),
+            .init(
+                id: "reasoning",
+                title: "推理",
+                detail: "当前：\(thinkingLevelLabel)",
+                icon: "brain",
+                keywords: ["reasoning", "thinking", "推理"],
+                kind: .showThinkingLevels
+            ),
+            .init(
+                id: "model",
+                title: "模型",
+                detail: selectedModel?.name ?? "选择模型",
+                icon: "cube",
+                keywords: ["model", "模型"],
+                kind: .showModels
+            ),
+            .init(
+                id: "status",
+                title: "状态",
+                detail: "显示任务 ID、上下文用量和后端统计",
+                icon: "gauge.with.dots.needle.33percent",
+                keywords: ["status", "stats", "usage", "状态", "用量"],
+                kind: .showStatus
+            ),
+            .init(
+                id: "goal",
+                title: "目标",
+                detail: "设置要持续追求的长期目标",
+                icon: "target",
+                keywords: ["goal", "目标"],
+                kind: .goal
+            ),
             .init(
                 id: "show-skills",
                 title: "技能",
@@ -141,14 +240,70 @@ struct InputFieldsView: View {
             appStore.showSettings = false
             appStore.showSkills = true
             message = ""
+        case .showModels:
+            slashSubmenu = .models
+            slashSelection = 0
+            message = "/"
+        case .selectModel(let model):
+            onSelectModel(model)
+            closeSlashMenu()
+        case .showThinkingLevels:
+            slashSubmenu = .thinking
+            slashSelection = 0
+            message = "/"
+        case .setThinkingLevel(let level):
+            UserDefaults.standard.set(level, forKey: "piThinkingLevel")
+            closeSlashMenu()
+        case .showStatus:
+            showStatusPanel = true
+            if let id = conversationStore.selectedConversation?.id {
+                conversationStore.refreshStats(for: id)
+            }
+            closeSlashMenu()
+        case .compact:
+            closeSlashMenu()
+            Task { await conversationStore.compactSelectedConversation() }
+        case .sideTask:
+            closeSlashMenu()
+            RightSidebarStore.shared.activate(.sideChat)
+        case .continueInNewTask:
+            guard let conversation = conversationStore.selectedConversation else {
+                closeSlashMenu()
+                appStore.uiLog(message: "请先开始一个任务", status: .error)
+                return
+            }
+            closeSlashMenu()
+            Task { await conversationStore.forkToLocal(conversation) }
+        case .goal:
+            closeSlashMenu()
+            openGoalEditor()
         }
         focusComposerInput()
+    }
+
+    private var thinkingLevelLabel: String {
+        switch UserDefaults.standard.string(forKey: "piThinkingLevel") ?? "medium" {
+        case "off": "关闭"
+        case "minimal": "最少"
+        case "low": "低"
+        case "high": "高"
+        case "xhigh": "最高"
+        default: "中"
+        }
+    }
+
+    @MainActor
+    private func closeSlashMenu() {
+        message = ""
+        slashSubmenu = nil
+        slashSelection = 0
     }
 
     @MainActor
     private func dismissSlashMenu() {
         guard slashMenuIsVisible else { return }
         slashDismissedText = message
+        slashSubmenu = nil
     }
 
     @MainActor
@@ -275,6 +430,20 @@ struct InputFieldsView: View {
 
     private func inputCard(framed: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+#if os(macOS)
+            if showStatusPanel {
+                ComposerStatusCard(
+                    conversation: conversationStore.selectedConversation,
+                    stats: stats,
+                    onRefresh: {
+                        if let id = conversationStore.selectedConversation?.id {
+                            conversationStore.refreshStats(for: id)
+                        }
+                    },
+                    onClose: { showStatusPanel = false }
+                )
+            }
+#endif
             if let goal = conversationStore.currentGoalText {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 6) {
@@ -544,20 +713,13 @@ struct InputFieldsView: View {
                     .fixedSize()
                 }
 
-                // Model selector
-                ModelSelectorView(
+                // Model + reasoning settings (Codex-style hierarchical menu)
+                ComposerModelSettingsMenu(
                     modelsList: modelsList,
                     selectedModel: selectedModel,
                     onSelectModel: onSelectModel,
-                    showChevron: false,
                     compact: compactControls
                 )
-                .font(.system(size: 12))
-                .padding(.horizontal, compactControls ? 4 : 10)
-                .padding(.vertical, 5)
-
-                // Reasoning level
-                ThinkingLevelMenu(compact: compactControls)
 
                 if !compactControls, let stats {
                     SessionStatsBadge(stats: stats)
@@ -656,6 +818,7 @@ struct InputFieldsView: View {
         }
 #if os(macOS)
         .onChange(of: message) { _, newValue in
+            if !newValue.hasPrefix("/") { slashSubmenu = nil }
             if slashDismissedText != newValue {
                 slashDismissedText = nil
             }
@@ -851,6 +1014,98 @@ struct InputFieldsView: View {
 }
 
 /// Compact token / cost / context indicator for the composer (Codex-style).
+private struct ComposerStatusCard: View {
+    let conversation: ConversationSD?
+    let stats: PiSessionStats?
+    let onRefresh: () -> Void
+    let onClose: () -> Void
+
+    private func formatted(_ value: Int) -> String {
+        value.formatted(.number.grouping(.automatic))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("状态")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Button(action: onRefresh) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.plain)
+                .help("刷新状态")
+                Button("关闭", action: onClose)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let conversation {
+                statusRow("任务", conversation.id.uuidString.lowercased(), monospaced: true)
+                if let sessionPath = conversation.piSessionPath, !sessionPath.isEmpty {
+                    statusRow("pi 会话", URL(fileURLWithPath: sessionPath).deletingPathExtension().lastPathComponent, monospaced: true)
+                }
+
+                if let stats {
+                    if let used = stats.contextPercent,
+                       let tokens = stats.contextTokens,
+                       let window = stats.contextWindow {
+                        let remaining = max(0, 100 - used)
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack {
+                                Text("上下文")
+                                    .foregroundStyle(.secondary)
+                                Text("剩余 \(Int(remaining.rounded()))%")
+                                Spacer()
+                                Text("已使用 \(formatted(tokens)) / 共 \(formatted(window))")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .font(.system(size: 11))
+                            ProgressView(value: min(max(used / 100, 0), 1))
+                                .progressViewStyle(.linear)
+                        }
+                    } else {
+                        statusRow("上下文", "pi 未返回上下文窗口")
+                    }
+                    statusRow(
+                        "Tokens",
+                        "\(formatted(stats.totalTokens))（输入 \(formatted(stats.inputTokens)) / 输出 \(formatted(stats.outputTokens))）"
+                    )
+                    if stats.cost > 0 {
+                        statusRow("费用", String(format: "$%.4f", stats.cost))
+                    }
+                } else {
+                    statusRow("上下文", "等待 pi 会话统计；可点击刷新")
+                }
+                statusRow("速率限制", "pi RPC 未提供配额数据")
+            } else {
+                Label("发送第一条消息后会创建任务并显示会话统计。", systemImage: "info.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(CodexTheme.surface, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(CodexTheme.border, lineWidth: 1)
+        }
+    }
+
+    private func statusRow(_ title: String, _ value: String, monospaced: Bool = false) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(title + "：")
+                .foregroundStyle(.secondary)
+                .frame(width: 58, alignment: .leading)
+            Text(value)
+                .fontDesign(monospaced ? .monospaced : .default)
+                .textSelection(.enabled)
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 11))
+    }
+}
+
 struct SessionStatsBadge: View {
     let stats: PiSessionStats
     @State private var conversationStore = ConversationStore.shared
@@ -1017,9 +1272,13 @@ private struct ComposerAddMenuRow: View {
     }
 }
 
-/// Codex-style reasoning-level selector (off → xhigh), wired to pi's
-/// `set_thinking_level` via UserDefaults("piThinkingLevel").
-struct ThinkingLevelMenu: View {
+/// One compact entry for the settings that affect the next pi turn. Nested
+/// native menus keep the first level scannable while model/reasoning choices
+/// open horizontally, matching Codex's composer interaction.
+struct ComposerModelSettingsMenu: View {
+    let modelsList: [LanguageModelSD]
+    let selectedModel: LanguageModelSD?
+    let onSelectModel: @MainActor (LanguageModelSD?) -> Void
     var compact = false
     @AppStorage("piThinkingLevel") private var level: String = "medium"
 
@@ -1038,36 +1297,81 @@ struct ThinkingLevelMenu: View {
 
     var body: some View {
         Menu {
-            ForEach(levels, id: \.id) { item in
-                Button(action: { level = item.id }) {
-                    HStack {
-                        Text(item.label)
-                        if item.id == level { Image(systemName: "checkmark") }
+            Section("高级") {
+                Menu {
+                    ForEach(modelsList, id: \.self) { model in
+                        Button {
+                            withAnimation(.easeOut) { onSelectModel(model) }
+                        } label: {
+                            HStack {
+                                Text(model.name)
+                                if model.name == selectedModel?.name {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
                     }
+                    if modelsList.isEmpty {
+                        Text("暂无可用模型")
+                    }
+                } label: {
+                    settingsRow(
+                        title: "模型",
+                        value: selectedModel?.name ?? "未选择",
+                        icon: "cpu"
+                    )
+                }
+
+                Menu {
+                    ForEach(levels, id: \.id) { item in
+                        Button(action: { level = item.id }) {
+                            HStack {
+                                Text(item.label)
+                                if item.id == level { Image(systemName: "checkmark") }
+                            }
+                        }
+                    }
+                } label: {
+                    settingsRow(title: "推理强度", value: currentLabel, icon: "brain")
                 }
             }
         } label: {
-            HStack(spacing: 3) {
-                Image(systemName: "brain")
-                    .font(.system(size: 11))
-                if !compact {
-                    Text(currentLabel)
-                        .font(.system(size: 12))
+            HStack(spacing: 6) {
+                if let selectedModel {
+                    Text(selectedModel.name)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: compact ? 104 : 180)
+                } else {
+                    Text(modelsList.isEmpty ? "暂无模型" : "选择模型")
                 }
+                Text(currentLabel)
+                    .foregroundStyle(CodexTheme.mutedText)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(CodexTheme.faintText)
             }
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, compact ? 5 : 10)
-            .padding(.vertical, 5)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(CodexTheme.primaryText)
+            .padding(.horizontal, compact ? 9 : 14)
+            .frame(height: 28)
+            .background(CodexTheme.rowHover, in: Capsule())
+            .contentShape(Capsule())
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
-        // Reasoning level is contextual metadata, not a primary action.
-        // Override the app-wide accent tint that macOS Menu applies to labels.
-        .tint(CodexTheme.mutedText)
+        .tint(CodexTheme.primaryText)
         .fixedSize()
-        .help(String(localized: "Thinking Level") + " · " + currentLabel)
+        .help("模型与推理设置")
+    }
+
+    private func settingsRow(title: String, value: String, icon: String) -> some View {
+        HStack {
+            Label(title, systemImage: icon)
+            Spacer()
+            Text(value)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 
@@ -1084,6 +1388,11 @@ enum ComposerCommandKey {
     case cancel
 }
 
+enum ComposerSlashSubmenu {
+    case models
+    case thinking
+}
+
 struct ComposerSlashCommandItem: Identifiable {
     let id: String
     let title: String
@@ -1096,6 +1405,15 @@ struct ComposerSlashCommandItem: Identifiable {
         case insertText(String)
         case skill(PiSkill)
         case showSkills
+        case showModels
+        case selectModel(LanguageModelSD)
+        case showThinkingLevels
+        case setThinkingLevel(String)
+        case showStatus
+        case compact
+        case sideTask
+        case continueInNewTask
+        case goal
     }
 
     func matches(_ query: String) -> Bool {

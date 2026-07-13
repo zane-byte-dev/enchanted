@@ -5,6 +5,124 @@ import AppKit
 @testable import Enchanted
 
 final class CoreWorkflowTests: XCTestCase {
+    @MainActor
+    func testProjectStorePersistsLayoutSortAndManualOrder() throws {
+        let suite = "mox-project-store-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = ProjectStore(defaults: defaults)
+
+        store.setNavigationLayout(.flat)
+        store.setSortOrder(.manual, currentPaths: ["/a", "/b", "/c"])
+        store.moveProject("/c", relativeTo: "/b", placeAfter: false, currentPaths: ["/a", "/b", "/c"])
+        let first = UUID()
+        let second = UUID()
+        let third = UUID()
+        store.moveConversation(
+            third,
+            relativeTo: first,
+            placeAfter: false,
+            in: "/a",
+            currentIDs: [first, second, third]
+        )
+
+        XCTAssertEqual(store.navigationLayout, .flat)
+        XCTAssertEqual(store.sortOrder, .manual)
+        XCTAssertEqual(store.manualProjectPaths, ["/a", "/c", "/b"])
+        XCTAssertEqual(store.manualConversationRank(third, in: "/a"), 0)
+        XCTAssertEqual(store.manualConversationRank(first, in: "/a"), 1)
+
+        let restored = ProjectStore(defaults: defaults)
+        XCTAssertEqual(restored.navigationLayout, .flat)
+        XCTAssertEqual(restored.sortOrder, .manual)
+        XCTAssertEqual(restored.manualProjectPaths, ["/a", "/c", "/b"])
+        XCTAssertEqual(restored.manualConversationRank(third, in: "/a"), 0)
+        XCTAssertEqual(restored.manualConversationRank(first, in: "/a"), 1)
+    }
+
+    func testProjectGroupDefaultsToFiveConversationsAndCanExpand() {
+        let conversations = (0..<7).map { ConversationSD(name: "Chat \($0)") }
+        let group = ProjectGroup(path: "/tmp/project", conversations: conversations)
+
+        XCTAssertEqual(ProjectGroup.defaultVisibleConversationLimit, 5)
+        XCTAssertEqual(group.visibleConversations(isExpanded: false).count, 5)
+        XCTAssertEqual(group.hiddenConversationCount, 2)
+        XCTAssertEqual(group.visibleConversations(isExpanded: true).count, 7)
+        XCTAssertEqual(
+            group.visibleConversations(isExpanded: false, selectedID: conversations[6].id).map(\.id),
+            conversations.prefix(4).map(\.id) + [conversations[6].id]
+        )
+    }
+
+    func testPiSessionStatsParsesStatusCardFields() throws {
+        let stats = try XCTUnwrap(PiSessionStats([
+            "tokens": ["total": 1_234, "input": 1_000, "output": 234],
+            "cost": 0.125,
+            "contextUsage": ["tokens": 175_229, "contextWindow": 353_000, "percent": 49.64],
+        ]))
+
+        XCTAssertEqual(stats.totalTokens, 1_234)
+        XCTAssertEqual(stats.inputTokens, 1_000)
+        XCTAssertEqual(stats.outputTokens, 234)
+        XCTAssertEqual(stats.cost, 0.125, accuracy: 0.0001)
+        XCTAssertEqual(stats.contextTokens, 175_229)
+        XCTAssertEqual(stats.contextWindow, 353_000)
+        XCTAssertEqual(stats.contextPercent, 49.64)
+    }
+
+    func testProjectFileSystemReaderSortsFiltersAndRejectsEscape() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mox-files-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("Sources"), withIntermediateDirectories: true)
+        try Data("readme".utf8).write(to: root.appendingPathComponent("README.md"))
+        try Data("secret".utf8).write(to: root.appendingPathComponent(".env"))
+        let outside = root.deletingLastPathComponent().appendingPathComponent("outside-\(UUID().uuidString).txt")
+        defer { try? FileManager.default.removeItem(at: outside) }
+        try Data("outside".utf8).write(to: outside)
+        try FileManager.default.createSymbolicLink(
+            at: root.appendingPathComponent("outside-link"),
+            withDestinationURL: outside
+        )
+
+        let visible = ProjectFileSystemReader.listChildren(
+            rootPath: root.path,
+            relativePath: "",
+            includeHidden: false
+        )
+        XCTAssertNil(visible.error)
+        XCTAssertEqual(visible.entries.map(\.name), ["Sources", "README.md"])
+
+        let all = ProjectFileSystemReader.listChildren(
+            rootPath: root.path,
+            relativePath: "",
+            includeHidden: true
+        )
+        XCTAssertEqual(Set(all.entries.map(\.name)), Set(["Sources", "README.md", ".env"]))
+        XCTAssertNil(ProjectFileSystemReader.safeURL(rootPath: root.path, relativePath: "../outside"))
+        XCTAssertNil(ProjectFileSystemReader.safeURL(rootPath: root.path, relativePath: "outside-link"))
+        XCTAssertNotNil(ProjectFileSystemReader.safeURL(rootPath: root.path, relativePath: "Sources"))
+    }
+
+    func testProjectFileSystemReaderTextPreviewRejectsBinaryAndOversize() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mox-preview-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("hello\nworld".utf8).write(to: root.appendingPathComponent("note.txt"))
+        try Data([0x41, 0x00, 0x42]).write(to: root.appendingPathComponent("binary.dat"))
+        try Data(repeating: 0x41, count: ProjectFileSystemReader.maximumPreviewBytes + 1)
+            .write(to: root.appendingPathComponent("large.txt"))
+
+        XCTAssertEqual(
+            ProjectFileSystemReader.readPreview(rootPath: root.path, relativePath: "note.txt"),
+            "hello\nworld"
+        )
+        XCTAssertNil(ProjectFileSystemReader.readPreview(rootPath: root.path, relativePath: "binary.dat"))
+        XCTAssertNil(ProjectFileSystemReader.readPreview(rootPath: root.path, relativePath: "large.txt"))
+    }
+
     func testBundledPiExecutableDetectionPrefersExecutableHelper() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("mox-bundle-\(UUID().uuidString).app", isDirectory: true)
@@ -411,6 +529,7 @@ final class CoreWorkflowTests: XCTestCase {
         try Data("base\n".utf8).write(to: localFile)
         XCTAssertEqual(runGit(["add", "app.txt"], at: root).status, 0)
         XCTAssertEqual(runGit(["commit", "-qm", "base"], at: root).status, 0)
+        XCTAssertNotNil(GitRepositoryActions.currentBranch(at: root.path))
 
         let worktreePath = try XCTUnwrap(GitWorktree.create(from: root.path, name: "Conflict"))
         let worktree = URL(fileURLWithPath: worktreePath)

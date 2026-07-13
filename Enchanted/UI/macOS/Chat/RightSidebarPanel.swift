@@ -3,8 +3,8 @@
 //  Enchanted
 //
 //  A multi-purpose right sidebar tool panel. It slides in from the trailing
-//  edge and hosts a vertical tool navigation list (review, terminal, browser,
-//  side chat). Each row shows an icon, a label and a right-aligned
+//  edge and hosts a vertical tool navigation list (files, review, terminal,
+//  browser, side chat). Each row shows an icon, a label and a right-aligned
 //  keyboard-shortcut hint. Selecting a tool activates the matching feature
 //  panel (e.g. the bottom terminal) or shows the tool's inline view.
 //
@@ -13,6 +13,7 @@
 import SwiftUI
 import AppKit
 import Combine
+import QuickLookUI
 import WebKit
 
 // MARK: - Tool model
@@ -21,6 +22,7 @@ import WebKit
 /// the human-readable shortcut hint) lives here so the list UI and the global
 /// keyboard-shortcut menu stay in sync.
 enum RightSidebarTool: String, CaseIterable, Identifiable {
+    case files
     case review
     case terminal
     case browser
@@ -30,6 +32,7 @@ enum RightSidebarTool: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
+        case .files:    return String(localized: "Files")
         case .review:   return String(localized: "Review")
         case .terminal: return String(localized: "Terminal")
         case .browser:  return String(localized: "Browser")
@@ -40,6 +43,7 @@ enum RightSidebarTool: String, CaseIterable, Identifiable {
     /// SF Symbol used as the category icon.
     var icon: String {
         switch self {
+        case .files:    return "folder"
         case .review:   return "checklist"
         case .terminal: return "terminal"
         case .browser:  return "globe"
@@ -50,6 +54,7 @@ enum RightSidebarTool: String, CaseIterable, Identifiable {
     /// The `ShortcutStore` command id backing this tool.
     var shortcutCommandID: String {
         switch self {
+        case .files:    return "files"
         case .review:   return "review"
         case .terminal: return "terminal"
         case .browser:  return "browser"
@@ -77,6 +82,10 @@ final class RightSidebarSession {
     var activeInlineTool: RightSidebarTool? = nil
     /// This conversation's own sidebar width (points).
     var width: CGFloat = RightSidebarStore.defaultWidth
+    /// File shown in the main workspace while the Files tool stays visible.
+    var selectedProjectFile: ProjectFileEntry?
+    /// Root associated with `selectedProjectFile`, used to invalidate stale selections.
+    var selectedProjectRootPath: String?
 }
 
 /// State for the right sidebar, shared by the toolbar toggle, the app-level
@@ -130,6 +139,17 @@ final class RightSidebarStore {
     var width: CGFloat {
         get { current.width }
         set { current.width = min(max(newValue, Self.minWidth), Self.maxWidth) }
+    }
+
+    /// The file preview belongs to the current conversation, like panel width.
+    var selectedProjectFile: ProjectFileEntry? {
+        get { current.selectedProjectFile }
+        set { current.selectedProjectFile = newValue }
+    }
+
+    var selectedProjectRootPath: String? {
+        get { current.selectedProjectRootPath }
+        set { current.selectedProjectRootPath = newValue }
     }
 
     /// Point the store at a conversation so the panel reflects its own state.
@@ -321,6 +341,8 @@ private struct RightSidebarToolContent: View {
     @ViewBuilder
     var body: some View {
         switch tool {
+        case .files:
+            ProjectFilesView()
         case .review:
             GitChangesView()
         case .browser:
@@ -330,6 +352,415 @@ private struct RightSidebarToolContent: View {
         case .terminal:
             EmptyView()
         }
+    }
+}
+
+// MARK: - Project files
+
+struct ProjectFileEntry: Identifiable, Equatable, Sendable {
+    let relativePath: String
+    let name: String
+    let isDirectory: Bool
+    let isSymbolicLink: Bool
+
+    var id: String { relativePath }
+}
+
+struct ProjectDirectorySnapshot: Equatable, Sendable {
+    let entries: [ProjectFileEntry]
+    let isTruncated: Bool
+    let error: String?
+}
+
+enum ProjectFileSystemReader {
+    static let maximumDirectoryEntries = 2_000
+    static let maximumPreviewBytes = 1_000_000
+
+    static func safeURL(rootPath: String, relativePath: String) -> URL? {
+        let root = URL(fileURLWithPath: rootPath, isDirectory: true)
+            .resolvingSymlinksInPath().standardizedFileURL
+        guard !relativePath.hasPrefix("/") else { return nil }
+        let candidate = relativePath.isEmpty
+            ? root
+            : root.appendingPathComponent(relativePath)
+                .resolvingSymlinksInPath().standardizedFileURL
+        let rootPrefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
+        guard candidate.path == root.path || candidate.path.hasPrefix(rootPrefix) else { return nil }
+        return candidate
+    }
+
+    static func listChildren(
+        rootPath: String,
+        relativePath: String,
+        includeHidden: Bool
+    ) -> ProjectDirectorySnapshot {
+        guard let directory = safeURL(rootPath: rootPath, relativePath: relativePath) else {
+            return .init(entries: [], isTruncated: false, error: "Path is outside the project.")
+        }
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey, .isHiddenKey]
+        let options: FileManager.DirectoryEnumerationOptions = includeHidden ? [] : [.skipsHiddenFiles]
+        do {
+            let urls = try FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: Array(keys),
+                options: options
+            )
+            var entries: [ProjectFileEntry] = []
+            entries.reserveCapacity(min(urls.count, maximumDirectoryEntries))
+            for url in urls.prefix(maximumDirectoryEntries) {
+                let values = try? url.resourceValues(forKeys: keys)
+                if !includeHidden, values?.isHidden == true { continue }
+                let isLink = values?.isSymbolicLink == true
+                let childPath = relativePath.isEmpty ? url.lastPathComponent : relativePath + "/" + url.lastPathComponent
+                guard safeURL(rootPath: rootPath, relativePath: childPath) != nil else { continue }
+                entries.append(.init(
+                    relativePath: childPath,
+                    name: url.lastPathComponent,
+                    isDirectory: values?.isDirectory == true && !isLink,
+                    isSymbolicLink: isLink
+                ))
+            }
+            entries.sort {
+                if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
+                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+            return .init(entries: entries, isTruncated: urls.count > maximumDirectoryEntries, error: nil)
+        } catch {
+            return .init(entries: [], isTruncated: false, error: error.localizedDescription)
+        }
+    }
+
+    static func readPreview(rootPath: String, relativePath: String) -> String? {
+        guard let url = safeURL(rootPath: rootPath, relativePath: relativePath),
+              let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: maximumPreviewBytes + 1),
+              data.count <= maximumPreviewBytes,
+              !data.prefix(8_192).contains(0) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+}
+
+@Observable
+@MainActor
+private final class ProjectFilesModel {
+    var entries: [ProjectFileEntry] = []
+    var includeHidden = false
+    var isLoading = false
+    var error: String?
+    var isTruncated = false
+    var refreshID = UUID()
+
+    func reload(rootPath: String) {
+        isLoading = true
+        error = nil
+        refreshID = UUID()
+        let includeHidden = includeHidden
+        Task {
+            let snapshot = await Task.detached(priority: .userInitiated) {
+                ProjectFileSystemReader.listChildren(
+                    rootPath: rootPath,
+                    relativePath: "",
+                    includeHidden: includeHidden
+                )
+            }.value
+            entries = snapshot.entries
+            isTruncated = snapshot.isTruncated
+            error = snapshot.error
+            isLoading = false
+        }
+    }
+}
+
+private struct ProjectFilesView: View {
+    @State private var model = ProjectFilesModel()
+    @State private var conversationStore = ConversationStore.shared
+    @State private var sidebarStore = RightSidebarStore.shared
+
+    private var rootPath: String {
+        conversationStore.workingDirectory(for: conversationStore.selectedConversation)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            filesToolbar
+            Divider()
+            if model.isLoading {
+                Spacer()
+                ProgressView()
+                Spacer()
+            } else if let error = model.error {
+                ContentUnavailableView("Can't read this folder", systemImage: "folder.badge.questionmark", description: Text(error))
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(model.entries) { entry in
+                            ProjectFileTreeNodeView(
+                                rootPath: rootPath,
+                                entry: entry,
+                                includeHidden: model.includeHidden,
+                                selectedPath: sidebarStore.selectedProjectFile?.relativePath,
+                                onSelect: { sidebarStore.selectedProjectFile = $0 }
+                            )
+                        }
+                        if model.isTruncated {
+                            Text("Showing the first \(ProjectFileSystemReader.maximumDirectoryEntries) items")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(10)
+                        }
+                    }
+                    .padding(.vertical, 5)
+                    .id(model.refreshID)
+                }
+            }
+        }
+        .task(id: rootPath) {
+            if sidebarStore.selectedProjectRootPath != rootPath {
+                sidebarStore.selectedProjectFile = nil
+                sidebarStore.selectedProjectRootPath = rootPath
+            }
+            model.reload(rootPath: rootPath)
+        }
+    }
+
+    private var filesToolbar: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "folder.fill")
+                .foregroundStyle(.secondary)
+            Text(URL(fileURLWithPath: rootPath).lastPathComponent)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+            Button {
+                model.includeHidden.toggle()
+                model.reload(rootPath: rootPath)
+            } label: {
+                Image(systemName: model.includeHidden ? "eye" : "eye.slash")
+            }
+            .buttonStyle(.plain)
+            .help(model.includeHidden ? "Hide hidden files" : "Show hidden files")
+            Button { NSWorkspace.shared.open(URL(fileURLWithPath: rootPath)) } label: {
+                Image(systemName: "finder")
+            }
+            .buttonStyle(.plain)
+            .help("Open in Finder")
+            Button { model.reload(rootPath: rootPath) } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.plain)
+            .help("Refresh")
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 34)
+    }
+}
+
+private struct ProjectFileTreeNodeView: View {
+    let rootPath: String
+    let entry: ProjectFileEntry
+    let includeHidden: Bool
+    let selectedPath: String?
+    let onSelect: (ProjectFileEntry) -> Void
+
+    @State private var isExpanded = false
+    @State private var isLoading = false
+    @State private var snapshot: ProjectDirectorySnapshot?
+
+    var body: some View {
+        Group {
+            if entry.isDirectory {
+                DisclosureGroup(isExpanded: $isExpanded) {
+                    if isLoading {
+                        ProgressView().controlSize(.small).padding(.leading, 18).padding(.vertical, 4)
+                    } else if let error = snapshot?.error {
+                        Text(error).font(.caption).foregroundStyle(.secondary).padding(.leading, 18)
+                    } else {
+                        ForEach(snapshot?.entries ?? []) { child in
+                            ProjectFileTreeNodeView(
+                                rootPath: rootPath,
+                                entry: child,
+                                includeHidden: includeHidden,
+                                selectedPath: selectedPath,
+                                onSelect: onSelect
+                            )
+                        }
+                        if snapshot?.isTruncated == true {
+                            Text("Folder truncated").font(.caption).foregroundStyle(.secondary).padding(.leading, 18)
+                        }
+                    }
+                } label: {
+                    ProjectFileRow(entry: entry, isSelected: false, action: { isExpanded.toggle() })
+                }
+                .onChange(of: isExpanded) { _, expanded in
+                    if expanded, snapshot == nil { loadChildren() }
+                }
+                .onChange(of: includeHidden) { _, _ in
+                    snapshot = nil
+                    if isExpanded { loadChildren() }
+                }
+            } else {
+                ProjectFileRow(
+                    entry: entry,
+                    isSelected: selectedPath == entry.relativePath,
+                    action: { onSelect(entry) }
+                )
+            }
+        }
+        .contextMenu { contextMenu }
+    }
+
+    @ViewBuilder
+    private var contextMenu: some View {
+        Button("Open") { NSWorkspace.shared.open(fileURL) }
+        Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([fileURL]) }
+        Divider()
+        Button("Copy Relative Path") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(entry.relativePath, forType: .string) }
+        Button("Copy Full Path") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(fileURL.path, forType: .string) }
+    }
+
+    private var fileURL: URL {
+        ProjectFileSystemReader.safeURL(rootPath: rootPath, relativePath: entry.relativePath)
+            ?? URL(fileURLWithPath: rootPath)
+    }
+
+    private func loadChildren() {
+        isLoading = true
+        let includeHidden = includeHidden
+        Task {
+            snapshot = await Task.detached(priority: .userInitiated) {
+                ProjectFileSystemReader.listChildren(
+                    rootPath: rootPath,
+                    relativePath: entry.relativePath,
+                    includeHidden: includeHidden
+                )
+            }.value
+            isLoading = false
+        }
+    }
+}
+
+private struct ProjectFileRow: View {
+    let entry: ProjectFileEntry
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .frame(width: 15)
+                    .foregroundStyle(entry.isDirectory ? Color.accentColor : .secondary)
+                Text(entry.name)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                if entry.isSymbolicLink {
+                    Image(systemName: "arrow.turn.up.right")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer(minLength: 2)
+            }
+            .contentShape(Rectangle())
+            .frame(height: 24)
+            .padding(.horizontal, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(isSelected ? Color.accentColor.opacity(0.14) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var icon: String {
+        if entry.isDirectory { return isPackage ? "shippingbox" : "folder" }
+        if entry.isSymbolicLink { return "link" }
+        switch URL(fileURLWithPath: entry.name).pathExtension.lowercased() {
+        case "swift", "m", "mm", "h", "c", "cc", "cpp", "rs", "go", "py", "js", "ts", "tsx", "jsx": return "chevron.left.forwardslash.chevron.right"
+        case "md", "txt", "json", "yaml", "yml", "toml": return "doc.text"
+        case "png", "jpg", "jpeg", "gif", "webp", "svg": return "photo"
+        case "pdf": return "doc.richtext"
+        default: return "doc"
+        }
+    }
+
+    private var isPackage: Bool {
+        ["app", "xcodeproj", "xcworkspace", "playground"].contains(URL(fileURLWithPath: entry.name).pathExtension.lowercased())
+    }
+}
+
+struct ProjectFileWorkspaceView: View {
+    let rootPath: String
+    let entry: ProjectFileEntry
+    let onBack: () -> Void
+    @State private var text: String?
+    @State private var didLoad = false
+
+    private var fileURL: URL {
+        ProjectFileSystemReader.safeURL(rootPath: rootPath, relativePath: entry.relativePath)
+            ?? URL(fileURLWithPath: rootPath)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 7) {
+                Image(systemName: "doc.text")
+                    .foregroundStyle(.secondary)
+                Text(entry.relativePath)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                Button { NSWorkspace.shared.open(fileURL) } label: { Image(systemName: "arrow.up.forward.app") }
+                    .buttonStyle(.plain)
+                    .help("Open")
+                Button(action: onBack) { Image(systemName: "xmark") }
+                    .buttonStyle(.plain)
+                    .help("Close file")
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 42)
+            Divider()
+            if let text {
+                ScrollView([.horizontal, .vertical]) {
+                    Text(text)
+                        .font(.system(size: 11, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .padding(10)
+                }
+            } else if didLoad {
+                ProjectQuickLookView(url: fileURL)
+            } else {
+                Spacer()
+                ProgressView()
+                Spacer()
+            }
+        }
+        .task(id: entry.id) {
+            didLoad = false
+            text = await Task.detached(priority: .userInitiated) {
+                ProjectFileSystemReader.readPreview(rootPath: rootPath, relativePath: entry.relativePath)
+            }.value
+            didLoad = true
+        }
+    }
+}
+
+private struct ProjectQuickLookView: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> QLPreviewView {
+        let view = QLPreviewView(frame: .zero, style: .normal)!
+        view.autostarts = true
+        view.previewItem = url as NSURL
+        return view
+    }
+
+    func updateNSView(_ nsView: QLPreviewView, context: Context) {
+        nsView.previewItem = url as NSURL
     }
 }
 

@@ -174,6 +174,7 @@ final class ConversationStore: @unchecked Sendable {
     static let shared = ConversationStore(swiftDataService: SwiftDataService.shared)
     nonisolated private static let messagePageSize = 60
     nonisolated private static let cacheRefreshTTL: TimeInterval = 15
+    nonisolated private static let unreadConversationIDsKey = "unreadConversationIDs"
 
     private struct CachedTranscript {
         var messages: [MessageSD]
@@ -254,6 +255,9 @@ final class ConversationStore: @unchecked Sendable {
     @MainActor private var historySyncStatuses: [UUID: ConversationHistorySyncStatus] = [:]
     @MainActor private var historySyncReports: [UUID: ConversationHistorySyncReport] = [:]
     @MainActor private var uiRequests: [UUID: [AgentUIRequest]] = [:]
+    /// Background completions that have not been opened since settling.
+    @MainActor private(set) var unreadConversationIDs: Set<UUID> = []
+    @MainActor private var didRestoreUnreadConversationIDs = false
 
     /// Recently opened transcripts. Switching back to one of these can paint
     /// immediately while SwiftData refreshes it in the background.
@@ -322,6 +326,21 @@ final class ConversationStore: @unchecked Sendable {
     @MainActor var currentUIRequest: AgentUIRequest? {
         guard let id = selectedConversation?.id else { return nil }
         return uiRequests[id]?.first
+    }
+
+    @MainActor func needsUserInput(for conversationID: UUID) -> Bool {
+        uiRequests[conversationID]?.isEmpty == false
+    }
+
+    @MainActor func isUnread(_ conversationID: UUID) -> Bool {
+        unreadConversationIDs.contains(conversationID)
+    }
+
+    @MainActor private func persistUnreadConversationIDs() {
+        UserDefaults.standard.set(
+            unreadConversationIDs.map(\.uuidString),
+            forKey: Self.unreadConversationIDsKey
+        )
     }
 
     @MainActor var currentPlan: AgentPlanSnapshot? {
@@ -840,6 +859,15 @@ final class ConversationStore: @unchecked Sendable {
         let fetchedTransfer = SwiftDataTransfer(value: fetchedConversations)
         let shouldRecoverInterruptedRuns = await MainActor.run {
             self.conversations = fetchedTransfer.value
+            if !self.didRestoreUnreadConversationIDs {
+                let knownIDs = Set(fetchedTransfer.value.map(\.id))
+                let persisted = UserDefaults.standard
+                    .stringArray(forKey: Self.unreadConversationIDsKey) ?? []
+                self.unreadConversationIDs = Set(persisted.compactMap(UUID.init(uuidString:)))
+                    .intersection(knownIDs)
+                self.persistUnreadConversationIDs()
+                self.didRestoreUnreadConversationIDs = true
+            }
             guard !self.didRecoverInterruptedRuns else { return false }
             self.didRecoverInterruptedRuns = true
             return true
@@ -1050,6 +1078,7 @@ final class ConversationStore: @unchecked Sendable {
     @MainActor
     func selectConversation(_ conversation: ConversationSD) async throws {
         let conversationID = conversation.id
+        if unreadConversationIDs.remove(conversationID) != nil { persistUnreadConversationIDs() }
         guard selectedConversation?.id != conversationID else {
             refreshStats(for: conversationID)
             return
@@ -2538,6 +2567,8 @@ final class ConversationStore: @unchecked Sendable {
         }
         runs[convID] = nil
         uiRequests[convID] = []
+        if selectedConversation?.id != convID,
+           unreadConversationIDs.insert(convID).inserted { persistUnreadConversationIDs() }
         withAnimation { states[convID] = .error(message: errorMessage) }
         let title = conversationTitle(for: convID)
         AppStore.shared.uiLog(message: "\(title) failed: \(errorMessage)", status: .error)
@@ -2568,6 +2599,8 @@ final class ConversationStore: @unchecked Sendable {
             verifyHistoryThenContinue(convID, notify: notify)
             return
         }
+        if selectedConversation?.id != convID,
+           unreadConversationIDs.insert(convID).inserted { persistUnreadConversationIDs() }
         Task { @MainActor [weak self] in
             guard self?.selectedConversation?.id == convID else { return }
             await self?.checkSelectedHistorySync(notify: false)

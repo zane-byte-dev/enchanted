@@ -310,7 +310,16 @@ struct ChatView: View {
         // stored width. The panel owns its resize handle (see RightSidebarPanelView).
         HStack(spacing: 0) {
             VStack(spacing: 0) {
-                chatDetail
+                if rightSidebarStore.activeInlineTool == .files,
+                   let file = rightSidebarStore.selectedProjectFile {
+                    ProjectFileWorkspaceView(
+                        rootPath: sharedConversationStore.workingDirectory(for: selectedConversation),
+                        entry: file,
+                        onBack: { rightSidebarStore.selectedProjectFile = nil }
+                    )
+                } else {
+                    chatDetail
+                }
                 if terminalStore.isVisible {
                     TerminalPanelView()
                 }

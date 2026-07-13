@@ -24,6 +24,10 @@ struct MessageListView: View {
     @State private var conversationStore = ConversationStore.shared
     @State private var visibleMessageLimit = Self.initialRenderWindow
     @State private var hoveredTurnID: UUID?
+    @State private var activeTurnID: UUID?
+    /// Browsing older turns must never pause the agent. It only disables
+    /// automatic bottom-follow until the user scrolls back to the live edge.
+    @State private var isFollowingStream = true
     @StateObject private var speechSynthesizer = SpeechSynthesizer.shared
 #if os(macOS)
     @State private var isSearchPresented = false
@@ -169,6 +173,7 @@ struct MessageListView: View {
     /// Pin to the stable bottom marker once on the next runloop, after SwiftUI
     /// has installed the newly-selected transcript.
     private func pinToBottom(_ proxy: ScrollViewProxy) {
+        isFollowingStream = true
         DispatchQueue.main.async {
             proxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
             if let conversationID, !messages.isEmpty {
@@ -351,8 +356,21 @@ struct MessageListView: View {
                         Color.clear
                             .frame(height: 1)
                             .id(Self.bottomAnchorID)
+                            .background {
+                                GeometryReader { bottomProxy in
+                                    Color.clear.preference(
+                                        key: MessageBottomPositionPreferenceKey.self,
+                                        value: bottomProxy.frame(in: .named("message-scroll")).minY
+                                    )
+                                }
+                            }
                     }
                     .frame(minHeight: geo.size.height, alignment: .top)
+                }
+                .coordinateSpace(name: "message-scroll")
+                .onPreferenceChange(MessageBottomPositionPreferenceKey.self) { bottomY in
+                    let nearBottom = bottomY <= geo.size.height + 56
+                    if nearBottom != isFollowingStream { isFollowingStream = nearBottom }
                 }
                 // Native chat-style "stick to bottom" behaviour: the scroll
                 // view starts at the bottom and stays pinned there as content
@@ -376,15 +394,19 @@ struct MessageListView: View {
                 // was appended. Prepending an older page keeps the same tail,
                 // so it deliberately does not jump the reader back to bottom.
                 .onChange(of: messages.last?.id) {
-                    pinToBottom(scrollViewProxy)
+                    if isFollowingStream { pinToBottom(scrollViewProxy) }
                 }
                 // Follow the stream as the last message grows.
                 .onChange(of: messages.last?.content) {
-                    scrollViewProxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+                    if isFollowingStream {
+                        scrollViewProxy.scrollTo(Self.bottomAnchorID, anchor: .bottom)
+                    }
                 }
                 .onChange(of: conversationID) {
                     visibleMessageLimit = Self.initialRenderWindow
                     hoveredTurnID = nil
+                    activeTurnID = nil
+                    isFollowingStream = true
 #if os(macOS)
                     isSearchPresented = false
                     searchQuery = ""
@@ -454,13 +476,28 @@ struct MessageListView: View {
                         TurnNavigatorRail(
                             turns: turnPreviews,
                             hoveredTurnID: $hoveredTurnID,
+                            activeTurnID: $activeTurnID,
                             onSelect: { turn in
+                                // Navigation is deliberately UI-only: do not
+                                // touch ConversationStore, the connector, or
+                                // the currently running agent subscription.
+                                activeTurnID = turn.id
+                                isFollowingStream = false
                                 withAnimation(.easeOut(duration: 0.2)) {
                                     scrollViewProxy.scrollTo(turn.userMessage.id, anchor: .top)
                                 }
                             }
                         )
                         .padding(.leading, 18)
+                    }
+                }
+                .onChange(of: turnPreviews.map(\.id), initial: true) { _, ids in
+                    guard let last = ids.last else {
+                        activeTurnID = nil
+                        return
+                    }
+                    if activeTurnID == nil || !ids.contains(activeTurnID!) {
+                        activeTurnID = last
                     }
                 }
 #endif
@@ -509,52 +546,62 @@ struct MessageListView: View {
 }
 
 #if os(macOS)
+private struct MessageBottomPositionPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = .greatestFiniteMagnitude
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 private struct TurnNavigatorRail: View {
     let turns: [MessageListView.TurnPreview]
     @Binding var hoveredTurnID: UUID?
+    @Binding var activeTurnID: UUID?
     let onSelect: (MessageListView.TurnPreview) -> Void
 
-    private var hoveredTurn: MessageListView.TurnPreview? {
-        turns.first { $0.id == hoveredTurnID }
-    }
-
     var body: some View {
-        ZStack(alignment: .leading) {
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(turns) { turn in
-                    Button {
-                        onSelect(turn)
-                    } label: {
-                        Capsule(style: .continuous)
-                            .fill(turn.id == hoveredTurnID ? Color.primary : CodexTheme.border)
-                            .frame(width: turn.id == hoveredTurnID ? 38 : 12, height: 3)
-                            .frame(width: 42, height: 8, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    // Hovering a marker must not move keyboard focus away from
-                    // the composer or change a keyboard-selected menu item.
-                    .focusable(false)
-                    .onHover { hovering in
-                        if hovering {
-                            hoveredTurnID = turn.id
-                        } else if hoveredTurnID == turn.id {
-                            hoveredTurnID = nil
-                        }
-                    }
-                    .accessibilityLabel("Jump to: \(turn.userMessage.content)")
+        VStack(alignment: .leading, spacing: 9) {
+            ForEach(turns) { turn in
+                let isHovered = turn.id == hoveredTurnID
+                let isActive = turn.id == activeTurnID
+                Button {
+                    onSelect(turn)
+                } label: {
+                    Capsule(style: .continuous)
+                        .fill(
+                            isActive
+                                ? Color.primary.opacity(0.88)
+                                : (isHovered ? Color.primary.opacity(0.5) : CodexTheme.border.opacity(0.72))
+                        )
+                        .frame(width: isActive ? 48 : (isHovered ? 30 : 11), height: isActive ? 4 : 3)
+                        .frame(width: 52, height: 9, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
-            }
-            .padding(.vertical, 10)
-
-            if let hoveredTurn {
-                TurnPreviewCard(turn: hoveredTurn)
-                    .offset(x: 70)
-                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .leading)))
-                    .allowsHitTesting(false)
-                    .zIndex(2)
+                .buttonStyle(.plain)
+                // Hovering a marker must not move keyboard focus away from
+                // the composer or change a keyboard-selected menu item.
+                .focusable(false)
+                .onHover { hovering in
+                    if hovering {
+                        hoveredTurnID = turn.id
+                    } else if hoveredTurnID == turn.id {
+                        hoveredTurnID = nil
+                    }
+                }
+                .overlay(alignment: .leading) {
+                    if isHovered {
+                        TurnPreviewCard(turn: turn)
+                            .offset(x: 64)
+                            .transition(.opacity.combined(with: .scale(scale: 0.985, anchor: .leading)))
+                            .allowsHitTesting(false)
+                            .zIndex(3)
+                    }
+                }
+                .zIndex(isHovered ? 3 : 0)
+                .accessibilityLabel("Jump to: \(turn.userMessage.content)")
             }
         }
+        .padding(.vertical, 10)
         .animation(.easeOut(duration: 0.12), value: hoveredTurnID)
         .frame(maxHeight: 360)
     }
@@ -594,7 +641,7 @@ private struct TurnPreviewCard: View {
         .frame(width: 420, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(CodexTheme.surface)
+                .fill(.regularMaterial)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)

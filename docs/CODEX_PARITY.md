@@ -17,7 +17,8 @@
 | Git Worktree 环境 | ✅ | 新任务首发前可直接选择 Local / Worktree；创建失败不会静默退回本地 |
 | Local ↔ Worktree handoff | ✅ | 双向合并 staged/unstaged/untracked 状态、复制 `.worktreeinclude` 文件并通过 pi session fork 延续上下文；非冲突目标改动保留，冲突时恢复双端且明确报错 |
 | Cloud 环境 | 🚫 | 需要远端 runner、鉴权、日志与产物协议，不用本地假按钮冒充 |
-| 任务 pin/archive/rename/delete | ✅ | 含删除确认与 10 秒 Undo |
+| 任务 pin/archive/rename/delete | ✅ | 对话行仅展示标题和状态，选中态只保留背景；仅悬停时提供置顶与归档快捷操作，悬停信息卡集中展示完整标题、时间、项目与 Git 分支；含删除确认与 10 秒 Undo |
+| 项目导航视图与排序 | ✅ | 支持按项目/单一列表、优先级/最近更新/拖拽手动排序；优先级按等待输入、未读完成、置顶、运行中、最近更新排列，并将含高优先任务的项目整体前置。项目与同项目内对话的手动顺序均持久化并有落点反馈。每项目默认最多展示 5 个对话，可展开剩余项或整组折叠 |
 | 长期目标与后台续跑 | ✅ | 目标/状态持久化、侧栏恢复标记、暂停恢复、切任务继续运行、Plan 完成条件和限次自动续跑 |
 
 ## 对话与 Agent 控制
@@ -25,6 +26,9 @@
 | Codex 能力 | 当前状态 | Mox 验收标准 |
 |---|---:|---|
 | 流式回答、thinking、tool cards | ✅ | 文本/推理/工具顺序稳定，Markdown 与原生公式正确，长会话不白屏 |
+| 消息轨道导航 | ✅ | 左侧刻度保持当前激活态并提供悬停摘要；浏览旧轮次只停止自动跟随，agent 与流式生成不中断，回到底部后恢复跟随 |
+| 模型与推理设置 | ✅ | Composer 单一紧凑入口展示“模型 + 推理强度”，分层选择并通过 `set_model` / `set_thinking_level` 作用于下一轮 |
+| `/` 命令与状态 | ✅ | 初始化、副任务、压缩、新任务继续、模型、推理、状态、目标、Skills/MCP；状态卡展示任务/pi 会话 ID 与真实上下文/token/费用统计 |
 | Stop / Steer / Queue | ✅ | Queue 可查看、删除、排序并独立落库 |
 | Compact / Auto Compact | ✅ | lifecycle 与 token 前后状态可见 |
 | Retry / Regenerate / Fork from Here | ✅ | pi session 真分支，不污染原会话 |
@@ -40,6 +44,7 @@
 | Changes / Diff | ✅ | 整文件/逐 hunk 操作、行内意见、Commit、首次/后续 Push；PR 通过已认证的 GitHub CLI 创建 |
 | Code Review | ✅ | Changes 一键创建独立只读审查任务，按严重度输出可定位 findings |
 | 文件输入与图片输入 | ✅ | 多图、粘贴、文件/文件夹上下文 |
+| 项目文件侧栏 | ✅ | 以任务 cwd 为根懒加载目录树；选中文件后主工作区与右侧目录树双栏并存，支持隐藏文件、文本/Quick Look 预览、复制路径和 Finder 定位 |
 | 文件产物预览 | ✅ | write/edit 工具卡内嵌 Quick Look，支持系统可预览的图片/PDF/文档/表格/HTML，并可打开或 Finder 定位 |
 | Browser / 网页测试 | ✅ | 任务侧栏内嵌 WKWebView，支持地址、刷新、停止与前进后退 |
 | Side Chat | ✅ | 独立临时 PiConnector 与内存 transcript，不污染主任务 session |

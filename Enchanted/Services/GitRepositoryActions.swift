@@ -34,6 +34,13 @@ struct GitRepositoryInspectionError: LocalizedError, Equatable, Sendable {
 }
 
 enum GitRepositoryActions {
+    static func currentBranch(at directory: String) -> String? {
+        let result = runGit(["-C", directory, "branch", "--show-current"])
+        guard result.status == 0 else { return nil }
+        let branch = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return branch.isEmpty ? nil : branch
+    }
+
     static func inspect(
         at directory: String
     ) -> Result<GitRepositoryInfo, GitRepositoryInspectionError> {

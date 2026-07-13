@@ -1,7 +1,7 @@
 # Mox
 
 Mox 是一款原生 macOS coding agent 客户端：在项目目录中驱动 `pi --mode rpc`，
-把对话、推理、工具调用、终端、Git Changes、Browser 和任务历史放进同一个工作区。
+把对话、推理、工具调用、项目文件、终端、Git Changes、Browser 和任务历史放进同一个工作区。
 交互体验以 Codex Mac App 为基线，同时保留原生 SwiftUI 的性能和系统集成。
 
 > 当前仓库是 `gluonfield/enchanted` 的 fork。第一阶段只更改用户可见品牌；Xcode
@@ -13,7 +13,7 @@ Mox 是一款原生 macOS coding agent 客户端：在项目目录中驱动 `pi 
 - 本地项目、多任务与 Git Worktree 环境
 - pi 流式回答、thinking、工具卡、Stop / Steer / Follow-up Queue
 - Integrated Terminal、可写行内意见的 Changes / Diff 与独立 Code Review
-- 图片、文件和文件夹上下文，工具产物 Quick Look
+- 懒加载项目文件树、文件内容与目录树双栏预览，以及图片、文件和文件夹上下文与工具产物 Quick Look
 - Markdown、代码高亮、原生公式以及离线 Mermaid 图表渲染
 - Browser、Side Chat、Plan / TODO 与长期目标续跑
 - Skills、pi Packages、项目 Agent 指引、审批与网络策略

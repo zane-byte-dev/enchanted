@@ -22,8 +22,12 @@
 - [x] `AgentBackend` 抽象 + `PiConnector`（流式文本/thinking/tool/恢复/stats）
 - [x] 技能管理页（`get_commands` → `PiSkill` → `SkillsMacOS`）
 - [x] 真实模型列表（`get_available_models` → `PiModelDescriptor`）+ 模型选择
+- [x] Composer `/` 命令面板与任务状态卡（会话 ID、上下文/token/费用）
 - [x] 内嵌终端面板（SwiftTerm PTY，VS Code 风格）
 - [x] 右侧工具侧边栏（可拖拽宽度）
+- [x] 项目对话列表默认 5 条 + 剩余对话展开/收起
+- [x] 项目按组/单列表视图 + 优先级/最近/拖拽手动排序，同项目内对话拖拽排序
+- [x] 项目文件侧栏：内容/目录双栏、懒加载目录树、隐藏文件开关、文本/Quick Look 预览与 Finder 操作
 - [x] Git worktree + 项目文件夹菜单（对齐 Codex）
 - [x] 快捷键自定义（录制/冲突/恢复默认）+ 第一批聊天快捷键
 - [x] 任务完成通知（`NotificationService`）

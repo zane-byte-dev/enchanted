@@ -104,6 +104,20 @@ enum AgentEvent {
   到达该边界后，客户端 Queue 才会安全启动下一条普通 turn 和新的事件流。
 - Changes 侧栏读取 Git status/numstat/diff，并提供打开文件、Stage、Unstage；Discard 必须二次
   确认，未跟踪文件删除前还会校验规范化路径没有逃出仓库根目录。
+- Files 侧栏以当前任务 cwd 为边界，目录展开时异步懒加载（单层上限 2,000 项）；规范化路径
+  必须位于项目根目录内，符号链接不作为目录继续遍历。选中文件在主工作区展示，右侧目录树保持
+  可见；UTF-8 小文件直接预览，其他格式交给 Quick Look。
+- 项目由对话 cwd 派生；`ProjectStore` 在 UserDefaults 中保存显示名称、置顶、导航视图、排序方式、
+  项目手动顺序和项目内对话手动顺序。按项目视图默认仅取排序后的前 5 个对话；当前选中项在隐藏区
+  时会替换第五项，但不会撑开整组。对话行只展示标题和状态，时间、项目与分支统一放入悬停信息卡。
+  项目与同项目内对话均可拖入
+  目标行上半/下半决定前后位置，顺序会持久化；对话不能跨项目拖动，避免改变工作目录语义。
+- “优先级”排序依次比较等待确认/选择、后台完成未读、手动置顶、运行中和更新时间；项目使用内部
+  对话的最高注意力等级参与排序。打开对话清除未读，响应 UI request 后等待输入状态自动消失。
+- 对话行选中态只保留背景，悬停时显示置顶、归档操作；持续悬停后异步读取 Git 分支并在右侧信息卡
+  展示完整标题、相对更新时间、项目与分支，Git 检查不阻塞侧栏渲染。
+- 消息列表左侧轨道只操作本地 `ScrollViewProxy`，不会切换会话、取消 connector 或停止 run。点击旧轮次
+  或滚离底部后暂停自动跟随流式尾部，agent 继续运行；滚回底部后自动恢复跟随。
 - 每次任务结束后比较本地 SwiftData 与 pi `get_fork_messages` 返回的 user turn 序列；
   pi active branch 是 agent 上下文、entry id、工具轨迹和分支图的权威，SwiftData 是显示投影并
   独立持有草稿、Plan、评审意见等 UI 元数据。发现 drift 后阻止普通发送并暂停 Queue/Goal 自动
@@ -114,6 +128,12 @@ enum AgentEvent {
   仅高风险或所有变更；严格档会确认 bash/write/edit 及第三方非只读工具。常见网络命令另有
   allow/ask/block 策略。确认通过 `extension_ui_request` / `extension_ui_response` 在输入区完成。
   这仍是 Enchanted 策略层，不是 pi 原生权限系统，也不等价于进程级网络沙盒。
+- Composer 将模型与推理强度收进同一个分层菜单；前者由 `PiConnector` 在 prompt 前发送
+  `set_model`，后者读取 `piThinkingLevel` 并发送 `set_thinking_level`。pi RPC 未提供速度档位，
+  因此 UI 不展示无效的速度选项。
+- `/` 面板的模型与推理项进入原地二级列表；状态、压缩、副任务、任务 fork 和目标直接调用现有
+  Store 能力。状态卡只展示 `get_session_stats` 与本地任务模型中的真实数据；pi RPC 没有账号级
+  速率/配额接口时明确标记未提供，不推算或伪造额度。
 - 同一个运行时 extension 注册 `update_plan` 工具；`PiConnector` 将调用转换为 `planUpdate`，
   `ConversationStore` 把快照独立写入 `ConversationSD.planJSON`，因此不膨胀消息 blocks，并能随分支
   和删除 Undo 保留。Plan 面板持续展示完成数、进行中与待办步骤。
