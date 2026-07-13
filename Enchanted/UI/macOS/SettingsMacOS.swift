@@ -956,25 +956,29 @@ private struct PiSettingsPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HStack(alignment: .firstTextBaseline) {
-                    paneTitle("Pi")
-                    Spacer()
-                    connectionStatus
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline) {
+                        paneTitle("Pi")
+                        Spacer()
+                        connectionStatus
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        paneTitle("Pi")
+                        connectionStatus
+                    }
                 }
 
                 settingsGroup("运行环境") {
                     row("可执行文件") {
-                        HStack(spacing: 8) {
-                            TextField("/path/to/pi", text: $executable)
-                                .textFieldStyle(.roundedBorder)
-                                .disableAutocorrection(true)
-                                .disabled(executableIsOverridden)
-                            Button("选择…", action: chooseExecutable)
-                                .buttonStyle(.bordered)
-                                .disabled(executableIsOverridden)
-                            Button("自动检测", action: detectExecutable)
-                                .buttonStyle(.bordered)
-                                .disabled(executableIsOverridden)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 8) {
+                                executableField
+                                executableButtons
+                            }
+                            VStack(alignment: .leading, spacing: 8) {
+                                executableField
+                                executableButtons
+                            }
                         }
                     }
                     if executableIsOverridden {
@@ -992,14 +996,15 @@ private struct PiSettingsPane: View {
                     settingsDivider
 
                     row("默认工作目录") {
-                        HStack(spacing: 8) {
-                            TextField("选择新对话使用的项目目录", text: $workingDirectory)
-                                .textFieldStyle(.roundedBorder)
-                                .disableAutocorrection(true)
-                                .disabled(workingDirectoryIsOverridden)
-                            Button("选择…", action: chooseWorkingDirectory)
-                                .buttonStyle(.bordered)
-                                .disabled(workingDirectoryIsOverridden)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 8) {
+                                workingDirectoryField
+                                workingDirectoryButton
+                            }
+                            VStack(alignment: .leading, spacing: 8) {
+                                workingDirectoryField
+                                workingDirectoryButton
+                            }
                         }
                     }
                     if workingDirectoryIsOverridden {
@@ -1008,26 +1013,16 @@ private struct PiSettingsPane: View {
 
                     settingsDivider
 
-                    HStack(spacing: 10) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("连接测试")
-                                .font(.system(size: 13))
-                            Text("启动临时 RPC 进程并读取可用模型，不会修改当前会话。")
-                                .font(.system(size: 11))
-                                .foregroundColor(CodexTheme.mutedText)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 10) {
+                            connectionTestDescription
+                            Spacer()
+                            connectionTestButton
                         }
-                        Spacer()
-                        Button(action: checkConnection) {
-                            HStack(spacing: 6) {
-                                if isChecking {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                }
-                                Text(isChecking ? "正在检测…" : "检测连接")
-                            }
+                        VStack(alignment: .leading, spacing: 10) {
+                            connectionTestDescription
+                            connectionTestButton
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isChecking)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
@@ -1080,7 +1075,7 @@ private struct PiSettingsPane: View {
                         }
                         .labelsHidden()
                         .pickerStyle(.segmented)
-                        .frame(width: 390)
+                        .frame(maxWidth: 390)
                     }
                     settingsDivider
                     row("自动压缩上下文") {
@@ -1100,7 +1095,7 @@ private struct PiSettingsPane: View {
                             Text("所有变更操作").tag("mutations")
                         }
                         .pickerStyle(.segmented)
-                        .frame(width: 390)
+                        .frame(maxWidth: 390)
                         .onChange(of: approvalMode) { _, _ in
                             AgentBackendConfig.reconfigure()
                         }
@@ -1113,7 +1108,7 @@ private struct PiSettingsPane: View {
                             Text("阻止").tag("block")
                         }
                         .pickerStyle(.segmented)
-                        .frame(width: 390)
+                        .frame(maxWidth: 390)
                         .onChange(of: networkPolicy) { _, _ in
                                 AgentBackendConfig.reconfigure()
                         }
@@ -1121,24 +1116,16 @@ private struct PiSettingsPane: View {
                 }
 
                 settingsGroup("自定义 Provider") {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Pi models.json")
-                                .font(.system(size: 13, weight: .medium))
-                            Text(AgentBackendConfig.piModelsConfigURL.path)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundColor(CodexTheme.mutedText)
-                                .lineLimit(1)
-                            Text("可配置 baseUrl、API 类型、环境变量密钥引用和模型列表。")
-                                .font(.system(size: 11))
-                                .foregroundColor(CodexTheme.mutedText)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 12) {
+                            modelsConfigDescription
+                            Spacer()
+                            modelsConfigButtons
                         }
-                        Spacer()
-                        Button("打开配置文件", action: openModelsConfig)
-                            .buttonStyle(.bordered)
-                        Button("重新加载", action: checkConnection)
-                            .buttonStyle(.bordered)
-                            .disabled(isChecking)
+                        VStack(alignment: .leading, spacing: 10) {
+                            modelsConfigDescription
+                            modelsConfigButtons
+                        }
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
@@ -1157,6 +1144,8 @@ private struct PiSettingsPane: View {
                 }
             }
             .padding(28)
+            .frame(maxWidth: 820, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .onChange(of: availableProviderIDs, initial: true) { _, providers in
             guard !providers.isEmpty else { return }
@@ -1167,6 +1156,86 @@ private struct PiSettingsPane: View {
         }
         .onChange(of: defaultProvider) { _, _ in
             selectFirstModelIfNeeded(force: true)
+        }
+    }
+
+    private var modelsConfigDescription: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Pi models.json")
+                .font(.system(size: 13, weight: .medium))
+            Text(AgentBackendConfig.piModelsConfigURL.path)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(CodexTheme.mutedText)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Text("可配置 baseUrl、API 类型、环境变量密钥引用和模型列表。")
+                .font(.system(size: 11))
+                .foregroundColor(CodexTheme.mutedText)
+        }
+    }
+
+    private var executableField: some View {
+        TextField("/path/to/pi", text: $executable)
+            .textFieldStyle(.roundedBorder)
+            .disableAutocorrection(true)
+            .disabled(executableIsOverridden)
+    }
+
+    private var executableButtons: some View {
+        HStack(spacing: 8) {
+            Button("选择…", action: chooseExecutable)
+                .buttonStyle(.bordered)
+                .disabled(executableIsOverridden)
+            Button("自动检测", action: detectExecutable)
+                .buttonStyle(.bordered)
+                .disabled(executableIsOverridden)
+        }
+    }
+
+    private var workingDirectoryField: some View {
+        TextField("选择新对话使用的项目目录", text: $workingDirectory)
+            .textFieldStyle(.roundedBorder)
+            .disableAutocorrection(true)
+            .disabled(workingDirectoryIsOverridden)
+    }
+
+    private var workingDirectoryButton: some View {
+        Button("选择…", action: chooseWorkingDirectory)
+            .buttonStyle(.bordered)
+            .disabled(workingDirectoryIsOverridden)
+    }
+
+    private var connectionTestDescription: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("连接测试")
+                .font(.system(size: 13))
+            Text("启动临时 RPC 进程并读取可用模型，不会修改当前会话。")
+                .font(.system(size: 11))
+                .foregroundColor(CodexTheme.mutedText)
+        }
+    }
+
+    private var connectionTestButton: some View {
+        Button(action: checkConnection) {
+            HStack(spacing: 6) {
+                if isChecking {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Text(isChecking ? "正在检测…" : "检测连接")
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(isChecking)
+    }
+
+    private var modelsConfigButtons: some View {
+        HStack(spacing: 8) {
+            Button("打开配置文件", action: openModelsConfig)
+                .buttonStyle(.bordered)
+            Button("重新加载", action: checkConnection)
+                .buttonStyle(.bordered)
+                .disabled(isChecking)
         }
     }
 
@@ -2442,13 +2511,22 @@ private var settingsDivider: some View {
 }
 
 private func row<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-    HStack {
-        Text(localizedSettingsString(label))
-            .font(.system(size: 13))
-            .foregroundColor(CodexTheme.primaryText.opacity(0.86))
-            .frame(width: 130, alignment: .leading)
-        Spacer()
-        content()
+    ViewThatFits(in: .horizontal) {
+        HStack {
+            Text(localizedSettingsString(label))
+                .font(.system(size: 13))
+                .foregroundColor(CodexTheme.primaryText.opacity(0.86))
+                .frame(width: 130, alignment: .leading)
+            Spacer()
+            content()
+        }
+        VStack(alignment: .leading, spacing: 8) {
+            Text(localizedSettingsString(label))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(CodexTheme.primaryText.opacity(0.86))
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 12)
@@ -2459,20 +2537,31 @@ private func row<Content: View>(
     detail: String,
     @ViewBuilder content: () -> Content
 ) -> some View {
-    HStack(spacing: 16) {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(localizedSettingsString(label))
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(CodexTheme.primaryText)
-            Text(localizedSettingsString(detail))
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+    ViewThatFits(in: .horizontal) {
+        HStack(spacing: 16) {
+            settingsRowLabel(label, detail: detail)
+            Spacer()
+            content()
         }
-        Spacer()
-        content()
+        VStack(alignment: .leading, spacing: 8) {
+            settingsRowLabel(label, detail: detail)
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 12)
+}
+
+private func settingsRowLabel(_ label: String, detail: String) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+        Text(localizedSettingsString(label))
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(CodexTheme.primaryText)
+        Text(localizedSettingsString(detail))
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+    }
 }
 
 private func localizedSettingsString(_ key: String) -> String {

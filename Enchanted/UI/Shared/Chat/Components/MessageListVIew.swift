@@ -560,7 +560,7 @@ private struct TurnNavigatorRail: View {
     let onSelect: (MessageListView.TurnPreview) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(turns) { turn in
                 let isHovered = turn.id == hoveredTurnID
                 let isActive = turn.id == activeTurnID
@@ -570,11 +570,11 @@ private struct TurnNavigatorRail: View {
                     Capsule(style: .continuous)
                         .fill(
                             isActive
-                                ? Color.primary.opacity(0.88)
-                                : (isHovered ? Color.primary.opacity(0.5) : CodexTheme.border.opacity(0.72))
+                                ? Color.primary.opacity(0.55)
+                                : (isHovered ? Color.primary.opacity(0.42) : Color.primary.opacity(0.18))
                         )
-                        .frame(width: isActive ? 48 : (isHovered ? 30 : 11), height: isActive ? 4 : 3)
-                        .frame(width: 52, height: 9, alignment: .leading)
+                        .frame(width: isHovered ? 26 : 6, height: 2)
+                        .frame(width: 32, height: 10, alignment: .leading)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -591,7 +591,7 @@ private struct TurnNavigatorRail: View {
                 .overlay(alignment: .leading) {
                     if isHovered {
                         TurnPreviewCard(turn: turn)
-                            .offset(x: 64)
+                            .offset(x: 36)
                             .transition(.opacity.combined(with: .scale(scale: 0.985, anchor: .leading)))
                             .allowsHitTesting(false)
                             .zIndex(3)
@@ -601,6 +601,7 @@ private struct TurnNavigatorRail: View {
                 .accessibilityLabel("Jump to: \(turn.userMessage.content)")
             }
         }
+        .padding(.leading, 3)
         .padding(.vertical, 10)
         .animation(.easeOut(duration: 0.12), value: hoveredTurnID)
         .frame(maxHeight: 360)
@@ -609,6 +610,17 @@ private struct TurnNavigatorRail: View {
 
 private struct TurnPreviewCard: View {
     let turn: MessageListView.TurnPreview
+
+    private var artifactPaths: [String] {
+        guard let response = turn.response else { return [] }
+        var seen = Set<String>()
+        return response.renderBlocks.compactMap { block in
+            guard case .tool(let tool) = block,
+                  let path = tool.artifactPath,
+                  seen.insert(path).inserted else { return nil }
+            return path
+        }
+    }
 
     private func summary(_ text: String, limit: Int) -> String {
         let collapsed = text
@@ -619,14 +631,14 @@ private struct TurnPreviewCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(summary(turn.userMessage.content, limit: 72))
-                .font(.system(size: 15, weight: .semibold))
+        VStack(alignment: .leading, spacing: 8) {
+            Text(summary(turn.userMessage.content, limit: 64))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(CodexTheme.primaryText)
                 .lineLimit(2)
 
             if let response = turn.response {
-                Text(summary(response.realContent ?? response.content, limit: 150))
+                Text(summary(response.realContent ?? response.content, limit: 135))
                     .font(.system(size: 13))
                     .foregroundStyle(CodexTheme.mutedText)
                     .lineLimit(3)
@@ -635,19 +647,41 @@ private struct TurnPreviewCard: View {
                     .font(.system(size: 13))
                     .foregroundStyle(CodexTheme.faintText)
             }
+
+            if !artifactPaths.isEmpty {
+                HStack(spacing: 14) {
+                    ForEach(Array(artifactPaths.prefix(2)), id: \.self) { path in
+                        HStack(spacing: 6) {
+                            Image(systemName: "doc.text")
+                                .font(.system(size: 12))
+                            Text(URL(fileURLWithPath: path).lastPathComponent)
+                                .lineLimit(1)
+                        }
+                        .font(.system(size: 12))
+                        .foregroundStyle(CodexTheme.mutedText)
+                        .frame(maxWidth: 118, alignment: .leading)
+                    }
+                    if artifactPaths.count > 2 {
+                        Text("+\(artifactPaths.count - 2)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(CodexTheme.mutedText)
+                    }
+                }
+                .padding(.top, 1)
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(width: 420, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .frame(width: 320, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.regularMaterial)
+                .fill(CodexTheme.surface.opacity(0.97))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(CodexTheme.border, lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.13), radius: 22, x: 0, y: 10)
+        .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 5)
     }
 }
 #endif

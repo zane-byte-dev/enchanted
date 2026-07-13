@@ -14,6 +14,7 @@ final class CoreWorkflowTests: XCTestCase {
 
         store.setNavigationLayout(.flat)
         store.setSortOrder(.manual, currentPaths: ["/a", "/b", "/c"])
+        store.registerProject("/empty")
         store.moveProject("/c", relativeTo: "/b", placeAfter: false, currentPaths: ["/a", "/b", "/c"])
         let first = UUID()
         let second = UUID()
@@ -29,6 +30,7 @@ final class CoreWorkflowTests: XCTestCase {
         XCTAssertEqual(store.navigationLayout, .flat)
         XCTAssertEqual(store.sortOrder, .manual)
         XCTAssertEqual(store.manualProjectPaths, ["/a", "/c", "/b"])
+        XCTAssertEqual(store.addedProjectPaths, ["/empty"])
         XCTAssertEqual(store.manualConversationRank(third, in: "/a"), 0)
         XCTAssertEqual(store.manualConversationRank(first, in: "/a"), 1)
 
@@ -36,6 +38,7 @@ final class CoreWorkflowTests: XCTestCase {
         XCTAssertEqual(restored.navigationLayout, .flat)
         XCTAssertEqual(restored.sortOrder, .manual)
         XCTAssertEqual(restored.manualProjectPaths, ["/a", "/c", "/b"])
+        XCTAssertEqual(restored.addedProjectPaths, ["/empty"])
         XCTAssertEqual(restored.manualConversationRank(third, in: "/a"), 0)
         XCTAssertEqual(restored.manualConversationRank(first, in: "/a"), 1)
     }

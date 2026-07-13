@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import UniformTypeIdentifiers
 #if os(macOS)
 import AppKit
 #endif
@@ -102,7 +101,6 @@ struct ConversationHistoryList: View {
     @State private var expandedConversationProjects: Set<String> = []
     @State private var projectDropTarget: String?
     @State private var conversationDropTarget: UUID?
-    @State private var draggedConversationID: UUID?
     @State private var renamingConversation: ConversationSD?
     @State private var renameText: String = ""
     @State private var projectStore = ProjectStore.shared
@@ -130,6 +128,47 @@ struct ConversationHistoryList: View {
     private func revealInFinder(path: String) {
 #if os(macOS)
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+#endif
+    }
+
+    private func openProject(_ path: String) {
+        projectStore.registerProject(path)
+        onNewConversationInProject(path)
+    }
+
+    private func useExistingProject() {
+#if os(macOS)
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = true
+        panel.prompt = "使用文件夹"
+        panel.message = "选择一个现有文件夹作为项目"
+        panel.directoryURL = URL(fileURLWithPath: WorkspaceStore.shared.currentDirectory)
+        if panel.runModal() == .OK, let url = panel.url {
+            openProject(url.standardizedFileURL.path)
+        }
+#endif
+    }
+
+    private func createBlankProject() {
+#if os(macOS)
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.prompt = "创建"
+        panel.title = "新建空白项目"
+        panel.nameFieldLabel = "项目名称："
+        panel.nameFieldStringValue = "未命名项目"
+        panel.message = "选择位置并输入项目名称"
+        panel.directoryURL = URL(fileURLWithPath: WorkspaceStore.shared.currentDirectory)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            openProject(url.standardizedFileURL.path)
+        } catch {
+            AppStore.shared.uiLog(message: "创建项目失败：\(error.localizedDescription)", status: .error)
+        }
 #endif
     }
 
@@ -182,7 +221,9 @@ struct ConversationHistoryList: View {
         let grouped = Dictionary(grouping: conversations) { conversation in
             conversation.workingDirectory ?? WorkspaceStore.shared.currentDirectory
         }
-        return grouped.map { (path, convs) in
+        let paths = Set(grouped.keys).union(projectStore.addedProjectPaths)
+        return paths.map { path in
+            let convs = grouped[path] ?? []
             let sorted = convs.sorted {
                 if projectStore.sortOrder == .priority {
                     let lhsPriority = conversationPriority($0)
@@ -270,6 +311,7 @@ struct ConversationHistoryList: View {
     }
 
     @State private var hoveredProject: String?
+    @State private var hoveredProjectHeader = false
     @State private var archivedCollapsed = true
     @State private var hoveredConversation: UUID?
     @State private var conversationInfoPopover: UUID?
@@ -335,6 +377,10 @@ struct ConversationHistoryList: View {
                 isSelected: isSelected
             ))
             .onHover { updateConversationHover(conversation.id, hovering: $0) }
+            .modifier(ConversationDragSourceModifier(
+                enabled: reorderProjectPath != nil,
+                conversation: conversation
+            ))
 
             if showsActions {
                 HStack(spacing: 1) {
@@ -363,19 +409,6 @@ struct ConversationHistoryList: View {
                         .help("归档")
                     }
 
-                    if reorderProjectPath != nil, hoveredConversation == conversation.id {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(CodexTheme.faintText)
-                            .frame(width: 20, height: 24)
-                            .contentShape(Rectangle())
-                            .modifier(ConversationDragSourceModifier(
-                                enabled: true,
-                                conversation: conversation,
-                                draggedConversationID: $draggedConversationID
-                            ))
-                            .help("拖拽调整对话顺序")
-                    }
                 }
                 .padding(.trailing, 8)
                 .padding(.leading, 4)
@@ -462,50 +495,75 @@ struct ConversationHistoryList: View {
             conversation: conversation,
             projectPath: reorderProjectPath ?? "",
             currentIDs: currentProjectConversationIDs,
-            dropTarget: $conversationDropTarget,
-            draggedConversationID: $draggedConversationID
+            currentProjectPaths: projectGroups.map(\.path),
+            dropTarget: $conversationDropTarget
         ))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack {
-                Text(projectStore.navigationLayout == .grouped ? "PROJECTS" : "CHATS")
+                Text(projectStore.navigationLayout == .grouped ? "项目" : "任务")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(CodexTheme.mutedText)
                 Spacer()
-                Menu {
-                    Section("整理") {
-                        Button {
-                            projectStore.setNavigationLayout(.grouped)
+                if hoveredProjectHeader {
+                    HStack(spacing: 0) {
+                        Menu {
+                            Section("整理") {
+                                Button {
+                                    projectStore.setNavigationLayout(.grouped)
+                                } label: {
+                                    Label("按项目", systemImage: projectStore.navigationLayout == .grouped ? "checkmark" : "folder")
+                                }
+                                Button {
+                                    projectStore.setNavigationLayout(.flat)
+                                } label: {
+                                    Label("在一个列表中", systemImage: projectStore.navigationLayout == .flat ? "checkmark" : "list.bullet")
+                                }
+                            }
+                            Section("排序方式") {
+                                sortButton("优先级", order: .priority)
+                                sortButton("最近更新", order: .recent)
+                                sortButton("手动排序", order: .manual)
+                            }
                         } label: {
-                            Label("按项目", systemImage: projectStore.navigationLayout == .grouped ? "checkmark" : "folder")
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 11, weight: .semibold))
+                                .frame(width: 18, height: 18)
+                                .contentShape(Rectangle())
                         }
-                        Button {
-                            projectStore.setNavigationLayout(.flat)
+                        .help("项目视图与排序")
+
+                        Menu {
+                            Button(action: createBlankProject) {
+                                Label("新建空白项目", systemImage: "plus")
+                            }
+                            Button(action: useExistingProject) {
+                                Label("使用现有文件夹", systemImage: "folder")
+                            }
                         } label: {
-                            Label("在一个列表中", systemImage: projectStore.navigationLayout == .flat ? "checkmark" : "list.bullet")
+                            Image(systemName: "plus")
+                                .font(.system(size: 13, weight: .medium))
+                                .frame(width: 18, height: 18)
+                                .contentShape(Rectangle())
                         }
+                        .help("添加项目")
                     }
-                    Section("排序方式") {
-                        sortButton("优先级", order: .priority)
-                        sortButton("最近更新", order: .recent)
-                        sortButton("手动排序", order: .manual)
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: 20, height: 18)
-                        .contentShape(Rectangle())
+                    .frame(width: 36, alignment: .trailing)
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .transition(.opacity)
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help("项目视图与排序")
             }
             .padding(.horizontal, 8)
             .padding(.top, 4)
             .padding(.bottom, 4)
+            .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading)
+            .contentShape(Rectangle())
+            .onHover { hoveredProjectHeader = $0 }
+            .animation(.easeOut(duration: 0.1), value: hoveredProjectHeader)
 
             if projectStore.navigationLayout == .grouped {
             ForEach(projectGroups) { group in
@@ -519,7 +577,9 @@ struct ConversationHistoryList: View {
                     }
                 }) {
                     HStack(spacing: 8) {
-                        Image(systemName: projectStore.isPinned(group.path) ? "pin.fill" : "folder")
+                        Image(systemName: projectStore.isPinned(group.path)
+                            ? "pin.fill"
+                            : (hoveredProject == group.path ? "folder.fill" : "folder"))
                             .font(.system(size: 13))
                             .frame(width: 16, height: 16)
                             .foregroundColor(CodexTheme.mutedText)
@@ -554,16 +614,14 @@ struct ConversationHistoryList: View {
                                 .fixedSize()
                             }
                             .frame(width: 36)
-                        } else {
-                            Image(systemName: isCollapsed ? "chevron.forward" : "chevron.down")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(CodexTheme.faintText)
-                                .frame(width: 36, alignment: .trailing)
                         }
                     }
                 }
                 .buttonStyle(SidebarRowStyle())
-                .help(projectStore.sortOrder == .manual ? "\(group.path)\n拖拽调整项目顺序" : group.path)
+                .help(projectStore.sortOrder == .manual
+                    ? "\(group.path)\n点击折叠或展开；拖拽调整项目顺序"
+                    : "\(group.path)\n点击折叠或展开")
+                .accessibilityValue(isCollapsed ? "已折叠" : "已展开")
                 .onHover { hovering in
                     if hovering {
                         hoveredProject = group.path
@@ -657,6 +715,7 @@ struct ConversationHistoryList: View {
                         Image(systemName: archivedCollapsed ? "chevron.forward" : "chevron.down")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(CodexTheme.faintText)
+                            .frame(width: 18, height: 18)
                     }
                 }
                 .buttonStyle(SidebarRowStyle())
@@ -800,24 +859,40 @@ private struct ProjectReorderModifier: ViewModifier {
 }
 
 private struct ConversationReorderModifier: ViewModifier {
+    private static let payloadPrefix = "mox-conversation:"
     let enabled: Bool
     let conversation: ConversationSD
     let projectPath: String
     let currentIDs: [UUID]
+    let currentProjectPaths: [String]
     @Binding var dropTarget: UUID?
-    @Binding var draggedConversationID: UUID?
+    @State private var projectStore = ProjectStore.shared
 
     @ViewBuilder
     func body(content: Content) -> some View {
         if enabled {
             content
-                .onDrop(of: [UTType.text], delegate: ConversationDropDelegate(
-                    targetID: conversation.id,
-                    projectPath: projectPath,
-                    currentIDs: currentIDs,
-                    draggedConversationID: $draggedConversationID,
-                    dropTarget: $dropTarget
-                ))
+                .dropDestination(for: String.self) { items, location in
+                    guard let payload = items.first,
+                          payload.hasPrefix(Self.payloadPrefix),
+                          let sourceID = UUID(uuidString: String(payload.dropFirst(Self.payloadPrefix.count))),
+                          sourceID != conversation.id,
+                          currentIDs.contains(sourceID) else { return false }
+                    if projectStore.sortOrder != .manual {
+                        projectStore.setSortOrder(.manual, currentPaths: currentProjectPaths)
+                    }
+                    projectStore.moveConversation(
+                        sourceID,
+                        relativeTo: conversation.id,
+                        placeAfter: location.y > 13,
+                        in: projectPath,
+                        currentIDs: currentIDs
+                    )
+                    dropTarget = nil
+                    return true
+                } isTargeted: { targeted in
+                    dropTarget = targeted ? conversation.id : (dropTarget == conversation.id ? nil : dropTarget)
+                }
                 .overlay {
                     RoundedRectangle(cornerRadius: 7)
                         .strokeBorder(dropTarget == conversation.id ? Color.accentColor : Color.clear, lineWidth: 1)
@@ -833,17 +908,21 @@ private struct ConversationReorderModifier: ViewModifier {
 }
 
 private struct ConversationDragSourceModifier: ViewModifier {
+    private static let payloadPrefix = "mox-conversation:"
     let enabled: Bool
     let conversation: ConversationSD
-    @Binding var draggedConversationID: UUID?
 
     @ViewBuilder
     func body(content: Content) -> some View {
         if enabled {
             content
-                .onDrag {
-                    draggedConversationID = conversation.id
-                    return NSItemProvider(object: conversation.id.uuidString as NSString)
+                .draggable(Self.payloadPrefix + conversation.id.uuidString) {
+                    Text(conversation.name)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(CodexTheme.surface, in: RoundedRectangle(cornerRadius: 7))
                 }
         } else {
             content
@@ -910,44 +989,6 @@ private struct ConversationInfoPopover: View {
         .presentationCompactAdaptation(.popover)
     }
 }
-
-private struct ConversationDropDelegate: DropDelegate {
-    let targetID: UUID
-    let projectPath: String
-    let currentIDs: [UUID]
-    let draggedConversationID: Binding<UUID?>
-    let dropTarget: Binding<UUID?>
-
-    func validateDrop(info: DropInfo) -> Bool {
-        guard let sourceID = draggedConversationID.wrappedValue else { return false }
-        return sourceID != targetID && currentIDs.contains(sourceID)
-    }
-
-    func dropEntered(info: DropInfo) {
-        guard let sourceID = draggedConversationID.wrappedValue,
-              sourceID != targetID,
-              currentIDs.contains(sourceID) else { return }
-        dropTarget.wrappedValue = targetID
-        ProjectStore.shared.moveConversation(
-            sourceID,
-            relativeTo: targetID,
-            placeAfter: info.location.y > 13,
-            in: projectPath,
-            currentIDs: currentIDs
-        )
-    }
-
-    func dropExited(info: DropInfo) {
-        if dropTarget.wrappedValue == targetID { dropTarget.wrappedValue = nil }
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        dropTarget.wrappedValue = nil
-        draggedConversationID.wrappedValue = nil
-        return true
-    }
-}
-
 
 #Preview {
     ConversationHistoryList(selectedConversation: ConversationSD.sample[0], conversations: ConversationSD.sample, onTap: {_ in}, onDelete: {_ in}, onDeleteDailyConversations: {_ in})

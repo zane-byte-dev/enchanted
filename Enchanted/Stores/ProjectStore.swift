@@ -31,6 +31,7 @@ final class ProjectStore {
     private static let sortKey = "projectSortOrder"
     private static let manualOrderKey = "manualProjectPaths"
     private static let conversationOrderKey = "manualConversationIDsByProject"
+    private static let addedPathsKey = "addedProjectPaths"
 
     private let defaults: UserDefaults
 
@@ -42,6 +43,7 @@ final class ProjectStore {
     private(set) var sortOrder: ProjectSortOrder
     private(set) var manualProjectPaths: [String]
     private(set) var manualConversationIDsByProject: [String: [String]]
+    private(set) var addedProjectPaths: [String]
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -51,6 +53,7 @@ final class ProjectStore {
         sortOrder = ProjectSortOrder(rawValue: defaults.string(forKey: Self.sortKey) ?? "") ?? .priority
         manualProjectPaths = defaults.stringArray(forKey: Self.manualOrderKey) ?? []
         manualConversationIDsByProject = defaults.dictionary(forKey: Self.conversationOrderKey) as? [String: [String]] ?? [:]
+        addedProjectPaths = defaults.stringArray(forKey: Self.addedPathsKey) ?? []
     }
 
     // MARK: - Pin
@@ -87,6 +90,12 @@ final class ProjectStore {
     }
 
     // MARK: - Navigation layout and ordering
+
+    func registerProject(_ path: String) {
+        guard !path.isEmpty, !addedProjectPaths.contains(path) else { return }
+        addedProjectPaths.append(path)
+        defaults.set(addedProjectPaths, forKey: Self.addedPathsKey)
+    }
 
     func setNavigationLayout(_ layout: ProjectNavigationLayout) {
         navigationLayout = layout
@@ -158,9 +167,11 @@ final class ProjectStore {
         displayNames[path] = nil
         manualProjectPaths.removeAll { $0 == path }
         manualConversationIDsByProject[path] = nil
+        addedProjectPaths.removeAll { $0 == path }
         defaults.set(Array(pinnedPaths), forKey: Self.pinnedKey)
         defaults.set(displayNames, forKey: Self.namesKey)
         defaults.set(manualProjectPaths, forKey: Self.manualOrderKey)
         defaults.set(manualConversationIDsByProject, forKey: Self.conversationOrderKey)
+        defaults.set(addedProjectPaths, forKey: Self.addedPathsKey)
     }
 }

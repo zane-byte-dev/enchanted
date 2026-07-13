@@ -75,34 +75,42 @@ struct SidebarView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Top actions
-            VStack(spacing: 2) {
-                SidebarButton(title: String(localized: "New Chat"), image: "square.and.pencil", shortcutCommandID: "newChat", onClick: onNewConversation)
-
-                SidebarButton(title: String(localized: "Search"), image: "magnifyingglass", shortcutCommandID: "searchChats") {
-#if os(macOS) || os(visionOS)
-                    AppStore.shared.showConversationSearch = true
-#else
-                    showSearch = true
-#endif
-                }
-
-#if os(macOS)
-                SidebarButton(title: "技能", image: "puzzlepiece.extension", onClick: onSkillsTap)
-                    .padding(.top, 2)
-#endif
-            }
+            // Keep the primary action visible while navigation content scrolls.
+            SidebarButton(
+                title: String(localized: "New Chat"),
+                image: "square.and.pencil",
+                shortcutCommandID: "newChat",
+                onClick: onNewConversation
+            )
             .padding(.bottom, 8)
 
-            ScrollView() {
-                ConversationHistoryList(
-                    selectedConversation: selectedConversation,
-                    conversations: conversations,
-                    onTap: onConversationTap,
-                    onDelete: onConversationDelete,
-                    onDeleteDailyConversations: onDeleteDailyConversations,
-                    onNewConversationInProject: onNewConversationInProject
-                )
+            ScrollView {
+                VStack(spacing: 0) {
+                    VStack(spacing: 2) {
+                        SidebarButton(title: String(localized: "Search"), image: "magnifyingglass", shortcutCommandID: "searchChats") {
+#if os(macOS) || os(visionOS)
+                            AppStore.shared.showConversationSearch = true
+#else
+                            showSearch = true
+#endif
+                        }
+
+#if os(macOS)
+                        SidebarButton(title: "技能", image: "puzzlepiece.extension", onClick: onSkillsTap)
+                            .padding(.top, 2)
+#endif
+                    }
+                    .padding(.bottom, 8)
+
+                    ConversationHistoryList(
+                        selectedConversation: selectedConversation,
+                        conversations: conversations,
+                        onTap: onConversationTap,
+                        onDelete: onConversationDelete,
+                        onDeleteDailyConversations: onDeleteDailyConversations,
+                        onNewConversationInProject: onNewConversationInProject
+                    )
+                }
             }
             .scrollIndicators(.never)
             
